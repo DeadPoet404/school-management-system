@@ -1,0 +1,62 @@
+[
+  {
+    "id": "STF-2026-001",
+    "staffId": "STF-2026-001",
+    "staffName": "Kwame Mensah",
+    "role": "Senior Lecturer",
+    "department": "Computer Science",
+    "status": "Active",
+    "attendanceRate": 98,
+    "performanceRating": 4.8,
+    "workloadHours": 18,
+    "yearsOfService": 6,
+    "email": "k.mensah@ucc.edu.gh",
+    "phone": "+233 24 123 4567",
+    "salaryBalance": 0.00
+  },
+  {
+    "id": "STF-2026-002",
+    "staffId": "STF-2026-002",
+    "staffName": "Abena Osei",
+    "role": "Assistant Lecturer",
+    "department": "Mathematics & Statistics",
+    "status": "Active",
+    "attendanceRate": 94,
+    "performanceRating": 4.2,
+    "workloadHours": 16,
+    "yearsOfService": 2,
+    "email": "a.osei@ucc.edu.gh",
+    "phone": "+233 27 987 6543",
+    "salaryBalance": 1250.00
+  },
+  {
+    "id": "STF-2026-003",
+    "staffId": "STF-2026-003",
+    "staffName": "Emmanuel Boateng",
+    "role": "Lab Technician",
+    "department": "Computer Science",
+    "status": "On Leave",
+    "attendanceRate": 88,
+    "performanceRating": 3.9,
+    "workloadHours": 8,
+    "yearsOfService": 4,
+    "email": "e.boateng@ucc.edu.gh",
+    "phone": "+233 55 432 1098",
+    "salaryBalance": 0.00
+  },
+  {
+    "id": "STF-2026-004",
+    "staffId": "STF-2026-004",
+    "staffName": "Sitsofe Akoto",
+    "role": "Department Secretary",
+    "department": "Information Technology",
+    "status": "Active",
+    "attendanceRate": 100,
+    "performanceRating": 4.9,
+    "workloadHours": 40,
+    "yearsOfService": 8,
+    "email": "s.akoto@ucc.edu.gh",
+    "phone": "+233 20 555 0192",
+    "salaryBalance": 0.00
+  }
+]

@@ -1,0 +1,457 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ── STRICT TYPE ENUMERATIONS ──
+enum EntityStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  DEPARTED
+}
+
+enum PayrollStatus {
+  PENDING
+  DISBURSED
+}
+
+enum DepartureType {
+  GRADUATION
+  TRANSFER
+  VOLUNTARY_WITHDRAWAL
+  EXPULSION
+  OTHER
+}
+
+enum PersonnelDepartureType {
+  RESIGNATION
+  TERMINATION
+  RETIREMENT
+  CONTRACT_END
+  OTHER
+}
+
+enum TreasuryClearanceStatus {
+  FULLY_SETTLED
+  OUTSTANDING_DEBT
+  WRITTEN_OFF
+  EXEMPT
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// ── STUDENT MANAGEMENT SYSTEM ──
+// ═══════════════════════════════════════════════════════════
+
+model Student {
+  id              String       @id @default(uuid())
+  studentId       String       @unique
+  studentName     String
+  enrollmentDate  DateTime
+  status          EntityStatus @default(ACTIVE)
+  currentGpa      Float        @default(0.0)
+  attendanceRate  Float        @default(100.0)    
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  account         StudentAccount?
+  demographics    Demographics?
+  placement       Placement?
+  compliance      StudentCompliance?
+  guardians       Guardian[]
+  billing         BillingLedger?
+  departures      StudentDeparture[]
+  
+  invoices        Invoice[]
+  payments        Payment[]
+  paymentLogs     PaymentCollection[]
+}
+
+model StudentAccount {
+  id           String  @id @default(uuid())
+  studentId    String  @unique
+  student      Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  portalEmail  String  @unique
+  passwordHash String
+}
+
+model Demographics {
+  id                 String   @id @default(uuid())
+  studentId          String   @unique
+  student            Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  dateOfBirth        DateTime
+  gender             String   
+  residentialAddress String
+  medicalNotes       String?  @db.Text
+  bloodType          String?  
+  religion           String?  
+  formerSchool       String?  
+  nationalId         String?  
+}
+
+model Placement {
+  id             String  @id @default(uuid())
+  studentId      String  @unique
+  student        Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classId        String  
+  academicTrack  String  
+  boardingStatus String  
+}
+
+model StudentCompliance {
+  id                 String  @id @default(uuid())
+  studentId          String  @unique
+  student            Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  nationalId         String?
+  emergencyName      String?
+  emergencyPhone     String?
+  emergencyRelation  String?
+}
+
+model Guardian {
+  id           String  @id @default(uuid())
+  studentId    String 
+  student      Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  name         String
+  relationship String  
+  phone        String
+  email        String?
+
+  @@index([studentId])
+}
+
+model BillingLedger {
+  id             String   @id @default(uuid())
+  studentId      String   @unique
+  student        Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  feeTierId      String  
+  initialDeposit Decimal  @default(0.0) @db.Decimal(10, 2)
+  currentBalance Decimal  @db.Decimal(10, 2)
+}
+
+model Invoice {
+  id          String   @id @default(uuid())
+  invoiceNo   String   @unique 
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  description String   
+  amount      Decimal  @db.Decimal(10, 2)
+  dueDate     DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // ── ADD THESE TWO LINES ──
+  status      String   @default("UNPAID") 
+  configId    String?  
+
+  @@index([studentId])
+}
+
+model Payment {
+  id          String   @id @default(uuid())
+  receiptNo   String   @unique 
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  description String   @default("Fee Payment Clearance")
+  amount      Decimal  @db.Decimal(10, 2)
+  paymentType String   
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([studentId])
+}
+
+model StudentDeparture {
+  id                       String                 @id @default(uuid())
+  studentInternalId        String
+  student                  Student                @relation(fields: [studentInternalId], references: [id], onDelete: Cascade)
+  departureType            DepartureType          
+  effectiveDate            DateTime
+  destinationInstitution   String                 @default("N/A")
+  treasuryClearanceStatus  TreasuryClearanceStatus 
+  academicRecordsArchived  Boolean                @default(false)
+  remarks                  String                 @db.Text
+  processedAt              DateTime               @default(now())
+
+  @@index([studentInternalId])
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// ── FACULTY & STAFF MANAGEMENT SYSTEM ──
+// ═══════════════════════════════════════════════════════════
+
+model Teacher {
+  id                String       @id @default(uuid())
+  teacherId         String       @unique
+  teacherName       String
+  department        String
+  subject           String
+  status            EntityStatus @default(ACTIVE)
+  employmentType    String
+  email             String       @unique
+  yearsOfExperience Int          @default(0)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  // ── RELATIONAL UPGRADES (Now matches Staff depth) ──
+  demographics    TeacherDemographics?
+  compliance      TeacherCompliance?
+  payroll         TeacherPayroll?
+  departures      TeacherDeparture[]
+}
+
+// ── NEW: Teacher Personal & Background Data ──
+model TeacherDemographics {
+  id                 String  @id @default(uuid())
+  teacherId          String  @unique
+  teacher            Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  dateOfBirth        DateTime
+  gender             String
+  residentialAddress String
+  phone              String
+  bloodType          String?
+  religion           String?
+  formerSchool       String?
+}
+
+// ── NEW: Teacher Statutory & Emergency Data ──
+model TeacherCompliance {
+  id             String  @id @default(uuid())
+  teacherId      String  @unique
+  teacher        Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  nationalId     String?
+  ssnitNumber    String?
+  emergencyName  String?
+  emergencyPhone String?
+}
+
+// ── NEW: Teacher Compensation & Disbursement Data ──
+model TeacherPayroll {
+  id               String        @id @default(uuid())
+  teacherId        String        @unique
+  teacher          Teacher       @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  clearanceTier    String
+  baseSalary       Decimal       @default(0) @db.Decimal(10, 2)
+  deductions       Decimal       @default(0) @db.Decimal(10, 2)
+  netPay           Decimal       @default(0) @db.Decimal(10, 2)
+  paymentRoute     String        @default("BANK_TRANSFER") // e.g., BANK_TRANSFER, MOBILE_MONEY
+  bankName         String?
+  bankAccount      String?
+  salaryStatus     PayrollStatus @default(PENDING)
+}
+
+model TeacherDeparture {
+  id                       String                 @id @default(uuid())
+  teacherInternalId        String
+  teacher                  Teacher                @relation(fields: [teacherInternalId], references: [id], onDelete: Cascade)
+  departureType            PersonnelDepartureType 
+  effectiveDate            DateTime
+  academicClearanceStatus  String                 
+  treasuryClearanceStatus  String                 
+  remarks                  String                 @db.Text
+  processedAt              DateTime               @default(now())
+
+  @@index([teacherInternalId])
+}
+
+model Staff {
+  id              String       @id @default(uuid())
+  staffId         String       @unique
+  staffName       String
+  appointmentDate DateTime
+  status          EntityStatus @default(ACTIVE)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  account         StaffAccount?
+  demographics    StaffDemographics?
+  placement       StaffPlacement?
+  compliance      StaffCompliance?
+  payroll         StaffPayroll?
+  departures      StaffDeparture[]
+}
+
+model StaffDeparture {
+  id                       String                 @id @default(uuid())
+  staffInternalId          String
+  staff                    Staff                  @relation(fields: [staffInternalId], references: [id], onDelete: Cascade)
+  departureType            PersonnelDepartureType 
+  effectiveDate            DateTime
+  hrClearanceStatus        String                 
+  itAssetReturnStatus      String                 
+  treasuryClearanceStatus  String                 
+  remarks                  String                 @db.Text
+  processedAt              DateTime               @default(now())
+
+  @@index([staffInternalId])
+}
+
+model StaffAccount {
+  id           String  @id @default(uuid())
+  staffId      String  @unique
+  staff        Staff   @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  email        String  @unique
+  passwordHash String
+  role         String  @default("STAFF")
+}
+
+model StaffDemographics {
+  id                 String  @id @default(uuid())
+  staffId            String  @unique
+  staff              Staff   @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  dateOfBirth        DateTime
+  gender             String
+  residentialAddress String
+  phone              String
+  bloodType          String?
+  religion           String?
+  formerSchool       String?
+}
+
+model StaffPlacement {
+  id             String  @id @default(uuid())
+  staffId        String  @unique
+  staff          Staff   @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  departmentId   String
+  jobTitle       String
+  employmentType String
+  shiftSchedule  String
+}
+
+model StaffCompliance {
+  id             String  @id @default(uuid())
+  staffId        String  @unique
+  staff          Staff   @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  nationalId     String?
+  ssnitNumber    String?
+  emergencyName  String?
+  emergencyPhone String?
+}
+
+model StaffPayroll {
+  id               String        @id @default(uuid())
+  staffId          String        @unique
+  staff            Staff         @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  clearanceTier    String
+  baseSalary       Decimal       @default(0) @db.Decimal(10, 2)
+  deductions       Decimal       @default(0) @db.Decimal(10, 2)
+  netPay           Decimal       @default(0) @db.Decimal(10, 2)
+  paymentRoute     String        @default("BANK_TRANSFER")
+  bankName         String?
+  bankAccount      String?
+  salaryStatus     PayrollStatus @default(PENDING)
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// ── TIMETABLE CONFIGURATION DOMAIN ──
+// ═══════════════════════════════════════════════════════════
+
+model TimetableConfiguration {
+  id           String            @id @default(uuid())
+  sectionId    String            @unique 
+  periodsCount Int               @default(0)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  periods      TimetablePeriod[]
+  breaks       TimetableBreak[]
+  subjects     SubjectAllocation[]
+}
+
+model TimetablePeriod {
+  id              String                 @id @default(uuid())
+  configurationId String
+  configuration   TimetableConfiguration @relation(fields: [configurationId], references: [id], onDelete: Cascade)
+  periodNumber    Int
+  dayOfWeek       String? 
+  startTime       String
+  endTime         String
+
+  @@unique([configurationId, periodNumber, dayOfWeek]) 
+}
+
+model TimetableBreak {
+  id              String                 @id @default(uuid())
+  configurationId String
+  configuration   TimetableConfiguration @relation(fields: [configurationId], references: [id], onDelete: Cascade)
+  name            String
+  dayOfWeek       String? 
+  startTime       String
+  endTime         String
+}
+
+model SubjectAllocation {
+  id              String                 @id @default(uuid())
+  configurationId String
+  configuration   TimetableConfiguration @relation(fields: [configurationId], references: [id], onDelete: Cascade)
+  subjectName     String
+  teacherId       String 
+  dayOfWeek       String? 
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// ── INSTITUTIONAL FINANCE & ACCOUNTING ENGINE ──
+// ═══════════════════════════════════════════════════════════
+
+model FeeStructureConfiguration {
+  id               String         @id @default(uuid())
+  sectionId        String         @unique 
+  issueDate        DateTime       
+  dueDate          DateTime       
+  allowInstallments Boolean       @default(true)
+  lateFeeRate      Decimal        @default(0) @db.Decimal(5, 2)
+  
+  components       FeeComponent[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+}
+
+model FeeComponent {
+  id          String                    @id @default(uuid())
+  configId    String
+  name        String
+  amount      Decimal                   @db.Decimal(10, 2)
+  frequency   String
+  isMandatory Boolean                   @default(true)
+  
+  configuration FeeStructureConfiguration @relation(fields: [configId], references: [id], onDelete: Cascade)
+}
+
+model PaymentCollection {
+  id               String   @id @default(uuid())
+  receiptNumber    String   @unique
+  sectionId        String   
+  studentName      String
+  amountPaid       Decimal  @db.Decimal(10, 2)
+  paymentMethod    String
+  referenceNo      String   @default("N/A (Direct)")
+  allocationTarget String
+  dateProcessed    DateTime @default(now())
+
+  // ── NEW: SMART PAYMENT ROUTING ──
+  studentInternalId String?  
+  student           Student? @relation(fields: [studentInternalId], references: [id], onDelete: SetNull)
+
+  @@index([sectionId])
+  @@index([studentInternalId])
+}
+
+model LedgerAccount {
+  code        String   @id 
+  accountName String
+  category    String   
+  debit       Decimal  @default(0.0) @db.Decimal(10, 2)
+  credit      Decimal  @default(0.0) @db.Decimal(10, 2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("ledger_accounts")
+}
