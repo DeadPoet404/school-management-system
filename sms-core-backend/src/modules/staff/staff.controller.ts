@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import { StaffService } from "./staff.service";
 
 // Instantiate the service container context
@@ -6,10 +6,10 @@ const staffService = new StaffService();
 
 export class StaffController {
   /**
-   * Fetches full relational staff graph rows from the database service.
-   * Maps to GET /api/staff
+   * GET /api/staff
+   * Fetches the formatted administrative staff lines for the UI grid.
    */
-  public getAllStaff = async (req: Request, res: Response): Promise<Response | void> => {
+  public getAllStaff = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
       const staff = await staffService.getAllStaff();
 
@@ -17,23 +17,58 @@ export class StaffController {
         success: true,
         data: staff,
       });
-    } catch (error: any) {
-      console.error("Database fetch error:", error);
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to retrieve relational staff records from the database.",
-      });
+    } catch (error) {
+      next(error); // Delegated to global error handling pipeline
     }
   };
 
   /**
-   * Validates payload and delegates atomic staff registration to the Service layer.
-   * Maps to POST /api/staff
+   * GET /api/staff/matrix
+   * Fetches the high-density workforce operational shift and department allocations.
    */
-    public createStaff = async (req: Request, res: Response): Promise<Response | void> => {
+  public getWorkforceMatrix = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
-      // Zod already guaranteed this payload is perfectly safe!
-      const newStaff = await staffService.createStaff(req.body);
+      const matrix = await staffService.getWorkforceMatrix();
+      
+      return res.status(200).json({
+        success: true,
+        data: matrix
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * POST /api/staff
+   * Validates payload and delegates atomic staff registration to the Service layer.
+   */
+  public createStaff = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+    try {
+      const { account, demographics, placement, compliance, payroll } = req.body;
+
+      // Fail-fast checks maintaining structural consistency with your main Zod pipeline guards
+      if (!account?.fullName || !account?.email || !account?.password) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Missing core onboarding requirements (fullName, email, and password are required)." 
+        });
+      }
+
+      // Explicitly pass structured object trees down to the service layer contract
+      const newStaff = await staffService.createStaff({
+        account: {
+          fullName: account.fullName,
+          email: account.email,
+          password: account.password,
+          employmentDate: account.employmentDate || new Date().toISOString(),
+          role: account.role
+        },
+        demographics,
+        placement,
+        compliance,
+        payroll
+      });
 
       return res.status(201).json({
         success: true,
@@ -48,18 +83,15 @@ export class StaffController {
         });
       }
       
-      console.error("Database ingestion error:", error);
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to execute nested database mutation pipelines for staff.",
-      });
+      next(error); // Global interceptor catches other runtime database anomalies
     }
   };
+
   /**
    * POST /api/staff/departure
    * Validates departure payload and delegates offboarding to the Service layer.
    */
-  public executeDeparture = async (req: Request, res: Response): Promise<Response | void> => {
+  public executeDeparture = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
       const { staffId, departureType, effectiveDate, clearance, remarks } = req.body;
 
@@ -79,8 +111,17 @@ export class StaffController {
         });
       }
 
-      // Delegate to the service method
-      const result = await staffService.processDeparture(req.body);
+      const result = await staffService.processDeparture({
+        staffId,
+        departureType,
+        effectiveDate,
+        clearance: {
+          hr: clearance.hr,
+          itAssets: clearance.itAssets,
+          treasury: clearance.treasury
+        },
+        remarks
+      });
 
       return res.status(200).json({
         success: true,
@@ -88,9 +129,14 @@ export class StaffController {
         data: result,
       });
     } catch (error: any) {
-      // Return 404 if the staff member doesn't exist, otherwise 422 for logic errors
-      const statusCode = error.message.includes("lookup failed") ? 404 : 422;
-      return res.status(statusCode).json({
+      if (error.message?.includes("lookup failed") || error.message?.includes("not found")) {
+        return res.status(404).json({
+          success: false,
+          message: error.message || "Target administrative record not found.",
+        });
+      }
+      
+      return res.status(422).json({
         success: false,
         message: error.message || "Staff excision pipeline execution failed.",
       });

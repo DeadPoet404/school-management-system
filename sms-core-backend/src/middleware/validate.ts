@@ -1,34 +1,36 @@
-import { Request, Response, NextFunction } from 'express';
-import { z } from 'zod';
+import { Request, Response, NextFunction, RequestHandler } from "express";
+import { z } from "zod";
 
 /**
- * Middleware factory that validates req.body against a Zod schema.
- * If validation fails, it immediately returns a 400 error with clean messages.
- * (Updated for Zod v4)
+ * Higher-order middleware factory that validates the incoming request body 
+ * against a structured Zod schema before hitting the domain controller layers.
  */
-export const validate = (schema: z.ZodType) => {
-  return (req: Request, res: Response, next: NextFunction) => {
+export const validate = (schema: z.ZodTypeAny): RequestHandler => {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      schema.parse(req.body);
-      next(); // Valid payload, proceed to controller
+      // parseAsync strips unmapped parameters safely if .strict() is defined,
+      // and natively resolves any custom async validation filters.
+      req.body = await schema.parseAsync(req.body);
+      
+      return next(); // Payload matches schema, hand off to downstream controller
     } catch (error) {
-      // Use z.ZodError for v4 compatibility
       if (error instanceof z.ZodError) {
-        // In Zod v4, the array is called 'issues', not 'errors'
-        const errors = error.issues.map((issue) => ({
-          field: issue.path.join('.'),
+        // Formats Zod v4 'issues' into flat dot-notated paths matching your React form layout
+        const formattedErrors = error.issues.map((issue) => ({
+          field: issue.path.join("."),
           message: issue.message,
         }));
 
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           message: "Input validation failed.",
-          errors,
+          errors: formattedErrors,
         });
+        return;
       }
-      
-      // If it's not a Zod error, pass it to the global error handler
-      next(error);
+
+      // Drop general runtime anomalies down into the global interceptor stack
+      return next(error);
     }
   };
 };

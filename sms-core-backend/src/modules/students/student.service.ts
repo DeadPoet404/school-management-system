@@ -2,7 +2,9 @@ import { prisma } from "@/lib/prisma";
 import { StudentRepository } from "./student.repository";
 import { formatInstitutionalId } from "@/utils";
 import { hashPassword } from "@/utils/hash";
+
 type TransactionClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
 // ── TARIFF CONFIGURATION ──
 // Maps frontend tier IDs to their base monetary values for ledger calculations.
 const FEE_TARIFFS: Record<string, number> = {
@@ -17,7 +19,6 @@ const calculateInitialBalance = (feeTierId: string, deposit: number): number => 
 };
 
 // ── INTERNAL TYPING FOR TRANSFORMATION ──
-// Kept private to this service — frontend never sees these
 interface InvoiceType {
   invoiceNo: string;
   amount: number;
@@ -74,15 +75,26 @@ export class StudentService {
       );
 
       let rollingOutstandingBalance = 0;
+      let totalPaid = 0;
+
       sortedHistory.forEach((transaction) => {
         if (transaction.type === "Invoice") {
           rollingOutstandingBalance += transaction.amount;
         } else {
           rollingOutstandingBalance -= transaction.amount;
+          totalPaid += transaction.amount;
         }
       });
 
       const lastTx = sortedHistory[sortedHistory.length - 1];
+
+      // Dynamically calculate explicit fees status to populate frontend UI badges
+      let dynamicFeesStatus: "Paid" | "Partial" | "Unpaid" = "Unpaid";
+      if (rollingOutstandingBalance <= 0 && totalPaid > 0) {
+        dynamicFeesStatus = "Paid";
+      } else if (totalPaid > 0 && rollingOutstandingBalance > 0) {
+        dynamicFeesStatus = "Partial";
+      }
 
       return {
         id: student.id,
@@ -90,37 +102,43 @@ export class StudentService {
         studentName: student.studentName,
         status: student.status,
         account: student.account,
+        feesStatus: dynamicFeesStatus,
         lastTransactionId: lastTx?.id || "—",
         lastTransactionDate: lastTx?.date || "—",
         paymentType: lastTx?.type || "—",
         amountPaid: lastTx && lastTx.type !== "Invoice" ? lastTx.amount : 0,
-        balanceRemaining: rollingOutstandingBalance,
+        balanceRemaining: Math.max(0, rollingOutstandingBalance),
       };
     });
   }
 
   /**
    * Commits a complete student registration payload into the database.
-   * Unpacks the nested frontend `compliance.emergencyContact` object into flat DB columns.
+   * Gracefully maps both frontend `parent` layouts and `guardian` formats to Prisma targets.
    */
   async createStudent(payload: {
     account: { fullName: string; email: string; password: string; enrollmentDate: string };
     demographics: { dateOfBirth: string; gender: string; residentialAddress: string; medicalNotes?: string | null; bloodType?: string | null; religion?: string | null; formerSchool?: string | null };
     placement: { classId: string; academicTrack: string; boardingStatus: string };
-    guardian: { name: string; relationship: string; phone: string; email?: string | null };
+    guardian?: { name: string; relationship: string; phone: string; email?: string | null };
+    parent?: { name: string; relationship: string; phone: string; email?: string | null };
     billing: { feeTierId: string; initialDeposit: number };
     compliance?: { nationalId?: string | null; emergencyContact?: { name?: string | null; phone?: string | null; relationship?: string | null } | null };
   }) {
-    const { account, demographics, placement, guardian, billing, compliance } = payload;
+    const { account, demographics, placement, guardian, parent, billing, compliance } = payload;
+
+    // Normalize structural variations between 'parent' or 'guardian' input schemas safely
+    const resolvedGuardian = guardian || parent;
+    if (!resolvedGuardian) {
+      throw new Error("Missing essential guardian contact relationships from structural payload.");
+    }
 
     const uniqueStudentId = formatInstitutionalId('STU', '2026');
     const computedBalance = calculateInitialBalance(billing.feeTierId, billing.initialDeposit);
 
-    // Service controls the transaction boundary, but passes 'tx' to the repository
     return await prisma.$transaction(async (tx) => {
       const hashedPassword = await hashPassword(account.password);
 
-      // Build the data object (Business logic stays in service)
       const dbPayload = {
         studentId: uniqueStudentId,
         studentName: account.fullName,
@@ -131,12 +149,11 @@ export class StudentService {
         account: { create: { portalEmail: account.email, passwordHash: hashedPassword } },
         demographics: { create: { dateOfBirth: new Date(demographics.dateOfBirth), gender: demographics.gender, residentialAddress: demographics.residentialAddress, medicalNotes: demographics.medicalNotes ?? null, bloodType: demographics.bloodType ?? null, religion: demographics.religion ?? null, formerSchool: demographics.formerSchool ?? null } },
         placement: { create: { classId: placement.classId, academicTrack: placement.academicTrack, boardingStatus: placement.boardingStatus } },
-        guardians: { create: { name: guardian.name, relationship: guardian.relationship, phone: guardian.phone, email: guardian.email ?? null } },
+        guardians: { create: { name: resolvedGuardian.name, relationship: resolvedGuardian.relationship, phone: resolvedGuardian.phone, email: resolvedGuardian.email ?? null } },
         billing: { create: { feeTierId: billing.feeTierId, initialDeposit: billing.initialDeposit, currentBalance: computedBalance } },
         compliance: { create: { nationalId: compliance?.nationalId ?? null, emergencyName: compliance?.emergencyContact?.name ?? null, emergencyPhone: compliance?.emergencyContact?.phone ?? null, emergencyRelation: compliance?.emergencyContact?.relationship ?? null } },
       };
 
-      // ✅ Delegated to repository, passing the transaction client
       return this.repo.createNestedStudent(dbPayload, tx);
     });
   }
@@ -153,7 +170,6 @@ export class StudentService {
   }) {
     const { studentId, departureType, effectiveDate, disposition, remarks } = payload;
 
-    // ✅ Delegated to repository
     const studentRecord = await this.repo.findByPublicId(studentId);
 
     if (!studentRecord) {
@@ -164,7 +180,6 @@ export class StudentService {
       throw new Error(`System conflict: Student ${studentId} has already been processed for departure.`);
     }
 
-    // Service controls the transaction, repo executes the queries
     return await prisma.$transaction(async (tx) => {
       const departureLog = await this.repo.createDepartureLog({
         studentInternalId: studentRecord.id,
@@ -176,7 +191,6 @@ export class StudentService {
         remarks,
       }, tx);
 
-      // ✅ Delegated to repository, passing the transaction client
       await this.repo.updateStatus(studentRecord.id, "DEPARTED", tx);
 
       return departureLog;

@@ -8,6 +8,9 @@
     "start": "node dist/app.js",
     "dev": "ts-node-dev -r tsconfig-paths/register src/app.ts"
   },
+  "prisma": {
+    "seed": "ts-node -r tsconfig-paths/register prisma/seed.ts"
+  },
   "dependencies": {
     "@prisma/client": "^5.15.0",
     "bcryptjs": "^3.0.3",

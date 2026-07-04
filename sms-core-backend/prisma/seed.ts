@@ -1,251 +1,178 @@
-import { PrismaClient } from "@prisma/client";
-import process from "process"; // Add this line at the very top
+import { PrismaClient, EntityStatus, PayrollStatus, DepartureType, PersonnelDepartureType, TreasuryClearanceStatus } from "@prisma/client";
+import { hashPassword } from "../src/utils/hash"; // Adjust this path if necessary to resolve your utility engine
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("🚀 Starting database seeding...");
+  console.log("🚀 Starting comprehensive database matrix seeding execution...");
 
-  // ═══════════════════════════════════════════════════════
-  // 1. STANDALONE MODULES (No dependencies)
-  // ═══════════════════════════════════════════════════════
+  // Clear existing records to ensure idempotent execution environment
+  await prisma.ledgerAccount.deleteMany();
+  await prisma.timetableConfiguration.deleteMany();
+  await prisma.feeStructureConfiguration.deleteMany();
+  await prisma.paymentCollection.deleteMany();
+  await prisma.student.deleteMany();
+  await prisma.teacher.deleteMany();
+  await prisma.staff.deleteMany();  
 
-  // --- LEDGER ACCOUNTS ---
+  const defaultPasswordHash = await hashPassword("SystemDefaultSecure2026!");
+
+  // ═══════════════════════════════════════════════════════════
+  // 1. SEED GENERAL LEDGER CHARTS OF ACCOUNTS
+  // ═══════════════════════════════════════════════════════════
+  console.log("📊 Seeding operational ledger account charts...");
   await prisma.ledgerAccount.createMany({
     data: [
-      { code: "1010", accountName: "Cash at Bank", category: "Asset", debit: "15000.00", credit: "0.00" },
-      { code: "4000", accountName: "Tuition Fee Revenue", category: "Revenue", debit: "0.00", credit: "25000.00" },
-      { code: "5000", accountName: "Salaries & Wages", category: "Expense", debit: "12000.00", credit: "0.00" },
+      { code: "1010", accountName: "Cash & Cash Equivalents (Treasury)", category: "ASSET", debit: 50000.00, credit: 0.00 },
+      { code: "1200", accountName: "Accounts Receivable (Tuition Control)", category: "ASSET", debit: 12500.00, credit: 0.00 },
+      { code: "4010", accountName: "Tuition Inflow Revenue Matrix", category: "REVENUE", debit: 0.00, credit: 62500.00 },
     ],
-    skipDuplicates: true,
   });
 
-  // --- TIMETABLE CONFIGURATION ---
-  await prisma.timetableConfiguration.create({
+  // ═══════════════════════════════════════════════════════════
+  // 2. SEED SAMPLE STUDENTS (ACTIVE & DEPARTED SPECIMENS)
+  // ═══════════════════════════════════════════════════════════
+  console.log("🎓 Seeding multi-tiered student registry graphs...");
+
+  // Student 1: Active, Standard Tuition Rate, Partial Payment
+  await prisma.student.create({
     data: {
-      sectionId: "jhs-1",
-      periodsCount: 3,
-      periods: {
-        create: [
-          { periodNumber: 1, startTime: "08:00", endTime: "09:00" },
-          { periodNumber: 2, startTime: "09:00", endTime: "10:00" },
-          { periodNumber: 3, startTime: "10:15", endTime: "11:15" },
-        ],
-      },
-      breaks: {
-        create: [
-          { name: "Morning Break", startTime: "10:00", endTime: "10:15" },
-        ],
-      },
-      subjects: {
-        create: [
-          { subjectName: "Mathematics", teacherId: "TCH-SCI-456789" }, // Matches teacher below
-          { subjectName: "English Language", teacherId: "TCH-LANG-123456" },
-        ],
-      },
-    },
-  });
-
-  // --- FEE STRUCTURES ---
-  await prisma.feeStructureConfiguration.create({
-    data: {
-      sectionId: "jhs-1",
-      issueDate: new Date("2026-01-10"),
-      dueDate: new Date("2026-02-10"),
-      allowInstallments: true,
-      lateFeeRate: "5.00",
-      components: {
-        create: [
-          { name: "Tuition Fee", amount: "2500.00", frequency: "Per Term", isMandatory: true },
-          { name: "Science Lab Fee", amount: "150.00", frequency: "Per Term", isMandatory: true },
-          { name: "PTA Dues", amount: "50.00", frequency: "Per Term", isMandatory: false },
-        ],
-      },
-    },
-  });
-
-  // ═══════════════════════════════════════════════════════
-  // 2. DEPARTED RECORDS (To test your new departure forms)
-  // ═══════════════════════════════════════════════════════
-
-  // --- DEPARTED STUDENT ---
-  const departedStudent = await prisma.student.create({
-    data: {
-      studentId: "STU-2025-998877",
-      studentName: "Kofi Asante",
-      enrollmentDate: new Date("2023-09-05"),
-      status: "DEPARTED",
-      currentGpa: 2.1,
-      attendanceRate: 85.5,
-      account: { create: { portalEmail: "kofi.departed@student.edu.gh", passwordHash: "$2b$10$hashedpassword" } },
-      demographics: { create: { dateOfBirth: new Date("2010-05-14"), gender: "MALE", residentialAddress: "12 Kokomlemle, Accra" } },
-      placement: { create: { classId: "jhs-2", academicTrack: "General Arts", boardingStatus: "DAY" } },
-      departures: {
-        create: {
-          departureType: "TRANSFER",
-          effectiveDate: new Date("2025-12-15"),
-          destinationInstitution: "Mfantsipim School",
-          treasuryClearanceStatus: "FULLY_SETTLED",
-          academicRecordsArchived: true,
-          remarks: "Transferred by parents due to relocation to Cape Coast."
-        }
-      }
-    }
-  });
-
-  // --- DEPARTED TEACHER ---
-  const departedTeacher = await prisma.teacher.create({
-    data: {
-      teacherId: "TCH-SCI-000000",
-      teacherName: "Dr. Kwame Bannerman",
-      department: "dept-sci",
-      subject: "Physics",
-      status: "DEPARTED",
-      employmentType: "Full-Time",
-      email: "dr.bannerman.departed@institution.edu.gh",
-      departures: {
-        create: {
-          departureType: "RESIGNATION",
-          effectiveDate: new Date("2025-11-30"),
-          academicClearanceStatus: "FINALIZED",
-          treasuryClearanceStatus: "FINAL_PAY_PROCESSED",
-          remarks: "Resigned to take up a university lecturing position."
-        }
-      }
-    }
-  });
-
-  // --- DEPARTED STAFF ---
-  const departedStaff = await prisma.staff.create({
-    data: {
-      staffId: "STF-OPS-000000",
-      staffName: "Emmanuel Poku",
-      appointmentDate: new Date("2020-01-15"),
-      status: "DEPARTED",
-      account: { create: { email: "emmanuel.departed@institution.edu.gh", passwordHash: "$2b$10$hashedpassword", role: "STAFF" } },
-      departures: {
-        create: {
-          departureType: "TERMINATION",
-          effectiveDate: new Date("2025-10-20"),
-          hrClearanceStatus: "CLEARED",
-          itAssetReturnStatus: "RETURNED",
-          treasuryClearanceStatus: "FINAL_PAY_PROCESSED",
-          remarks: "Terminated due to gross misconduct and policy violation."
-        }
-      }
-    }
-  });
-
-  // ═══════════════════════════════════════════════════════
-  // 3. ACTIVE RECORDS (Full relational mapping)
-  // ═══════════════════════════════════════════════════════
-
-  // --- ACTIVE STUDENT (With complex financials and 2 Guardians) ---
-  const activeStudent = await prisma.student.create({
-    data: {
-      studentId: "STU-2026-112233",
-      studentName: "Abena Darkwa",
-      enrollmentDate: new Date("2024-09-10"),
-      status: "ACTIVE",
-      currentGpa: 3.8,
-      attendanceRate: 99.2,
-      account: { create: { portalEmail: "abena.darkwa@student.edu.gh", passwordHash: "$2b$10$hashedpassword" } },
-      demographics: { 
-        create: { 
-          dateOfBirth: new Date("2009-08-22"), 
-          gender: "FEMALE", 
-          residentialAddress: "Hse 45, Trasacco Valley",
-          bloodType: "O_PLUS",
-          religion: "Christian"
-        } 
-      },
-      placement: { create: { classId: "jhs-1", academicTrack: "Science", boardingStatus: "BOARDING" } },
-      compliance: { create: { nationalId: "GHA-123456789-1", emergencyName: "Nana Darkwa", emergencyPhone: "+233 24 555 0101", emergencyRelation: "Father" } },
-      guardians: {
-        create: [
-          { name: "Nana Darkwa", relationship: "Father", phone: "+233 24 555 0101", email: "nana.darkwa@parent.com" },
-          { name: "Ama Darkwa", relationship: "Mother", phone: "+233 20 555 0202", email: "ama.darkwa@parent.com" }
-        ]
-      },
-      billing: { create: { feeTierId: "tier-std", initialDeposit: "500.00", currentBalance: "2200.00" } },
+      studentId: "STU-2026-8841-A",
+      studentName: "Kwame Mensah",
+      enrollmentDate: new Date("2026-01-10"),
+      status: EntityStatus.ACTIVE,
+      currentGpa: 3.85,
+      attendanceRate: 96.4,
+      account: { create: { portalEmail: "k.mensah@sms-portal.edu.gh", passwordHash: defaultPasswordHash } },
+      demographics: { create: { dateOfBirth: new Date("2011-04-15"), gender: "MALE", residentialAddress: "12 Anum Road, Legon, Accra", medicalNotes: "No known allergies.", bloodType: "O+", religion: "Christian", formerSchool: "Morning Star Prep School" } },
+      placement: { create: { classId: "cls-1", academicTrack: "General Arts", boardingStatus: "DAY_STUDENT" } },
+      compliance: { create: { nationalId: "GHA-771829102-4", emergencyName: "Comfort Mensah", emergencyPhone: "+233244111222", emergencyRelation: "MOTHER" } },
+      guardians: { create: { name: "Emmanuel Mensah", relationship: "FATHER", phone: "+233204333444", email: "e.mensah@gmail.com" } },
+      billing: { create: { feeTierId: "tier-std", initialDeposit: 1000.00, currentBalance: 1500.00 } },
       invoices: {
-        create: {
-          invoiceNo: "INV-2026-0001",
-          description: "Term 1 Tuition & Lab Fees",
-          amount: "2650.00",
-          dueDate: new Date("2026-02-28")
-        }
+        create: { invoiceNo: "INV-2026-001", description: "Term 1 Academic Tuition Core Fees", amount: 2500.00, dueDate: new Date("2026-02-01"), status: "PARTIAL" }
       },
       payments: {
-        create: {
-          receiptNo: "REC-2026-1001",
-          description: "Partial Fee Payment",
-          amount: "500.00",
-          paymentType: "Mobile Money"
-        }
+        create: { receiptNo: "REC-2026-001", description: "Initial Enrollment Deposit Clearance", amount: 1000.00, paymentType: "Mobile Money" }
       }
     }
   });
 
-  // --- ACTIVE TEACHERS ---
-  await prisma.teacher.createMany({
-    data: [
-      {
-        teacherId: "TCH-SCI-456789",
-        teacherName: "Mr. Ebenezer Appiah",
-        department: "dept-sci",
-        subject: "Mathematics",
-        status: "ACTIVE",
-        employmentType: "Full-Time",
-        email: "e.appiah@institution.edu.gh",
-        yearsOfExperience: 12
-      },
-      {
-        teacherId: "TCH-LANG-123456",
-        teacherName: "Ms. Adwoa Fordjour",
-        department: "dept-lang",
-        subject: "English Language",
-        status: "ACTIVE",
-        employmentType: "Full-Time",
-        email: "a.fordjour@institution.edu.gh",
-        yearsOfExperience: 5
-      }
-    ]
+  // Student 2: Active, Scholarship Exempt Rate, Fully Paid
+  await prisma.student.create({
+    data: {
+      studentId: "STU-2026-1049-B",
+      studentName: "Ama Serwaa Asare",
+      enrollmentDate: new Date("2026-01-12"),
+      status: EntityStatus.ACTIVE,
+      currentGpa: 3.98,
+      attendanceRate: 100.0,
+      account: { create: { portalEmail: "a.asare@sms-portal.edu.gh", passwordHash: defaultPasswordHash } },
+      demographics: { create: { dateOfBirth: new Date("2010-09-22"), gender: "FEMALE", residentialAddress: "Block G, Airport Residential Area, Accra", medicalNotes: null, bloodType: "A-", religion: "Christian", formerSchool: "Ridge Church School" } },
+      placement: { create: { classId: "cls-3", academicTrack: "Science Lab Alpha", boardingStatus: "BOARDER" } },
+      compliance: { create: { nationalId: "GHA-992102938-1", emergencyName: "Grace Asare", emergencyPhone: "+233244888999", emergencyRelation: "AUNT" } },
+      guardians: { create: { name: "Dr. Kofi Asare", relationship: "FATHER", phone: "+233266555444", email: "k.asare@health.gov.gh" } },
+      billing: { create: { feeTierId: "tier-sch", initialDeposit: 0.00, currentBalance: 0.00 } }
+    }
   });
 
-  // --- ACTIVE STAFF (Full Profile) ---
+  // Student 3: Departed (Offboarded Historical Specimen)
+  const departedStudent = await prisma.student.create({
+    data: {
+      studentId: "STU-2025-0042-X",
+      studentName: "John Papa Yaw Osei",
+      enrollmentDate: new Date("2025-01-15"),
+      status: EntityStatus.DEPARTED,
+      currentGpa: 2.10,
+      attendanceRate: 74.2,
+      account: { create: { portalEmail: "j.osei@sms-portal.edu.gh", passwordHash: defaultPasswordHash } },
+      demographics: { create: { dateOfBirth: new Date("2009-12-05"), gender: "MALE", residentialAddress: "Plot 4, Spintex Road, Accra", medicalNotes: null, bloodType: "B+", religion: "Christian", formerSchool: "Tema International Prep" } },
+      placement: { create: { classId: "cls-2", academicTrack: "Visual Arts", boardingStatus: "DAY_STUDENT" } },
+      compliance: { create: { nationalId: "GHA-123456789-0", emergencyName: "Patricia Osei", emergencyPhone: "+233501234567", emergencyRelation: "MOTHER" } },
+      guardians: { create: { name: "Robert Osei", relationship: "FATHER", phone: "+233244123456", email: "r.osei@spintex.com" } },
+      billing: { create: { feeTierId: "tier-std", initialDeposit: 0.00, currentBalance: 2500.00 } },
+      invoices: {
+        create: { invoiceNo: "INV-2025-998", description: "Term 3 Outstanding Core Tuition Balance", amount: 2500.00, dueDate: new Date("2025-11-01"), status: "UNPAID" }
+      }
+    }
+  });
+
+  // Seed departure record log linking to internal identifier
+  await prisma.studentDeparture.create({
+    data: {
+      studentInternalId: departedStudent.id,
+      departureType: DepartureType.TRANSFER,
+      effectiveDate: new Date("2026-05-01"),
+      destinationInstitution: "Kumasi Academy Senior High",
+      treasuryClearanceStatus: TreasuryClearanceStatus.OUTSTANDING_DEBT,
+      academicRecordsArchived: true,
+      remarks: "Student transferred due to family relocation out of the Greater Accra Region cluster zones."
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // 3. SEED FACULTY MATRIX (TEACHERS)
+  // ═══════════════════════════════════════════════════════════
+  console.log("🍎 Seeding active faculty nodes...");
+  
+  await prisma.teacher.create({
+    data: {
+      teacherId: "TCH-2026-9941",
+      teacherName: "Mr. Ebenezer Mensah Kojo",
+      department: "Mathematics & Data Science",
+      subject: "Advanced Statistical Algebra",
+      status: EntityStatus.ACTIVE,
+      employmentType: "FULL_TIME",
+      email: "e.kojo@sms-institution.edu.gh",
+      yearsOfExperience: 8,
+      demographics: { create: { dateOfBirth: new Date("1988-06-14"), gender: "MALE", residentialAddress: "Flat 4B, Ridge Court, Accra", phone: "+233244999888", bloodType: "O+", religion: "Christian", formerSchool: "Cape Coast University Faculty of Education" } },
+      compliance: { create: { nationalId: "GHA-554102938-9", ssnitNumber: "N8806140001", emergencyName: "Sarah Kojo", emergencyPhone: "+233201223344" } },
+      payroll: { create: { clearanceTier: "Level 1: Standard Faculty Access", baseSalary: 4500.00, deductions: 450.00, netPay: 4050.00, bankName: "Ecobank Ghana Ltd", bankAccount: "1441002938411" } }
+    }
+  });
+
+  await prisma.teacher.create({
+    data: {
+      teacherId: "TCH-2026-1102",
+      teacherName: "Mrs. Abena Boatemaa Boateng",
+      department: "Natural & Physical Sciences",
+      subject: "Biochemical Foundations",
+      status: EntityStatus.ACTIVE,
+      employmentType: "PART_TIME",
+      email: "a.boateng@sms-institution.edu.gh",
+      yearsOfExperience: 12,
+      demographics: { create: { dateOfBirth: new Date("1982-11-30"), gender: "FEMALE", residentialAddress: "Akwapim Ridge Estates, Aburi", phone: "+233266112233", bloodType: "A+", religion: "Christian", formerSchool: "KNUST Faculty of Biochemistry" } },
+      compliance: { create: { nationalId: "GHA-221093849-2", ssnitNumber: "N8211300002", emergencyName: "Kofi Boateng", emergencyPhone: "+233244667788" } },
+      payroll: { create: { clearanceTier: "Level 2: Department Head / Lead Educator", baseSalary: 7200.00, deductions: 720.00, netPay: 6480.00, bankName: "Standard Chartered Bank", bankAccount: "0100293841900", salaryStatus: PayrollStatus.PENDING } }
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // 4. SEED OPERATIONAL PERSONNEL (STAFF)
+  // ═══════════════════════════════════════════════════════════
+  console.log("⚙️ Seeding corporate campus staff ledgers...");
+  
   await prisma.staff.create({
     data: {
-      staffId: "STF-FIN-785347",
-      staffName: "Samuel Osei Mensah",
-      appointmentDate: new Date("2021-03-01"),
-      status: "ACTIVE",
-      account: { create: { email: "s.mensah@institution.edu.gh", passwordHash: "$2b$10$hashedpassword", role: "FINANCE_CLERK" } },
-      demographics: { create: { dateOfBirth: new Date("1988-07-10"), gender: "MALE", residentialAddress: "17 Lapaz, Accra", phone: "+233 50 111 2233" } },
-      placement: { create: { departmentId: "dept-fin", jobTitle: "Senior Treasury Accountant", employmentType: "FULL_TIME", shiftSchedule: "MORNING" } },
-      compliance: { create: { nationalId: "GHA-987654321-2", ssnitNumber: "N123456789012", emergencyName: "Juliet Mensah", emergencyPhone: "+233 20 111 2244" } },
-      payroll: { create: { clearanceTier: "clear-fin", baseSalary: "4500.00", bankName: "GCB Bank", bankAccount: "1011130004521", salaryStatus: "PENDING" } }
+      staffId: "STF-2026-4401",
+      staffName: "Phyllis Afriyie",
+      appointmentDate: new Date("2026-02-01"),
+      status: EntityStatus.ACTIVE,
+      account: { create: { email: "p.afriyie@sms-ops.edu.gh", passwordHash: defaultPasswordHash, role: "STAFF" } },
+      demographics: { create: { dateOfBirth: new Date("1994-03-25"), gender: "FEMALE", residentialAddress: "Dzorwulu Highway Blocks, Accra", phone: "+233243555666", bloodType: "AB+", religion: "Christian", formerSchool: "University of Ghana Business School" } },
+      placement: { create: { departmentId: "dept-fin", jobTitle: "Senior Treasury Accountant", employmentType: "FULL_TIME", shiftSchedule: "Shift Alpha (08:00 - 17:00)" } },
+      compliance: { create: { nationalId: "GHA-990325412-5", ssnitNumber: "S9403250001", emergencyName: "Francis Afriyie", emergencyPhone: "+233544123987" } },
+      payroll: { create: { clearanceTier: "Level 2: Financial Ledger Access", baseSalary: 5500.00, deductions: 550.00, netPay: 4950.00, bankName: "Absa Bank Ghana", bankAccount: "509182736" } }
     }
   });
 
-  // --- PAYMENT COLLECTIONS ---
-  await prisma.paymentCollection.createMany({
-    data: [
-      { receiptNumber: "COL-2026-001", sectionId: "jhs-1", studentName: "Kwame Mensah Bonsu", amountPaid: "1500.00", paymentMethod: "Cash", referenceNo: "N/A (Direct)", allocationTarget: "Tuition Fee" },
-      { receiptNumber: "COL-2026-002", sectionId: "jhs-1", studentName: "Abena Darkwa", amountPaid: "500.00", paymentMethod: "Mobile Money", referenceNo: "MTN-REF-99882", allocationTarget: "Tuition Fee" }
-    ]
-  });
-
-  console.log("✅ Database seeding completed successfully!");
-  console.log("📋 Test Login Credentials:");
-  console.log("   Student: abena.darkwa@student.edu.gh");
-  console.log("   Staff:   s.mensah@institution.edu.gh");
+  console.log("✨ Database initialization and matrix pipeline seeding complete.");
 }
 
 main()
   .catch((e) => {
-    console.error(e);
-    process.exit(1);
+    console.error("🚨 Critical failure encountered during execution of seed routines:", e);
+    throw new Error("Seed runner pipeline halted execution naturally via fallback interceptor.");
   })
   .finally(async () => {
     await prisma.$disconnect();

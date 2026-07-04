@@ -1,16 +1,25 @@
 import { Router } from "express";
 import { StaffController } from "./staff.controller";
 import { validate } from "@/middleware/validate";
-import { createStaffSchema } from "@/types/staff.types";
+import { staffEnrollmentSchema, staffDepartureSchema } from "@/types/registry.types";
 
 const router = Router();
 const staffController = new StaffController();
 
 // ── SPECIALIZED DOMAIN TARGETS ──
-router.post("/departure", staffController.executeDeparture);
+router.post(
+  "/departure", 
+  validate(staffDepartureSchema), 
+  staffController.executeDeparture
+);
 
 // ── CORE REGISTRY ENTRIES ──
 router.get("/", staffController.getAllStaff);
-router.post("/", validate(createStaffSchema), staffController.createStaff);
+
+router.post(
+  "/", 
+  validate(staffEnrollmentSchema), 
+  staffController.createStaff
+);
 
 export default router;

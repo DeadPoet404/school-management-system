@@ -5,6 +5,8 @@ import teacherRoutes from "./modules/teachers/teacher.routes";
 import staffRoutes from "./modules/staff/staff.routes";
 import timetableRoutes from "./modules/timetable/timetable.routes";
 import financeRoutes from "./modules/finance/finance.routes";
+import attendanceRoutes from "./modules/attendance/attendance.routes";
+import gradesRoutes from "./modules/grades/grades.routes";
 
 // ── NEW: Import the error handler ──
 import { globalErrorHandler } from './middleware/error.handler';
@@ -35,7 +37,8 @@ app.use('/api/teachers', teacherRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/timetable', timetableRoutes);
 app.use('/api/finance', financeRoutes);
-
+app.use("/api/grades", gradesRoutes);
+app.use("/api/attendance", attendanceRoutes);
 // --- 404 HANDLER (Must come AFTER all valid routes) ---
 app.use((req, res, next) => {
   res.status(404).json({ success: false, message: `Resource footprint ${req.originalUrl} not discovered.` });

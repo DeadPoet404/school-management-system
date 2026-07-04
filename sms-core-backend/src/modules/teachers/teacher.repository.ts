@@ -1,49 +1,67 @@
 import { prisma } from "@/lib/prisma";
+import { Prisma, EntityStatus } from "@prisma/client";
+
+type TransactionClient = Omit<
+  Prisma.TransactionClient,
+  "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+>;
 
 export class TeacherRepository {
   /**
-   * Fetches all active teachers with their related data.
-   * Returns raw database shape.
+   * Fetches all active or suspended teachers with their complete relational datasets.
+   * Filters out DEPARTED records for the directory view grid.
    */
-  async findAllActive(tx: any = prisma) {
+  async findAllActive(tx: TransactionClient = prisma) {
     return tx.teacher.findMany({
-      where: { status: { not: "DEPARTED" } },
+      where: { 
+        status: { not: "DEPARTED" } 
+      },
       include: {
         demographics: true,
         compliance: true,
         payroll: true,
+        departures: true,
       },
-      orderBy: { id: "desc" },
+      orderBy: { 
+        createdAt: "desc" 
+      },
     });
   }
 
   /**
-   * Looks up a teacher by their public ID (e.g., TCH-SCI-456789).
+   * Looks up an individual faculty member by their public institutional identifier (e.g., TCH-2026-9941).
    */
-  async findByPublicId(teacherId: string, tx: any = prisma) {
+  async findByPublicId(teacherId: string, tx: TransactionClient = prisma) {
     return tx.teacher.findUnique({
       where: { teacherId },
     });
   }
 
   /**
-   * Creates a single teacher record (flat schema).
+   * Commits an atomic multi-table nested query block to ingest new faculty lines.
    */
-  async createTeacher(data: any, tx: any = prisma) {
-    return tx.teacher.create({ data });
+  async createNestedTeacher(data: Prisma.TeacherCreateInput, tx: TransactionClient = prisma) {
+    return tx.teacher.create({ 
+      data,
+      select: {
+        id: true,
+        teacherId: true,
+        teacherName: true,
+      }
+    });
   }
 
   /**
-   * Creates an immutable departure audit log.
+   * Appends an immutable historical offboarding log into the faculty ledger.
    */
-  async createDepartureLog(data: any, tx: any = prisma) {
+  async createDepartureLog(data: Prisma.TeacherDepartureUncheckedCreateInput, tx: TransactionClient = prisma) {
     return tx.teacherDeparture.create({ data });
   }
 
   /**
-   * Updates the core teacher status.
+   * Modifies a teacher's master directory state flag within isolated transactions.
    */
-  async updateStatus(id: string, status: string, tx: any = prisma) {
+  async updateStatus(id: string, status: EntityStatus, tx: TransactionClient = prisma) {
     return tx.teacher.update({
       where: { id },
       data: { status },

@@ -1,67 +1,65 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import { StudentService } from "./student.service";
 
 // ── LAYER INSTANTIATION ──
-// The controller only talks to the Service layer. It does not touch the database.
 const studentService = new StudentService();
 
 export class StudentController {
   /**
-   * Fetches full relational student graph rows.
-   * Maps to GET /api/students
+   * GET /api/students
+   * Fetches full relational student graph rows mapped to UI grid standards.
    */
-  public getAllStudents = async (req: Request, res: Response): Promise<Response | void> => {
+  public getAllStudents = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
       const students = await studentService.getAll();
       return res.status(200).json({ success: true, data: students });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to retrieve student records.",
-      });
+    } catch (error) {
+      next(error);
     }
   };
 
   /**
-   * Compiles the chronological ledger metrics matrix.
-   * Maps to GET /api/students/finance
+   * GET /api/students/finance
+   * Compiles the chronological ledger metrics matrix for billing.
    */
-  public getFinancialMatrix = async (req: Request, res: Response): Promise<Response | void> => {
+  public getFinancialMatrix = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
       const financialLedger = await studentService.getFinancialMatrix();
       return res.status(200).json({ success: true, data: financialLedger });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to calculate financial history.",
-      });
+    } catch (error) {
+      next(error);
     }
   };
 
   /**
-   * Validates incoming payload and delegates enrollment to the Service layer.
-   * Maps to POST /api/students
+   * POST /api/students
+   * Delegates unified transaction enrollment execution down to the Student Service layer.
    */
-  public enrollStudent = async (req: Request, res: Response): Promise<Response | void> => {
+  public enrollStudent = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
-      const { account, demographics, placement, guardian, billing } = req.body;
+      // FIX: Destructure 'billing' (or fallback from 'payroll' if the frontend sent it under that key)
+      const { account, demographics, placement, compliance, billing, payroll } = req.body;
 
-      // Fail-fast validation for required frontend fields
-      if (
-        !account?.fullName || !account?.email || !account?.password || !account?.enrollmentDate ||
-        !demographics?.dateOfBirth || !demographics?.gender || !demographics?.residentialAddress ||
-        !placement?.classId || !placement?.academicTrack || !placement?.boardingStatus ||
-        !guardian?.name || !guardian?.relationship || !guardian?.phone ||
-        !billing?.feeTierId
-      ) {
+      if (!account?.fullName || !account?.email) {
         return res.status(400).json({
           success: false,
-          message: "Missing essential enrollment payload dependencies.",
+          message: "Missing core identity payloads (fullName and email are required)."
         });
       }
 
-      // Delegate the database transaction entirely to the Service
-      const newStudent = await studentService.createStudent(req.body);
+      // FIX: Included 'billing' property to satisfy the strict StudentService signature contract
+      const newStudent = await studentService.createStudent({
+        account: {
+          fullName: account.fullName,
+          email: account.email,
+          password: account.password,
+          enrollmentDate: account.enrollmentDate || new Date().toISOString()
+        },
+        demographics,
+        placement,
+        compliance,
+        billing: billing || payroll // Fallback strategy to absorb either naming option from the UI
+      });
 
       return res.status(201).json({
         success: true,
@@ -73,7 +71,6 @@ export class StudentController {
         },
       });
     } catch (error: any) {
-      // Catch Prisma unique constraint violations (e.g., duplicate email/ID)
       if (error.code === "P2002") {
         return res.status(409).json({
           success: false,
@@ -81,39 +78,36 @@ export class StudentController {
         });
       }
       
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Failed to execute enrollment pipeline.",
-      });
+      next(error);
     }
   };
 
   /**
-   * Validates departure payload and delegates offboarding to the Service layer.
-   * Maps to POST /api/students/departure
+   * POST /api/students/departure
+   * Maps UI payload directly onto the student disposition system architecture.
    */
-  public executeDeparture = async (req: Request, res: Response): Promise<Response | void> => {
+  public executeDeparture = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
-      const { studentId, departureType, effectiveDate, disposition, remarks } = req.body;
+      const { studentId, departureType, effectiveDate, clearance, remarks } = req.body;
 
-      // Validate the exact structure sent by the React frontend
-      if (
-        !studentId ||
-        !departureType ||
-        !effectiveDate ||
-        !disposition?.treasuryClearanceStatus ||
-        disposition?.destinationInstitution === undefined ||
-        disposition?.academicRecordsArchived === undefined ||
-        !remarks
-      ) {
+      if (!studentId || !departureType || !effectiveDate) {
         return res.status(400).json({
           success: false,
-          message: "Missing structural departure payload dependencies.",
+          message: "Missing core institutional student departure details.",
         });
       }
 
-      // Delegate to the service method
-      const result = await studentService.processDeparture(req.body);
+      const result = await studentService.processDeparture({
+        studentId,
+        departureType,
+        effectiveDate,
+        disposition: {
+          destinationInstitution: clearance?.destinationInstitution || "None Provided",
+          treasuryClearanceStatus: clearance?.treasury || "APPROVED",
+          academicRecordsArchived: clearance?.academicRecordsArchived ?? true
+        },
+        remarks: remarks || "Standard Student Separation Sequence Finalized"
+      });
 
       return res.status(200).json({
         success: true,
@@ -121,9 +115,14 @@ export class StudentController {
         data: result,
       });
     } catch (error: any) {
-      // Return 404 if the student doesn't exist, otherwise 422 for logic errors
-      const statusCode = error.message.includes("lookup failed") ? 404 : 422;
-      return res.status(statusCode).json({
+      if (error.message?.includes("lookup failed") || error.message?.includes("not found")) {
+        return res.status(404).json({
+          success: false,
+          message: error.message || "Student record could not be located.",
+        });
+      }
+      
+      return res.status(422).json({
         success: false,
         message: error.message || "Departure pipeline execution failed.",
       });
