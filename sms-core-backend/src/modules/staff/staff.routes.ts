@@ -13,6 +13,12 @@ router.post(
   staffController.executeDeparture
 );
 
+// ── HIGH-DENSITY WORKFORCE ANALYTICS ──
+router.get(
+  "/matrix", 
+  staffController.getWorkforceMatrix
+);
+
 // ── CORE REGISTRY ENTRIES ──
 router.get("/", staffController.getAllStaff);
 

@@ -14,6 +14,12 @@ router.post(
   teacherController.executeDeparture
 );
 
+// ── HIGH-DENSITY ACADEMIC FACULTY ANALYTICS ──
+router.get(
+  "/matrix",
+  teacherController.getAllTeachers // Maps directly to your composite grid payload setup
+);
+
 // ── CORE REGISTRY ENTRIES ──
 router.get("/", teacherController.getAllTeachers);
 
