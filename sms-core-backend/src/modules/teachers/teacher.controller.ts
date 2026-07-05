@@ -73,6 +73,7 @@ export class TeacherController {
       // Fail-fast validation matching the exact structure sent by the React frontend
       if (
         !teacherId ||
+ 
         !departureType ||
         !effectiveDate ||
         !clearance?.academic ||
