@@ -70,6 +70,8 @@ model Student {
   invoices        Invoice[]
   payments        Payment[]
   paymentLogs     PaymentCollection[]
+  attendanceRecords AttendanceRecord[]
+  grades GradeRecord[]
 }
 
 model StudentAccount {
@@ -454,4 +456,54 @@ model LedgerAccount {
   updatedAt   DateTime @updatedAt
 
   @@map("ledger_accounts")
+}
+
+/// ==========================================
+// UPDATED: ATTENDANCE DOMAIN SCHEMAS (Fixed Type Mismatches)
+// ==========================================
+model AttendanceRecord {
+  id        String           @id @default(uuid())
+  studentId String           
+  date      DateTime         @db.Date
+  status    AttendanceStatus
+  remarks   String?          @db.Text
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  // Relations
+  student   Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, date]) 
+  @@index([studentId, status])
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+// ==========================================
+// UPDATED: ACADEMIC GRADES SCHEMAS (Fixed Type Mismatches)
+// ==========================================
+model GradeRecord {
+  id                   String   @id @default(uuid())
+  studentId            String   
+  subjectId            String   
+  classId              String   
+  termId               String   
+  continuousAssessment Decimal  @db.Decimal(5, 2) 
+  examination          Decimal  @db.Decimal(5, 2) 
+  finalScore           Decimal  @db.Decimal(5, 2) 
+  letterGrade          String   @db.VarChar(2)
+  gradePoints          Decimal  @db.Decimal(3, 2) 
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  // Relations
+  student              Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, subjectId, termId], name: "studentId_subjectId_termId")
+  @@index([studentId, termId])
 }

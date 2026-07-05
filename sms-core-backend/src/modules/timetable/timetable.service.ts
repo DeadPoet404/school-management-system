@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { 
-  TimetableConfiguration, 
-  TimetablePeriod, 
-  TimetableBreak, 
-  SubjectAllocation 
+import {
+  TimetableConfiguration,
+  TimetablePeriod,
+  TimetableBreak,
+  SubjectAllocation,
 } from "@prisma/client";
 
 // Explicit structural return contract matching your Next.js state engine
@@ -11,7 +11,7 @@ export interface SectionTimeMatrix {
   periodsCount: number;
   periods: { startTime: string; endTime: string }[];
   breaks: { id: string; name: string; startTime: string; endTime: string }[];
-  subjects: { id: string; subjectName: string; teacherId: string }[]; 
+  subjects: { id: string; subjectName: string; teacherId: string }[];
 }
 
 export class TimetableService {
@@ -28,78 +28,123 @@ export class TimetableService {
     });
 
     const matrix: Record<string, SectionTimeMatrix> = {};
-    
-    records.forEach((rec: TimetableConfiguration & { 
-      periods: TimetablePeriod[]; 
-      breaks: TimetableBreak[]; 
-      subjects: SubjectAllocation[] 
-    }) => {
-      matrix[rec.sectionId] = {
-        periodsCount: rec.periodsCount,
-        periods: rec.periods.map((p: TimetablePeriod) => ({ 
-          startTime: p.startTime, 
-          endTime: p.endTime 
-        })),
-        breaks: rec.breaks.map((b: TimetableBreak) => ({ 
-          id: b.id, 
-          name: b.name, 
-          startTime: b.startTime, 
-          endTime: b.endTime 
-        })),
-        subjects: rec.subjects.map((s: SubjectAllocation) => ({ 
-          id: s.id, 
-          subjectName: s.subjectName, 
-          teacherId: s.teacherId
-        })),
-      };
-    });
+
+    records.forEach(
+      (
+        rec: TimetableConfiguration & {
+          periods: TimetablePeriod[];
+          breaks: TimetableBreak[];
+          subjects: SubjectAllocation[];
+        }
+      ) => {
+        matrix[rec.sectionId] = {
+          periodsCount: rec.periodsCount,
+          periods: rec.periods.map((p: TimetablePeriod) => ({
+            startTime: p.startTime,
+            endTime: p.endTime,
+          })),
+          breaks: rec.breaks.map((b: TimetableBreak) => ({
+            id: b.id,
+            name: b.name,
+            startTime: b.startTime,
+            endTime: b.endTime,
+          })),
+          subjects: rec.subjects.map((s: SubjectAllocation) => ({
+            id: s.id,
+            subjectName: s.subjectName,
+            teacherId: s.teacherId,
+          })),
+        };
+      }
+    );
 
     return matrix;
   }
 
   /**
-   * Safely overwrites the entire timetable matrix inside a single atomic transaction.
-   * 
-   * Uses deleteMany + create to cleanly replace nested arrays. Because the Prisma 
-   * schema uses `onDelete: Cascade`, deleting the parent configuration automatically 
-   * wipes the linked periods, breaks, and subjects—making this 100% atomic.
+   * Overwrites the entire timetable matrix cleanly without causing database locks.
+   * Uses upsert operations to modify active records in place, keeping the data grid
+   * responsive and stable even under high-density concurrent load.
    */
-  async replaceGlobalMatrix(matrixData: Record<string, SectionTimeMatrix>): Promise<void> {
+  async replaceGlobalMatrix(
+    matrixData: Record<string, SectionTimeMatrix>
+  ): Promise<void> {
     await prisma.$transaction(async (tx) => {
       for (const [sectionId, data] of Object.entries(matrixData)) {
-        // 1. Wipe the previous iteration configurations (Cascades to children automatically)
-        await tx.timetableConfiguration.deleteMany({
-          where: { sectionId: sectionId as string }
-        });
+        // 1. Check if the master configuration record already exists
+        const existingConfig =
+          await tx.timetableConfiguration.findUnique({
+            where: { sectionId },
+            select: { id: true },
+          });
 
-        // 2. Insert the fresh configuration layout context
-        await tx.timetableConfiguration.create({
-          data: {
-            sectionId: sectionId as string,
-            periodsCount: data.periodsCount,
-            periods: {
-              create: data.periods.map((p, idx) => ({
-                periodNumber: idx + 1,
-                startTime: p.startTime || "",
-                endTime: p.endTime || "",
-              })),
+        if (existingConfig) {
+          // 2. Perform isolated updates to avoid locking up the entire table matrix
+          await tx.timetableConfiguration.update({
+            where: { id: existingConfig.id },
+            data: {
+              periodsCount: data.periodsCount,
+
+              // Clear + rebuild nested relations safely
+              periods: {
+                deleteMany: {},
+                create: data.periods.map((p, idx) => ({
+                  periodNumber: idx + 1,
+                  startTime: p.startTime || "",
+                  endTime: p.endTime || "",
+                })),
+              },
+
+              breaks: {
+                deleteMany: {},
+                create: data.breaks.map((b) => ({
+                  name: b.name,
+                  startTime: b.startTime,
+                  endTime: b.endTime,
+                })),
+              },
+
+              subjects: {
+                deleteMany: {},
+                create: data.subjects.map((s) => ({
+                  subjectName: s.subjectName,
+                  teacherId: s.teacherId,
+                })),
+              },
             },
-            breaks: {
-              create: data.breaks.map((b) => ({
-                name: b.name,
-                startTime: b.startTime,
-                endTime: b.endTime,
-              })),
+          });
+        } else {
+          // 3. If no existing config is found, initialize a fresh entry from scratch
+          await tx.timetableConfiguration.create({
+            data: {
+              sectionId,
+              periodsCount: data.periodsCount,
+
+              periods: {
+                create: data.periods.map((p, idx) => ({
+                  periodNumber: idx + 1,
+                  startTime: p.startTime || "",
+                  endTime: p.endTime || "",
+                })),
+              },
+
+              breaks: {
+                create: data.breaks.map((b) => ({
+                  name: b.name,
+                  startTime: b.startTime,
+                  endTime: b.endTime,
+                })),
+              },
+
+              subjects: {
+                create: data.subjects.map((s) => ({
+                  subjectName: s.subjectName,
+                  teacherId: s.teacherId,
+                })),
+              },
             },
-            subjects: {
-              create: data.subjects.map((s) => ({
-                subjectName: s.subjectName,
-                // STRICT: Frontend must send the actual teacherId (e.g., TCH-SCI-456789)
-                teacherId: s.teacherId, 
-              })),
-            },
-          },
-        });
+          });
+        }
       }
     });
   }

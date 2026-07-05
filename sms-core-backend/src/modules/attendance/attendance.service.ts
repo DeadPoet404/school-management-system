@@ -1,52 +1,95 @@
 import { prisma } from "@/lib/prisma";
-import { AttendanceRepository } from "./attendance.repository";
-import { StudentRepository } from "../students/student.repository";
+import { AttendanceStatus } from "@prisma/client";
+
+interface AttendanceSubmission {
+  studentId: string;
+  status: AttendanceStatus;
+  remarks?: string;
+}
 
 export class AttendanceService {
-  private repo = new AttendanceRepository();
-  private studentRepo = new StudentRepository();
+  /**
+   * Commits a complete class attendance sheet atomically.
+   * Uses a single transaction batch (N upserts in one DB round-trip).
+   */
+  async recordBulkAttendance(date: string, records: AttendanceSubmission[]) {
+    const targetDate = new Date(date);
+
+    return await prisma.$transaction(
+      records.map((record) =>
+        prisma.attendanceRecord.upsert({
+          where: {
+            studentId_date: {
+              studentId: record.studentId,
+              date: targetDate,
+            },
+          },
+          update: {
+            status: record.status,
+            remarks: record.remarks ?? null,
+          },
+          create: {
+            studentId: record.studentId,
+            date: targetDate,
+            status: record.status,
+            remarks: record.remarks ?? null,
+          },
+        })
+      )
+    );
+  }
 
   /**
-   * Commits the attendance sheet grid and dynamically updates rolling profile averages.
+   * Compiles historical attendance rates for a student.
+   */
+  async getStudentAttendanceMetrics(studentId: string) {
+    const summary = await prisma.attendanceRecord.groupBy({
+      by: ["status"],
+      where: { studentId },
+      _count: { status: true },
+    });
+
+    const metrics: Record<AttendanceStatus, number> = {
+      PRESENT: 0,
+      ABSENT: 0,
+      LATE: 0,
+      EXCUSED: 0,
+    };
+
+    let total = 0;
+
+    summary.forEach((group) => {
+      metrics[group.status] = group._count.status;
+      total += group._count.status;
+    });
+
+    const rate =
+      total > 0
+        ? ((metrics.PRESENT + metrics.LATE) / total) * 100
+        : 100.0;
+
+    return {
+      totalRecords: total,
+      breakdown: metrics,
+      rate,
+    };
+  }
+
+  /**
+   * Processes a full section attendance submission in a single batch operation.
+   * Replaces per-student loops with atomic bulk upserts.
    */
   async processSectionAttendance(payload: {
     date: string;
     classId: string;
-    records: { studentId: string; status: "PRESENT" | "ABSENT" | "LATE" | "EXCUSED"; remarks?: string }[];
+    records: AttendanceSubmission[];
   }) {
     const { date, records } = payload;
-    const parsingDate = new Date(date);
 
-    return await prisma.$transaction(async (tx) => {
-      // 1. Prepare formatting payload to database specs
-      const databaseRecords = records.map((rec) => ({
-        studentId: rec.studentId, // Expects student framework internal database ID
-        date: parsingDate,
-        status: rec.status,
-        remarks: rec.remarks || undefined,
-      }));
+    await this.recordBulkAttendance(date, records);
 
-      // 2. Commit bulk parameters matrix sheet
-      await this.repo.recordBulkAttendance(databaseRecords, tx);
-
-      // 3. Recalculate and update the running averages for affected student records
-      for (const rec of records) {
-        const counts = await this.repo.getStudentAttendanceCounts(rec.studentId, tx);
-
-        if (counts.totalCount > 0) {
-          // Weight configuration: Present = 1.0, Late counts as partial presence (e.g., 0.5)
-          const adjustedPresence = counts.presentCount + (counts.lateCount * 0.5);
-          const rawPercentage = (adjustedPresence / counts.totalCount) * 100;
-          
-          // Format into a clean, presentation-ready float configuration block
-          const finalPercentage = Math.min(100, Math.max(0, parseFloat(rawPercentage.toFixed(2))));
-
-          // Persist the computed rate cleanly on the parent record structure
-          await this.repo.updateStudentAttendanceRate(rec.studentId, finalPercentage, tx);
-        }
-      }
-
-      return { processedCount: records.length };
-    });
+    return {
+      processedCount: records.length,
+    };
   }
 }

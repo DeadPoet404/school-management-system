@@ -186,12 +186,11 @@ const totalFeeAmount = (config.components as any[]).reduce((sum: number, comp: a
         if (!existingInvoice) {
           // ✅ Delegated to repo
           const invCount = await this.repo.countInvoices(tx);
-          const invoiceNo = generateSerial(
-            `INV-${sectionId.toUpperCase().replace(/-/g, '')}`, 
-            invCount, 
-            4, 
-            1 
-          );
+         const invoiceNo = generateSerial(
+  `INV-${sectionId.toUpperCase().replace(/-/g, '')}`, 
+  invCount, 
+  4 
+);
 
           // ✅ Delegated to repo
           await this.repo.createInvoice({

@@ -12,6 +12,7 @@
     "seed": "ts-node -r tsconfig-paths/register prisma/seed.ts"
   },
   "dependencies": {
+    "@paralleldrive/cuid2": "^3.3.0",
     "@prisma/client": "^5.15.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
