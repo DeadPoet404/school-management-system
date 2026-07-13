@@ -45,7 +45,7 @@ const MOCK_TEACHER_CLEARANCE_LEVELS: ClearanceOption[] = [
   { id: "clear-adm", name: "Level 3: Full Academic Super-Admin", description: "Unrestricted systemic manipulation, cross-department scheduling controls, and institution-wide registry management" },
 ]
 
-export default function ComprehensiveTeacherEnrollmentWizard() {
+function ComprehensiveTeacherEnrollmentWizard() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const fromSource = searchParams.get("from")
@@ -719,5 +719,13 @@ export default function ComprehensiveTeacherEnrollmentWizard() {
         </form>
       </ScrollArea>
     </div>
+  )
+}
+
+export default function TeachersAddPage() {
+  return (
+    <React.Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading teacher form…</div>}>
+      <ComprehensiveTeacherEnrollmentWizard />
+    </React.Suspense>
   )
 }

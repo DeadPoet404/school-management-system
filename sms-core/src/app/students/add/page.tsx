@@ -46,7 +46,7 @@ const MOCK_FEE_TIERS: FeeTierOption[] = [
 ]
 
 // ── MAIN COMPONENT ──
-export default function ComprehensiveEnrollmentWizard() {
+function ComprehensiveEnrollmentWizard() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const fromSource = searchParams.get("from")
@@ -342,7 +342,6 @@ export default function ComprehensiveEnrollmentWizard() {
     )
   }
 
-  // ═══════════════════════════════════════════════════════════
   // STEP BADGE HELPER
   // ═══════════════════════════════════════════════════════════
   const StepBadge = ({ num, isLast }: { num: number; isLast?: boolean }) => (
@@ -1071,5 +1070,13 @@ export default function ComprehensiveEnrollmentWizard() {
         </form>
       </ScrollArea>
     </div>
+  )
+}
+
+export default function StudentsAddPage() {
+  return (
+    <React.Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading student form…</div>}>
+      <ComprehensiveEnrollmentWizard />
+    </React.Suspense>
   )
 }

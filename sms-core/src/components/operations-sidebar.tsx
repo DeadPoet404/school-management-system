@@ -119,6 +119,11 @@ const operationalNavigation: NavSection[] = [
         id: "academic-testing",
         items: [
           { title: "Exam Administration", id: "exam-admin" },
+          { 
+            title: "Continuous Assessment Sheet", 
+            id: "ca-gradebook", 
+            href: "/students/gradebook" // Linked directly to grading roster workspace
+          },
           { title: "Grading & Report Cards", id: "grading-frameworks" }
         ]
       }
@@ -151,7 +156,8 @@ export function OperationsSidebar({ activeSubItem, onSelect }: OperationsSidebar
     "Academic Operations": true,
     "Finance & Accounts": true,
     "HR & Staff Operations": true,
-    "Student Lifecycle Hub": true
+    "Student Lifecycle Hub": true,
+    "Assessments & Exams": true // Section set open to display gradebook entry directly
   })
 
   const prevActiveItemRef = React.useRef<string>(activeSubItem)
@@ -227,7 +233,6 @@ export function OperationsSidebar({ activeSubItem, onSelect }: OperationsSidebar
                               isCurrentActive && "text-stone-950 font-semibold bg-stone-50"
                             )
 
-                            // Render explicit client-side link element if href schema property exists
                             if (item.href) {
                               return (
                                 <Link

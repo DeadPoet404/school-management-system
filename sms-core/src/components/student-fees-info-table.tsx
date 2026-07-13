@@ -15,16 +15,27 @@ type StudentFeeInfoRow = {
   rawBalance: number
 }
 
-export function StudentFeeInfoTable() {
-  const [students, setStudents] = React.useState<any[]>([])
-  const [loading, setLoading] = React.useState<boolean>(true)
+interface StudentFeeInfoTableProps {
+  data?: any[]
+}
+
+export function StudentFeeInfoTable({ data: initialData }: StudentFeeInfoTableProps) {
+  const [students, setStudents] = React.useState<any[]>(initialData || [])
+  const [loading, setLoading] = React.useState<boolean>(!initialData)
   const [error, setError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
+    if (initialData) {
+      setStudents(initialData)
+      setLoading(false)
+      setError(null)
+      return
+    }
+
     const fetchStudents = async () => {
       try {
         setLoading(true)
-        const response = await fetch("http://localhost:3000/api/students")
+        const response = await fetch("http://localhost:5000/api/students")
         if (!response.ok) {
           throw new Error(`HTTP Error: ${response.status}`)
         }
@@ -45,7 +56,7 @@ export function StudentFeeInfoTable() {
     }
 
     fetchStudents()
-  }, [])
+  }, [initialData])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-GH", {

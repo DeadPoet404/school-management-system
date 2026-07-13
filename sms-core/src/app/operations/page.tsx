@@ -60,17 +60,17 @@ const OPERATIONS_MANIFEST: OperationRegistryItem[] = [
   {
     id: "hr-leave",
     title: "Staff Leave Management",
-    action: { type: "route", path: "/staff/leave?from=operations" },
+    action: { type: "route", path: "/staff/departure?from=operations" },
   },
   {
     id: "enrollment-workflow",
     title: "Student Registration Funnel",
-    action: { type: "route", path: "/students/add_student?from=operations" },
+    action: { type: "route", path: "/students/add?from=operations" },
   },
   {
     id: "student-leave",
     title: "Student Leave Processing",
-    action: { type: "route", path: "/students/leave?from=operations" },
+    action: { type: "route", path: "/students/departure?from=operations" },
   },
 ]
 

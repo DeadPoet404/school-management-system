@@ -44,7 +44,7 @@ const MOCK_CLEARANCE_LEVELS: ClearanceOption[] = [
   { id: "clear-adm", name: "Level 3: Full Operational Super-Admin", description: "Unrestricted infrastructure and system configuration rights" },
 ]
 
-export default function ComprehensiveStaffEnrollmentWizard() {
+function ComprehensiveStaffEnrollmentWizard() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const fromSource = searchParams.get("from")
@@ -252,7 +252,6 @@ export default function ComprehensiveStaffEnrollmentWizard() {
     )
   }
 
-  // ── STEP BADGE HELPER ──
   const StepBadge = ({ num, isLast }: { num: number; isLast?: boolean }) => (
     <div className="absolute left-0 top-0 flex flex-col items-center h-full">
       <div className="flex h-7 w-7 items-center justify-center rounded-full border border-stone-200 bg-background text-xs font-semibold text-stone-600 dark:border-stone-800 dark:text-stone-400 shadow-xs">
@@ -749,5 +748,13 @@ export default function ComprehensiveStaffEnrollmentWizard() {
         </form>
       </ScrollArea>
     </div>
+  )
+}
+
+export default function StaffAddPage() {
+  return (
+    <React.Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading staff form…</div>}>
+      <ComprehensiveStaffEnrollmentWizard />
+    </React.Suspense>
   )
 }

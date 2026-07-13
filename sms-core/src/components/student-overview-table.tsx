@@ -17,12 +17,23 @@ type StudentOverviewRow = {
   enrollmentDate: string
 }
 
-export function StudentOverviewTable() {
-  const [students, setStudents] = React.useState<any[]>([])
-  const [loading, setLoading] = React.useState<boolean>(true)
+interface StudentOverviewTableProps {
+  data?: any[]
+}
+
+export function StudentOverviewTable({ data: initialData }: StudentOverviewTableProps) {
+  const [students, setStudents] = React.useState<any[]>(initialData || [])
+  const [loading, setLoading] = React.useState<boolean>(!initialData)
   const [error, setError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
+    if (initialData) {
+      setStudents(initialData)
+      setLoading(false)
+      setError(null)
+      return
+    }
+
     const fetchStudents = async () => {
       try {
         setLoading(true)
@@ -45,7 +56,7 @@ export function StudentOverviewTable() {
     }
 
     fetchStudents()
-  }, [])
+  }, [initialData])
 
   const normalizedData: StudentOverviewRow[] = students.map((student) => {
     const formattedDate = student.enrollmentDate 
