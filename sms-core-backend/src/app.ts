@@ -1,5 +1,11 @@
+import 'dotenv/config';
+
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import morgan from 'morgan';
+
 import studentRoutes from './modules/students/student.routes';
 import teacherRoutes from "./modules/teachers/teacher.routes";
 import staffRoutes from "./modules/staff/staff.routes";
@@ -8,43 +14,89 @@ import financeRoutes from "./modules/finance/finance.routes";
 import attendanceRoutes from "./modules/attendance/attendance.routes";
 import gradesRoutes from "./modules/grades/grades.routes";
 
-// ── NEW: Import the error handler ──
+// ── Auth ──
+import authRoutes from './modules/auth/auth.routes';
+import { authenticate } from './middleware/auth.middleware';
+
+// ── Error handler ──
 import { globalErrorHandler } from './middleware/error.handler';
 
 const app = express();
 const port = process.env.PORT || 5000;
 
-// --- CROSS-ORIGIN RESOURCE SHARING (CORS) ARCHITECTURE ---
+// ── SECURITY: HTTP security headers ──
+app.use(helmet());
+
+// ── OBSERVABILITY: HTTP request logging ──
+app.use(morgan('dev'));
+
+// ── CORS — env-driven ──
+const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:3001')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 app.use(cors({
-  origin: [
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:3001"
-  ],
+  origin: allowedOrigins,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true,
   optionsSuccessStatus: 200
 }));
 
-// --- GLOBAL MIDDLEWARE ROUTER ENGINE ---
+// ── GLOBAL MIDDLEWARE ──
 app.use(express.json());
 
-// --- CORE SYSTEM APP ROUTE AGGREGATION PATTERNS ---
-app.use('/api/students', studentRoutes);
-app.use('/api/teachers', teacherRoutes);
-app.use('/api/staff', staffRoutes);
-app.use('/api/timetable', timetableRoutes);
-app.use('/api/finance', financeRoutes);
-app.use("/api/grades", gradesRoutes);
-app.use("/api/attendance", attendanceRoutes);
-// --- 404 HANDLER (Must come AFTER all valid routes) ---
-app.use((req, res, next) => {
-  res.status(404).json({ success: false, message: `Resource footprint ${req.originalUrl} not discovered.` });
+// ── RATE LIMITING on all /api/ routes ──
+const apiLimiter = rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10),
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100', 10),
+  message: {
+    success: false,
+    message: 'Too many requests. Please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/', apiLimiter);
+
+// ═══════════════════════════════════════════
+// ── PUBLIC ROUTES (no JWT required) ──
+// ═══════════════════════════════════════════
+
+// Health check — for load balancers and monitoring
+app.get('/api/health', (_req, res) => {
+  res.json({
+    success: true,
+    data: {
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      uptime: Math.floor(process.uptime()),
+    }
+  });
 });
 
-// ── NEW: Global Error Handler (Must ALWAYS be the very last middleware) ──
+// Auth — login endpoint (has its own stricter rate limiter)
+app.use('/api/auth', authRoutes);
+
+// ═══════════════════════════════════════════
+// ── PROTECTED ROUTES (JWT required) ──
+// ═══════════════════════════════════════════
+
+app.use('/api/students', authenticate, studentRoutes);
+app.use('/api/teachers', authenticate, teacherRoutes);
+app.use('/api/staff', authenticate, staffRoutes);
+app.use('/api/timetable', authenticate, timetableRoutes);
+app.use('/api/finance', authenticate, financeRoutes);
+app.use("/api/grades", authenticate, gradesRoutes);
+app.use("/api/attendance", authenticate, attendanceRoutes);
+
+// ── 404 HANDLER (Must come AFTER all valid routes) ──
+app.use((_req, res) => {
+  res.status(404).json({ success: false, message: `Resource ${_req.originalUrl} not found.` });
+});
+
+// ── GLOBAL ERROR HANDLER (Must ALWAYS be the very last middleware) ──
 app.use(globalErrorHandler);
 
 app.listen(port, () => {

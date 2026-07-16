@@ -22,3 +22,13 @@ logs/
 # OS Junk
 .DS_Store
 Thumbs.db
+# Test coverage output
+coverage/
+
+# TypeScript build cache
+*.tsbuildinfo
+
+# Environment-specific env files (only .env.example is committed)
+.env.production
+.env.staging
+.env.development

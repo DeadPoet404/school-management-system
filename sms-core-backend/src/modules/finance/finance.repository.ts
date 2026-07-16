@@ -1,50 +1,42 @@
 import { prisma } from "@/lib/prisma";
+import { IFinanceRepository, TransactionClient, FeeConfigCreateData, CollectionCreateData, InvoiceCreateData, StudentPaymentCreateData, LedgerAccountCreateData } from "@/types/repositories";
 
-export class FinanceRepository {
-  // =========================================================================
-  // FEE STRUCTURES
-  // =========================================================================
-  async findAllFeeConfigurations(tx: any = prisma) {
+export class FinanceRepository implements IFinanceRepository {
+  async findAllFeeConfigurations(tx: TransactionClient = prisma) {
     return tx.feeStructureConfiguration.findMany({ include: { components: true } });
   }
 
-  async findFeeConfigBySection(sectionId: string, tx: any = prisma) {
+  async findFeeConfigBySection(sectionId: string, tx: TransactionClient = prisma) {
     return tx.feeStructureConfiguration.findUnique({
       where: { sectionId },
       include: { components: true },
     });
   }
 
-  async deleteFeeConfigBySection(sectionId: string, tx: any = prisma) {
+  async deleteFeeConfigBySection(sectionId: string, tx: TransactionClient = prisma) {
     return tx.feeStructureConfiguration.deleteMany({ where: { sectionId } });
   }
 
-  async createFeeConfig(data: any, tx: any = prisma) {
+  async createFeeConfig(data: FeeConfigCreateData, tx: TransactionClient = prisma) {
     return tx.feeStructureConfiguration.create({ data });
   }
 
-  // =========================================================================
-  // PAYMENT COLLECTIONS (INFLOW)
-  // =========================================================================
-  async findCollectionsBySection(sectionId: string, tx: any = prisma) {
+  async findCollectionsBySection(sectionId: string, tx: TransactionClient = prisma) {
     return tx.paymentCollection.findMany({
       where: { sectionId },
       orderBy: { dateProcessed: 'desc' },
     });
   }
 
-  async countCollections(tx: any = prisma) {
+  async countCollections(tx: TransactionClient = prisma) {
     return tx.paymentCollection.count();
   }
 
-  async createCollection(data: any, tx: any = prisma) {
+  async createCollection(data: CollectionCreateData, tx: TransactionClient = prisma) {
     return tx.paymentCollection.create({ data });
   }
 
-  // =========================================================================
-  // STUDENT FINANCIALS (INVOICES & LEDGERS)
-  // =========================================================================
-  async findStudentsBySection(sectionId: string, tx: any = prisma) {
+  async findStudentsBySection(sectionId: string, tx: TransactionClient = prisma) {
     return tx.student.findMany({
       where: { placement: { classId: sectionId }, status: { not: "DEPARTED" } },
       select: { id: true, studentId: true, studentName: true, billing: { select: { currentBalance: true } } },
@@ -52,44 +44,44 @@ export class FinanceRepository {
     });
   }
 
-  async findStudentsMinimalBySection(sectionId: string, tx: any = prisma) {
+  async findStudentsMinimalBySection(sectionId: string, tx: TransactionClient = prisma) {
     return tx.student.findMany({
       where: { placement: { classId: sectionId }, status: { not: "DEPARTED" } },
       select: { id: true, studentId: true },
     });
   }
 
-  async findExistingInvoice(studentId: string, configId: string, tx: any = prisma) {
+  async findExistingInvoice(studentId: string, configId: string, tx: TransactionClient = prisma) {
     return tx.invoice.findFirst({ where: { studentId, configId } });
   }
 
-  async countInvoices(tx: any = prisma) {
+  async countInvoices(tx: TransactionClient = prisma) {
     return tx.invoice.count();
   }
 
-  async createInvoice(data: any, tx: any = prisma) {
+  async createInvoice(data: InvoiceCreateData, tx: TransactionClient = prisma) {
     return tx.invoice.create({ data });
   }
 
-  async findOldestUnpaidInvoice(studentId: string, tx: any = prisma) {
+  async findOldestUnpaidInvoice(studentId: string, tx: TransactionClient = prisma) {
     return tx.invoice.findFirst({
       where: { studentId, status: "UNPAID" },
       orderBy: { createdAt: 'asc' },
     });
   }
 
-  async markInvoicePaid(invoiceId: string, tx: any = prisma) {
+  async markInvoicePaid(invoiceId: string, tx: TransactionClient = prisma) {
     return tx.invoice.update({ where: { id: invoiceId }, data: { status: "PAID" } });
   }
 
-  async decrementBillingLedger(studentId: string, amount: number, tx: any = prisma) {
+  async decrementBillingLedger(studentId: string, amount: number, tx: TransactionClient = prisma) {
     return tx.billingLedger.update({
       where: { studentId },
       data: { currentBalance: { decrement: amount } },
     });
   }
 
-  async upsertBillingLedger(studentId: string, feeTierId: string, amount: number, tx: any = prisma) {
+  async upsertBillingLedger(studentId: string, feeTierId: string, amount: number, tx: TransactionClient = prisma) {
     return tx.billingLedger.upsert({
       where: { studentId },
       update: { currentBalance: { increment: amount } },
@@ -97,50 +89,47 @@ export class FinanceRepository {
     });
   }
 
-  async countStudentPayments(tx: any = prisma) {
+  async countStudentPayments(tx: TransactionClient = prisma) {
     return tx.payment.count();
   }
 
-  async createStudentPayment(data: any, tx: any = prisma) {
+  async createStudentPayment(data: StudentPaymentCreateData, tx: TransactionClient = prisma) {
     return tx.payment.create({ data });
   }
 
-  // =========================================================================
-  // GENERAL LEDGER & PAYROLL
-  // =========================================================================
-  async findAllLedgerAccounts(tx: any = prisma) {
+  async findAllLedgerAccounts(tx: TransactionClient = prisma) {
     return tx.ledgerAccount.findMany({ orderBy: { code: 'asc' } });
   }
 
-  async createLedgerAccount(data: any, tx: any = prisma) {
+  async createLedgerAccount(data: LedgerAccountCreateData, tx: TransactionClient = prisma) {
     return tx.ledgerAccount.create({ data });
   }
 
-  async getAllStaffPayroll(tx: any = prisma) {
+  async getAllStaffPayroll(tx: TransactionClient = prisma) {
     return tx.staffPayroll.findMany({
       include: { staff: { select: { staffName: true, account: { select: { role: true } } } } },
     });
   }
 
-  async getAllTeacherPayroll(tx: any = prisma) {
+  async getAllTeacherPayroll(tx: TransactionClient = prisma) {
     return tx.teacherPayroll.findMany({
       include: { teacher: { select: { teacherName: true, subject: true } } },
     });
   }
 
-  async findStaffPayrollById(id: string, tx: any = prisma) {
+  async findStaffPayrollById(id: string, tx: TransactionClient = prisma) {
     return tx.staffPayroll.findUnique({ where: { id } });
   }
 
-  async disburseStaffPayroll(id: string, tx: any = prisma) {
+  async disburseStaffPayroll(id: string, tx: TransactionClient = prisma) {
     return tx.staffPayroll.update({ where: { id }, data: { salaryStatus: "DISBURSED" } });
   }
 
-  async findTeacherPayrollById(id: string, tx: any = prisma) {
+  async findTeacherPayrollById(id: string, tx: TransactionClient = prisma) {
     return tx.teacherPayroll.findUnique({ where: { id } });
   }
 
-  async disburseTeacherPayroll(id: string, tx: any = prisma) {
+  async disburseTeacherPayroll(id: string, tx: TransactionClient = prisma) {
     return tx.teacherPayroll.update({ where: { id }, data: { salaryStatus: "DISBURSED" } });
   }
 }

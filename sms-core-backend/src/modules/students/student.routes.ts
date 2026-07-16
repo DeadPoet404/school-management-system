@@ -1,21 +1,23 @@
 import { Router } from "express";
 import { StudentController } from "./student.controller";
+import { StudentService } from "./student.service";
+import { StudentRepository } from "./student.repository";
 import { validate } from "@/middleware/validate";
 import { studentEnrollmentSchema, studentDepartureSchema } from "@/types/registry.types";
 
 const router = Router();
-const controller = new StudentController();
+
+// ── DEPENDENCY WIRING ──
+const studentRepo = new StudentRepository();
+const studentService = new StudentService(studentRepo);
+const controller = new StudentController(studentService);
 
 // ── SPECIALIZED DOMAIN TARGETS ──
-// Explicit paths reside at the peak of the routing stack to prevent wildcard collisions.
-router.get(
-  "/finance", 
-  controller.getFinancialMatrix
-);
+router.get("/finance", controller.getFinancialMatrix);
 
 router.post(
-  "/departure", 
-  validate(studentDepartureSchema), 
+  "/departure",
+  validate(studentDepartureSchema),
   controller.executeDeparture
 );
 
@@ -23,8 +25,8 @@ router.post(
 router.get("/", controller.getAllStudents);
 
 router.post(
-  "/", 
-  validate(studentEnrollmentSchema), 
+  "/",
+  validate(studentEnrollmentSchema),
   controller.enrollStudent
 );
 

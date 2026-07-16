@@ -44,6 +44,72 @@ enum TreasuryClearanceStatus {
 }
 
 
+
+enum InvoiceStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+
+enum ClearanceStatus {
+  PENDING
+  CLEARED
+  DENIED
+  NOT_APPLICABLE
+  EXEMPT
+}
+
+// ═══════════════════════════════════════════════════════════
+// ── REFERENCE DATA TABLES ──
+// ═══════════════════════════════════════════════════════════
+
+model Class {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  section   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Subject {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  code      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Term {
+  id           String   @id @default(uuid())
+  name         String   @unique
+  academicYear String
+  startDate    DateTime
+  endDate      DateTime
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Department {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  code      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model FeeTier {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  code      String   @unique
+  amount    Decimal  @db.Decimal(10, 2)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
 // ═══════════════════════════════════════════════════════════
 // ── STUDENT MANAGEMENT SYSTEM ──
 // ═══════════════════════════════════════════════════════════
@@ -148,7 +214,7 @@ model Invoice {
   updatedAt   DateTime @updatedAt
 
   // ── ADD THESE TWO LINES ──
-  status      String   @default("UNPAID") 
+  status      InvoiceStatus @default(UNPAID) 
   configId    String?  
 
   @@index([studentId])
@@ -202,10 +268,21 @@ model Teacher {
   updatedAt         DateTime     @updatedAt
 
   // ── RELATIONAL UPGRADES (Now matches Staff depth) ──
+  account         TeacherAccount?
   demographics    TeacherDemographics?
   compliance      TeacherCompliance?
   payroll         TeacherPayroll?
   departures      TeacherDeparture[]
+}
+
+// ── Teacher Portal Account (resolves StaffAccount FK violation) ──
+model TeacherAccount {
+  id           String  @id @default(uuid())
+  teacherId    String  @unique
+  teacher      Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  email        String  @unique
+  passwordHash String
+  role         String  @default("FACULTY")
 }
 
 // ── NEW: Teacher Personal & Background Data ──
@@ -254,8 +331,8 @@ model TeacherDeparture {
   teacher                  Teacher                @relation(fields: [teacherInternalId], references: [id], onDelete: Cascade)
   departureType            PersonnelDepartureType 
   effectiveDate            DateTime
-  academicClearanceStatus  String                 
-  treasuryClearanceStatus  String                 
+  academicClearanceStatus  ClearanceStatus                 
+  treasuryClearanceStatus  ClearanceStatus                 
   remarks                  String                 @db.Text
   processedAt              DateTime               @default(now())
 
@@ -285,9 +362,9 @@ model StaffDeparture {
   staff                    Staff                  @relation(fields: [staffInternalId], references: [id], onDelete: Cascade)
   departureType            PersonnelDepartureType 
   effectiveDate            DateTime
-  hrClearanceStatus        String                 
-  itAssetReturnStatus      String                 
-  treasuryClearanceStatus  String                 
+  hrClearanceStatus        ClearanceStatus                 
+  itAssetReturnStatus      ClearanceStatus                 
+  treasuryClearanceStatus  ClearanceStatus                 
   remarks                  String                 @db.Text
   processedAt              DateTime               @default(now())
 

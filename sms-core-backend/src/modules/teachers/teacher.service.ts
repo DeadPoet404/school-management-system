@@ -1,8 +1,10 @@
+import crypto from 'crypto';
 import { prisma } from "@/lib/prisma";
-import { EntityStatus, Prisma } from "@prisma/client";
+import { EntityStatus, ClearanceStatus, PersonnelDepartureType, Prisma } from "@prisma/client";
+import { ITeacherRepository } from "@/types/repositories";
+import { TeacherRepository } from "./teacher.repository";
 import { formatInstitutionalId } from "@/utils";
 import { hashPassword } from "@/utils/hash";
-import { TeacherRepository } from "./teacher.repository";
 
 type TeacherWithRelations = Prisma.TeacherGetPayload<{
   include: {
@@ -13,12 +15,8 @@ type TeacherWithRelations = Prisma.TeacherGetPayload<{
 }>;
 
 export class TeacherService {
-  private repo = new TeacherRepository();
+  constructor(private repo: ITeacherRepository = new TeacherRepository()) {}
 
-  /**
-   * Retrieves all ACTIVE teacher entries including their relational data
-   * and maps them to match frontend expectations.
-   */
   async getAllTeachers() {
     const rawTeachers = await this.repo.findAllActive();
 
@@ -68,10 +66,6 @@ export class TeacherService {
     }));
   }
 
-  /**
-   * Generates institutional credentials, provisions a secure portal access account,
-   * and instantiates the full relational teacher cluster atomically.
-   */
   async createTeacher(payload: {
     account: {
       fullName: string;
@@ -92,8 +86,11 @@ export class TeacherService {
 
     const uniqueTeacherId = formatInstitutionalId("TCH", deptPrefix);
 
-    const rawPassword =
-      account.password || `Welcome@SMS${new Date().getFullYear()}`;
+    const rawPassword = account.password || crypto.randomBytes(16).toString('base64url');
+
+    if (!account.password) {
+      console.log(`[SMS] Temporary password for ${account.email}: ${rawPassword}`);
+    }
 
     return await prisma.$transaction(async (tx) => {
       const hashedPassword = await hashPassword(rawPassword);
@@ -139,9 +136,9 @@ export class TeacherService {
         tx
       );
 
-      await tx.staffAccount.create({
+      await tx.teacherAccount.create({
         data: {
-          staffId: newTeacher.id,
+          teacherId: newTeacher.id,
           email: account.email,
           passwordHash: hashedPassword,
           role: "FACULTY",
@@ -152,9 +149,6 @@ export class TeacherService {
     });
   }
 
-  /**
-   * Processes the atomic offboarding of a faculty member.
-   */
   async processDeparture(payload: {
     teacherId: string;
     departureType: string;
@@ -186,10 +180,10 @@ export class TeacherService {
       const departureLog = await this.repo.createDepartureLog(
         {
           teacherInternalId: teacherRecord.id,
-          departureType: departureType as any,
+          departureType: departureType as PersonnelDepartureType,
           effectiveDate: new Date(effectiveDate),
-          academicClearanceStatus: clearance.academic,
-          treasuryClearanceStatus: clearance.treasury,
+          academicClearanceStatus: clearance.academic as ClearanceStatus,
+          treasuryClearanceStatus: clearance.treasury as ClearanceStatus,
           remarks,
         },
         tx

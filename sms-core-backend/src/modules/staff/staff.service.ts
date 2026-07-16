@@ -1,10 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import { PersonnelDepartureType, EntityStatus, Prisma } from "@prisma/client";
-import { formatInstitutionalId } from "@/utils";
-import { hashPassword } from "@/utils/hash";      
+import { PersonnelDepartureType, EntityStatus, ClearanceStatus, Prisma } from "@prisma/client";
+import { IStaffRepository } from "@/types/repositories";
 import { StaffRepository } from "./staff.repository";
+import { formatInstitutionalId } from "@/utils";
+import { hashPassword } from "@/utils/hash";
 
-// FIX: Align the type definition to match the complete sub-tables fetched by the repository
 type StaffWithRelations = Prisma.StaffGetPayload<{
   include: {
     account: true;
@@ -17,14 +17,9 @@ type StaffWithRelations = Prisma.StaffGetPayload<{
 }>;
 
 export class StaffService {
-  private repo = new StaffRepository();
+  constructor(private repo: IStaffRepository = new StaffRepository()) {}
 
-  /**
-   * Queries all ACTIVE database staff rows ordered by creation context.
-   * Maps fields securely to conform to UI frontend data-grid expectations.
-   */
   async getAllStaff() {
-    // The repository returns the full object arrays, which now match the mapped parameter exactly
     const rawStaff = await this.repo.findAllActive();
 
     return (rawStaff as StaffWithRelations[]).map((staff: StaffWithRelations) => ({
@@ -66,10 +61,6 @@ export class StaffService {
     }));
   } 
 
-  /**
-   * Workforce Placement & Shift Allocation
-   * Compiles high-density operational data tracking departments, titles, and shift rosters.
-   */
   async getWorkforceMatrix() {
     const rawStaff = await this.repo.findAllActive();
 
@@ -87,10 +78,6 @@ export class StaffService {
     }));
   }
 
-  /**
-   * Commits an atomic staff registration payload into nested core transactional tables.
-   * Generates the institutional ID and executes the repo creation routine.
-   */
   async createStaff(payload: {
     account: {
       fullName: string;
@@ -202,10 +189,6 @@ export class StaffService {
     });
   }
 
-  /**
-   * Processes the atomic offboarding of a staff member.
-   * Resolves the public ID, creates an immutable audit log, and deactivates the account.
-   */
   async processDeparture(payload: {
     staffId: string;
     departureType: string;
@@ -234,9 +217,9 @@ export class StaffService {
         staffInternalId: staffRecord.id,
         departureType: departureType as PersonnelDepartureType,
         effectiveDate: new Date(effectiveDate),
-        hrClearanceStatus: clearance.hr,
-        itAssetReturnStatus: clearance.itAssets,
-        treasuryClearanceStatus: clearance.treasury,
+        hrClearanceStatus: clearance.hr as ClearanceStatus,
+        itAssetReturnStatus: clearance.itAssets as ClearanceStatus,
+        treasuryClearanceStatus: clearance.treasury as ClearanceStatus,
         remarks,
       }, tx);
 
@@ -245,4 +228,4 @@ export class StaffService {
       return departureLog;
     });
   }
-} 
+}

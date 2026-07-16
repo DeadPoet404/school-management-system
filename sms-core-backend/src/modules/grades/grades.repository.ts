@@ -1,23 +1,8 @@
 import { prisma } from "@/lib/prisma";
+import { IGradesRepository, TransactionClient, GradeRecordUpsertData } from "@/types/repositories";
 
-export class GradesRepository {
-  /**
-   * Commits or updates an academic grade record entry.
-   */
-  async upsertGradeRecord(
-    data: {
-      studentId: string;
-      subjectId: string;
-      classId: string;
-      termId: string;
-      continuousAssessment: number;
-      examination: number;
-      finalScore: number;
-      letterGrade: string;
-      gradePoints: number;
-    },
-    tx: any = prisma
-  ) {
+export class GradesRepository implements IGradesRepository {
+  async upsertGradeRecord(data: GradeRecordUpsertData, tx: TransactionClient = prisma) {
     return tx.gradeRecord.upsert({
       where: {
         studentId_subjectId_termId: {
@@ -37,20 +22,14 @@ export class GradesRepository {
     });
   }
 
-  /**
-   * Fetches all active grade point entries for a specific student to compile cumulative metrics.
-   */
-  async getStudentTermGrades(studentInternalId: string, termId: string, tx: any = prisma) {
+  async getAllStudentGrades(studentInternalId: string, tx: TransactionClient = prisma) {
     return tx.gradeRecord.findMany({
-      where: { studentId: studentInternalId, termId },
+      where: { studentId: studentInternalId },
       select: { gradePoints: true },
     });
   }
 
-  /**
-   * Persists the computed GPA balance calculation onto the parent student record.
-   */
-  async updateStudentGpa(studentInternalId: string, gpa: number, tx: any = prisma) {
+  async updateStudentGpa(studentInternalId: string, gpa: number, tx: TransactionClient = prisma) {
     return tx.student.update({
       where: { id: studentInternalId },
       data: { currentGpa: gpa },
