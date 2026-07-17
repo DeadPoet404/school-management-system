@@ -1,22 +1,34 @@
+// ── Load .env file BEFORE validating environment ──
 import 'dotenv/config';
+
+// ── ENVIRONMENT VALIDATION: Fail fast on missing required vars ──
+import './lib/env';
 
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import morgan from 'morgan';
+import pinoHttp from 'pino-http';
+import { createId } from '@paralleldrive/cuid2';
 
+import { logger } from './lib/logger';
 import studentRoutes from './modules/students/student.routes';
-import teacherRoutes from "./modules/teachers/teacher.routes";
-import staffRoutes from "./modules/staff/staff.routes";
-import timetableRoutes from "./modules/timetable/timetable.routes";
-import financeRoutes from "./modules/finance/finance.routes";
-import attendanceRoutes from "./modules/attendance/attendance.routes";
-import gradesRoutes from "./modules/grades/grades.routes";
+import teacherRoutes from './modules/teachers/teacher.routes';
+import staffRoutes from './modules/staff/staff.routes';
+import timetableRoutes from './modules/timetable/timetable.routes';
+import financeRoutes from './modules/finance/finance.routes';
+import attendanceRoutes from './modules/attendance/attendance.routes';
+import gradesRoutes from './modules/grades/grades.routes';
 
 // ── Auth ──
 import authRoutes from './modules/auth/auth.routes';
 import { authenticate } from './middleware/auth.middleware';
+
+// ── Security ──
+import { sanitizeInput } from './middleware/xss.middleware';
+
+// ── Audit ──
+import { auditLog } from './middleware/audit.middleware';
 
 // ── Error handler ──
 import { globalErrorHandler } from './middleware/error.handler';
@@ -27,8 +39,27 @@ const port = process.env.PORT || 5000;
 // ── SECURITY: HTTP security headers ──
 app.use(helmet());
 
-// ── OBSERVABILITY: HTTP request logging ──
-app.use(morgan('dev'));
+// ── OBSERVABILITY: Structured request logging + Request ID ──
+app.use(pinoHttp({
+  logger,
+  genReqId: () => createId() as string,
+  customLogLevel: (_req, res, err) => {
+    if (err || res.statusCode >= 500) return 'error';
+    if (res.statusCode >= 400) return 'warn';
+    return 'info';
+  },
+}));
+
+// Expose request ID in response header for client-side tracing
+app.use((req, res, next) => {
+  if (req.id) {
+    res.setHeader('X-Request-Id', String(req.id));
+  }
+  next();
+});
+
+// ── AUDIT: Log all write operations to database ──
+app.use(auditLog);
 
 // ── CORS — env-driven ──
 const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:3001')
@@ -46,6 +77,9 @@ app.use(cors({
 
 // ── GLOBAL MIDDLEWARE ──
 app.use(express.json());
+
+// ── XSS SANITIZATION: Strip HTML from all string inputs ──
+app.use(sanitizeInput);
 
 // ── RATE LIMITING on all /api/ routes ──
 const apiLimiter = rateLimit({
@@ -88,8 +122,8 @@ app.use('/api/teachers', authenticate, teacherRoutes);
 app.use('/api/staff', authenticate, staffRoutes);
 app.use('/api/timetable', authenticate, timetableRoutes);
 app.use('/api/finance', authenticate, financeRoutes);
-app.use("/api/grades", authenticate, gradesRoutes);
-app.use("/api/attendance", authenticate, attendanceRoutes);
+app.use('/api/grades', authenticate, gradesRoutes);
+app.use('/api/attendance', authenticate, attendanceRoutes);
 
 // ── 404 HANDLER (Must come AFTER all valid routes) ──
 app.use((_req, res) => {
@@ -100,7 +134,7 @@ app.use((_req, res) => {
 app.use(globalErrorHandler);
 
 app.listen(port, () => {
-  console.log(`[SMS-Core-Backend] Pipeline online. Listening on port ${port}`);
+  logger.info({ port }, '[SMS-Core-Backend] Pipeline online.');
 });
 
 export default app;

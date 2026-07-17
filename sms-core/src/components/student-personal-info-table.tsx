@@ -38,7 +38,7 @@ export function StudentPersonalInfoTable({ data: initialData }: StudentPersonalI
     const liveRegistrySync = async () => {
       try {
         setIsLoading(true)
-        const response = await fetch("http://localhost:5000/api/students")
+        const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/students")
 
         if (!response.ok) {
           throw new Error(`HTTP network execution failure: ${response.status}`)

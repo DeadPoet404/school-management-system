@@ -151,7 +151,7 @@ export function TimetableStructureSetup() {
     const fetchMatrixRegistry = async () => {
       try {
         setIsLoading(true)
-        const response = await fetch("http://localhost:5000/api/timetable/matrix")
+        const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/timetable/matrix")
         const payload = await response.json()
         
         if (payload.success && payload.data && Object.keys(payload.data).length > 0) {
@@ -290,7 +290,7 @@ export function TimetableStructureSetup() {
     e.preventDefault()
     try {
       setIsSubmitting(true)
-      const response = await fetch("http://localhost:5000/api/timetable/matrix", {
+      const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/timetable/matrix", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ data: matrixState }),

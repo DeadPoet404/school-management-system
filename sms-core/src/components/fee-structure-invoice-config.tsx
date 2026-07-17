@@ -110,7 +110,7 @@ export function FeeStructureInvoiceConfig() {
     const fetchFeeMatrixRegistry = async () => {
       try {
         setIsLoading(true)
-        const response = await fetch("http://localhost:5000/api/finance/fee-structures")
+        const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/finance/fee-structures")
         const payload = await response.json()
         
         if (payload.success && payload.data && Object.keys(payload.data).length > 0) {
@@ -202,7 +202,7 @@ export function FeeStructureInvoiceConfig() {
   const handleSaveMatrix = async () => {
     try {
       setIsSaving(true)
-      const response = await fetch("http://localhost:5000/api/finance/fee-structures", {
+      const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/finance/fee-structures", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ data: feeMatrixState }),
@@ -227,7 +227,7 @@ export function FeeStructureInvoiceConfig() {
   const handleGenerateInvoices = async () => {
     try {
       setIsGenerating(true)
-      const response = await fetch("http://localhost:5000/api/finance/generate-invoices", {
+      const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/finance/generate-invoices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sectionId: activeSection }),

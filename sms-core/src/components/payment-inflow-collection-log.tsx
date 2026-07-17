@@ -130,8 +130,8 @@ export function PaymentInflowCollectionLog() {
     try {
       // Fetch Real Students AND Ledger History in parallel
       const [studentRes, ledgerRes] = await Promise.all([
-        fetch(`http://localhost:5000/api/finance/students-by-section/${sectionId}`),
-        fetch(`http://localhost:5000/api/finance/collections/${sectionId}`)
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/finance/students-by-section/${sectionId}`),
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/finance/collections/${sectionId}`)
       ])
       
       const studentPayload = await studentRes.json()
@@ -168,7 +168,7 @@ export function PaymentInflowCollectionLog() {
 
     setSubmitting(true)
     try {
-      const response = await fetch("http://localhost:5000/api/finance/collections", {
+      const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/finance/collections", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"

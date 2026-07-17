@@ -79,7 +79,7 @@ export default function StaffPage() {
     const liveRegistrySyncPipeline = async () => {
       try {
         setIsRegistrySyncing(true)
-        const response = await fetch("http://localhost:5000/api/staff")
+        const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/staff")
 
         if (!response.ok) {
           throw new Error(`HTTP network cluster error code: ${response.status}`)

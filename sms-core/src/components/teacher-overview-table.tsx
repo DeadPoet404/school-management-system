@@ -4,7 +4,7 @@ import * as React from "react"
 import { UniversalDataTable, type DataTableColumn } from "@/components/universal-data-table"
 
 // Point this to your actual running Express backend server URL
-const BACKEND_API_URL = "http://localhost:5000/api/teachers"
+const BACKEND_API_URL = "${process.env.NEXT_PUBLIC_API_URL}/teachers"
 
 export type TeacherOverviewRow = {
   id: string

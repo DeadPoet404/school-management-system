@@ -3,6 +3,7 @@ import { StaffController } from "./staff.controller";
 import { StaffService } from "./staff.service";
 import { StaffRepository } from "./staff.repository";
 import { validate } from "@/middleware/validate";
+import { requireRole, ROLES } from "@/middleware/rbac.middleware";
 import { staffEnrollmentSchema, staffDepartureSchema } from "@/types/registry.types";
 
 const router = Router();
@@ -13,13 +14,13 @@ const staffService = new StaffService(staffRepo);
 const staffController = new StaffController(staffService);
 
 // ── SPECIALIZED DOMAIN TARGETS ──
-router.post("/departure", validate(staffDepartureSchema), staffController.executeDeparture);
+router.post("/departure", requireRole(ROLES.STAFF, ROLES.ADMIN), validate(staffDepartureSchema), staffController.executeDeparture);
 
 // ── HIGH-DENSITY WORKFORCE ANALYTICS ──
-router.get("/matrix", staffController.getWorkforceMatrix);
+router.get("/matrix", requireRole(ROLES.STAFF, ROLES.ADMIN), staffController.getWorkforceMatrix);
 
 // ── CORE REGISTRY ENTRIES ──
-router.get("/", staffController.getAllStaff);
-router.post("/", validate(staffEnrollmentSchema), staffController.createStaff);
+router.get("/", requireRole(ROLES.STAFF, ROLES.ADMIN), staffController.getAllStaff);
+router.post("/", requireRole(ROLES.STAFF, ROLES.ADMIN), validate(staffEnrollmentSchema), staffController.createStaff);
 
 export default router;

@@ -1,0 +1,52 @@
+import { z } from 'zod';
+
+const envSchema = z.object({
+  // ── REQUIRED — server will not start without these ──
+  DATABASE_URL: z.string().min(1, 'DATABASE_URL is required and cannot be empty.'),
+  JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 characters for security.'),
+
+  // ── OPTIONAL — have safe defaults ──
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  PORT: z.coerce.number().int().min(1).max(65535).default(5000),
+  JWT_EXPIRES_IN: z.string().default('8h'),
+  CORS_ORIGINS: z.string().default('http://localhost:3000,http://localhost:3001'),
+  RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(60000),
+  RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().min(1).default(100),
+  AUTH_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().min(1).default(5),
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+});
+
+/**
+ * Validates all environment variables at startup.
+ * Must be imported AFTER dotenv/config so .env values are loaded.
+ * Throws immediately if required variables are missing or invalid.
+ */
+function validateEnv() {
+  const result = envSchema.safeParse(process.env);
+
+  if (!result.success) {
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.error('❌ ENVIRONMENT VALIDATION FAILED');
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    for (const issue of result.error.issues) {
+      console.error(`  • ${issue.path.join('.')}: ${issue.message}`);
+    }
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    process.exit(1);
+  }
+
+  // Merge parsed+defaulted values back into process.env so
+  // the rest of the application can use them as before
+  const env = result.data;
+  process.env.NODE_ENV = env.NODE_ENV;
+  process.env.PORT = String(env.PORT);
+  process.env.JWT_EXPIRES_IN = env.JWT_EXPIRES_IN;
+  process.env.CORS_ORIGINS = env.CORS_ORIGINS;
+  process.env.RATE_LIMIT_WINDOW_MS = String(env.RATE_LIMIT_WINDOW_MS);
+  process.env.RATE_LIMIT_MAX_REQUESTS = String(env.RATE_LIMIT_MAX_REQUESTS);
+  process.env.AUTH_RATE_LIMIT_MAX_REQUESTS = String(env.AUTH_RATE_LIMIT_MAX_REQUESTS);
+  process.env.LOG_LEVEL = env.LOG_LEVEL;
+}
+
+// ── EXECUTE IMMEDIATELY ON IMPORT ──
+validateEnv();

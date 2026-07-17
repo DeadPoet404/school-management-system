@@ -35,7 +35,7 @@ export function StudentFeeInfoTable({ data: initialData }: StudentFeeInfoTablePr
     const fetchStudents = async () => {
       try {
         setLoading(true)
-        const response = await fetch("http://localhost:5000/api/students")
+        const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/students")
         if (!response.ok) {
           throw new Error(`HTTP Error: ${response.status}`)
         }

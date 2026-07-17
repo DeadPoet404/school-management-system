@@ -132,7 +132,7 @@ function ComprehensiveTeacherEnrollmentWizard() {
       console.log("Dispatching Data Payload to Express Server Ledger:", optimizedTeacherPayload)
       
       // FIX: Fire actual network socket execution down to your Express backend
-      const response = await fetch("http://localhost:5000/api/teachers", {
+      const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/teachers", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

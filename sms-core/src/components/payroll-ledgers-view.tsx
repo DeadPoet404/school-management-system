@@ -67,8 +67,8 @@ export function PayrollLedgersView() {
     setError(null)
     try {
       const [payrollResponse, ledgerResponse] = await Promise.all([
-        fetch("http://localhost:5000/api/finance/payroll"),
-        fetch("http://localhost:5000/api/finance/ledgers")
+        fetch("${process.env.NEXT_PUBLIC_API_URL}/finance/payroll"),
+        fetch("${process.env.NEXT_PUBLIC_API_URL}/finance/ledgers")
       ])
       
       const payrollData = await payrollResponse.json()
@@ -123,7 +123,7 @@ export function PayrollLedgersView() {
   const handleDisbursePayroll = useCallback(async (id: string) => {
     setDisbursingId(id)
     try {
-      const response = await fetch("http://localhost:5000/api/finance/payroll", {
+      const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/finance/payroll", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id })
@@ -132,8 +132,8 @@ export function PayrollLedgersView() {
       if (response.ok) {
         // Core Dual Pipeline Atomic Re-hydration sync
         const [payrollRes, ledgerRes] = await Promise.all([
-          fetch("http://localhost:5000/api/finance/payroll"),
-          fetch("http://localhost:5000/api/finance/ledgers")
+          fetch("${process.env.NEXT_PUBLIC_API_URL}/finance/payroll"),
+          fetch("${process.env.NEXT_PUBLIC_API_URL}/finance/ledgers")
         ])
         
         const payrollData = await payrollRes.json()
@@ -155,7 +155,7 @@ export function PayrollLedgersView() {
 
     setSubmitting(true)
     try {
-      const response = await fetch("http://localhost:5000/api/finance/ledgers", {
+      const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/finance/ledgers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newJournal)

@@ -79,7 +79,7 @@ export default function TeachersPage() {
     const liveRegistrySyncPipeline = async () => {
       try {
         setIsRegistrySyncing(true)
-        const response = await fetch("http://localhost:5000/api/teachers")
+        const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/teachers")
         
         if (!response.ok) {
           throw new Error(`HTTP network cluster error code: ${response.status}`)

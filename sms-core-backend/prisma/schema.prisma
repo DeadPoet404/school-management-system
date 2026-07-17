@@ -584,3 +584,26 @@ model GradeRecord {
   @@unique([studentId, subjectId, termId], name: "studentId_subjectId_termId")
   @@index([studentId, termId])
 }
+// ═══════════════════════════════════════════════════════════
+// ── AUDIT TRAIL ──
+// ═══════════════════════════════════════════════════════════
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  requestId      String
+  actorId        String
+  actorEmail     String
+  actorRole      String
+  action         String
+  method         String
+  path           String
+  requestBody    Json?
+  responseStatus Int
+  ipAddress      String
+  createdAt      DateTime @default(now())
+
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
