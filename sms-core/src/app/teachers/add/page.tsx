@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { fetchWithAuth } from "@/lib/fetch-with-auth"
 
 type FormState = "idle" | "submitting" | "success" | "error"
 
@@ -30,7 +31,6 @@ interface ClearanceOption {
   description: string
 }
 
-// --- INSTANCE CONFIGURATION METRICS (ACADEMIC FACULTY) ---
 const MOCK_ACADEMIC_DEPARTMENTS: DepartmentOption[] = [
   { id: "dept-mat", name: "Mathematics & Data Science", code: "MAT" },
   { id: "dept-sci", name: "Natural & Physical Sciences", code: "SCI" },
@@ -76,12 +76,12 @@ function ComprehensiveTeacherEnrollmentWizard() {
   // ── STEP 3: ACADEMIC PLACEMENT & ASSIGNMENT ──
   const [departmentId, setDepartmentId] = React.useState<string>("")
   const [jobTitle, setJobTitle] = React.useState("")
-  const [employmentType, setEmploymentType] = React.useState("") 
-  const [teachingSchedule, setTeachingSchedule] = React.useState("")  
+  const [employmentType, setEmploymentType] = React.useState("")
+  const [teachingSchedule, setTeachingSchedule] = React.useState("")
 
   // ── STEP 4: STATUTORY & COMPLIANCE VERIFICATION ──
-  const [nationalId, setNationalId] = React.useState("") 
-  const [ssnitNumber, setSsnitNumber] = React.useState("") 
+  const [nationalId, setNationalId] = React.useState("")
+  const [ssnitNumber, setSsnitNumber] = React.useState("")
   const [emergencyContactName, setEmergencyContactName] = React.useState("")
   const [emergencyContactPhone, setEmergencyContactPhone] = React.useState("")
 
@@ -98,6 +98,8 @@ function ComprehensiveTeacherEnrollmentWizard() {
   const [departments, setDepartments] = React.useState<DepartmentOption[]>([])
   const [deptsLoading, setDeptsLoading] = React.useState(true)
 
+  const isSubmitting = formState === "submitting"
+
   React.useEffect(() => {
     const timer = setTimeout(() => {
       setDepartments(MOCK_ACADEMIC_DEPARTMENTS)
@@ -111,17 +113,16 @@ function ComprehensiveTeacherEnrollmentWizard() {
     setFormState("submitting")
     setErrorMessage(null)
 
-    // Structural Unified Payload Assembly
     const optimizedTeacherPayload = {
       account: { fullName, email, password, employmentDate, role: "TEACHER" },
-      demographics: { 
-        dateOfBirth, 
-        gender, 
-        residentialAddress, 
+      demographics: {
+        dateOfBirth,
+        gender,
+        residentialAddress,
         phone,
         bloodType,
         religion,
-        formerSchool 
+        formerSchool
       },
       placement: { departmentId, jobTitle, employmentType, teachingSchedule },
       compliance: { nationalId, ssnitNumber, emergencyContact: { name: emergencyContactName, phone: emergencyContactPhone } },
@@ -129,10 +130,7 @@ function ComprehensiveTeacherEnrollmentWizard() {
     }
 
     try {
-      console.log("Dispatching Data Payload to Express Server Ledger:", optimizedTeacherPayload)
-      
-      // FIX: Fire actual network socket execution down to your Express backend
-      const response = await fetch(fetchWithAuth("teachers", {
+      const response = await fetchWithAuth("teachers", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -140,21 +138,37 @@ function ComprehensiveTeacherEnrollmentWizard() {
         body: JSON.stringify(optimizedTeacherPayload),
       })
 
-      const data = await response.json()
+      const rawText = await response.text()
+      let json: unknown
 
-      // Handle server-side validations / custom rejections
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to commit system infrastructure transaction logs.")
+      try {
+        json = JSON.parse(rawText)
+      } catch {
+        throw new Error("Server returned an unstable body string instead of structured application/json data.")
       }
 
-      // Read back real live properties confirmed by your backend database pipeline
-      setCreatedTeacherId(data.teacherId)
-      setCreatedTeacherName(data.name)
+      if (!response.ok) {
+        const errorData = json as Record<string, unknown>
+        throw new Error(
+          (errorData.error as string) ||
+          (errorData.message as string) ||
+          "Failed to commit system infrastructure transaction logs."
+        )
+      }
+
+      const savedTeacher = (json as Record<string, unknown>).data as Record<string, unknown>
+      setCreatedTeacherId(
+        (savedTeacher.teacherId as string) || (savedTeacher.id as string) || null
+      )
+      setCreatedTeacherName(
+        (savedTeacher.name as string) || (savedTeacher.teacherName as string) || null
+      )
       setFormState("success")
-    } catch (err: any) {
-      console.error("Frontend HTTP connection fault:", err)
+    } catch (err: unknown) {
       setFormState("error")
-      setErrorMessage(err?.message || "Failed to resolve pipeline data connection to Express server engine.")
+      setErrorMessage(
+        (err as Error)?.message || "Failed to resolve pipeline data connection to Express server engine."
+      )
     }
   }
 
@@ -164,8 +178,8 @@ function ComprehensiveTeacherEnrollmentWizard() {
     try {
       await new Promise((resolve) => setTimeout(resolve, 500))
       router.push(backConfig.href)
-    } catch (err: any) {
-      setErrorMessage(err?.message || "Unable to promote teacher record state.")
+    } catch (err: unknown) {
+      setErrorMessage((err as Error)?.message || "Unable to promote teacher record state.")
       setFormState("error")
     }
   }
@@ -191,7 +205,7 @@ function ComprehensiveTeacherEnrollmentWizard() {
           <CheckCircle2 className="h-12 w-12 text-emerald-600 animate-in fade-in zoom-in-95 duration-300" />
           <h2 className="text-2xl font-semibold text-foreground tracking-tight">Faculty Member Enrolled</h2>
           <p className="text-sm text-muted-foreground text-center max-w-md leading-relaxed">
-            <span className="font-medium text-foreground">{createdTeacherName}</span> has been saved inside database 
+            <span className="font-medium text-foreground">{createdTeacherName}</span> has been saved inside database
             ledgers with academic parameters assigned to Teacher ID <span className="font-mono text-foreground bg-zinc-100 dark:bg-zinc-900 px-1.5 py-0.5 rounded text-xs">{createdTeacherId}</span>.
           </p>
           <div className="flex items-center gap-3 mt-4">
@@ -238,7 +252,7 @@ function ComprehensiveTeacherEnrollmentWizard() {
       )}
 
       <ScrollArea className="h-[680px] w-full rounded-none border-none shadow-none bg-transparent">
-        <form onSubmit={handleSubmit} className="space-y-12 pr-4 pb-12 bg-transparent">
+        <form onSubmit={handleSubmit} className="space-y-12 pr-4 pb-24 bg-transparent">
 
           {/* STEP 1: ACCOUNT ACCESS & SYSTEM CREDENTIALS */}
           <div className="relative pl-10 group">
@@ -264,7 +278,7 @@ function ComprehensiveTeacherEnrollmentWizard() {
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     required
-                    disabled={formState === "submitting"}
+                    disabled={isSubmitting}
                   />
                 </div>
 
@@ -279,7 +293,7 @@ function ComprehensiveTeacherEnrollmentWizard() {
                     value={employmentDate}
                     onChange={(e) => setEmploymentDate(e.target.value)}
                     required
-                    disabled={formState === "submitting"}
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
@@ -297,7 +311,7 @@ function ComprehensiveTeacherEnrollmentWizard() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    disabled={formState === "submitting"}
+                    disabled={isSubmitting}
                   />
                 </div>
 
@@ -314,7 +328,7 @@ function ComprehensiveTeacherEnrollmentWizard() {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     minLength={6}
-                    disabled={formState === "submitting"}
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
@@ -333,7 +347,6 @@ function ComprehensiveTeacherEnrollmentWizard() {
             <div className="space-y-5">
               <h3 className="text-base font-semibold text-foreground tracking-tight">Personal Demographics & Background Matrix</h3>
 
-              {/* ROW 1: Religion Affiliation & Gender Identity */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="religion" className="text-xs font-semibold text-foreground">
@@ -345,7 +358,7 @@ function ComprehensiveTeacherEnrollmentWizard() {
                     className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
                     value={religion}
                     onChange={(e) => setReligion(e.target.value)}
-                    disabled={formState === "submitting"}
+                    disabled={isSubmitting}
                   />
                 </div>
 
@@ -353,7 +366,7 @@ function ComprehensiveTeacherEnrollmentWizard() {
                   <Label htmlFor="gender" className="text-xs font-semibold text-foreground">
                     Gender Identity <span className="text-red-500">*</span>
                   </Label>
-                  <Select value={gender} onValueChange={setGender} disabled={formState === "submitting"}>
+                  <Select value={gender} onValueChange={setGender} disabled={isSubmitting}>
                     <SelectTrigger id="gender" className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800">
                       <SelectValue placeholder="Select gender..." />
                     </SelectTrigger>
@@ -366,7 +379,6 @@ function ComprehensiveTeacherEnrollmentWizard() {
                 </div>
               </div>
 
-              {/* ROW 2: Mobile Number & Blood Group */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="phone" className="text-xs font-semibold text-foreground">
@@ -379,7 +391,7 @@ function ComprehensiveTeacherEnrollmentWizard() {
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     required
-                    disabled={formState === "submitting"}
+                    disabled={isSubmitting}
                   />
                 </div>
 
@@ -387,7 +399,7 @@ function ComprehensiveTeacherEnrollmentWizard() {
                   <Label htmlFor="blood-type" className="text-xs font-semibold text-foreground">
                     Blood Group <span className="text-stone-400 text-[10px]">(Optional)</span>
                   </Label>
-                  <Select value={bloodType} onValueChange={setBloodType} disabled={formState === "submitting"}>
+                  <Select value={bloodType} onValueChange={setBloodType} disabled={isSubmitting}>
                     <SelectTrigger id="blood-type" className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800">
                       <SelectValue placeholder="Select blood group..." />
                     </SelectTrigger>
@@ -405,7 +417,6 @@ function ComprehensiveTeacherEnrollmentWizard() {
                 </div>
               </div>
 
-              {/* ROW 3: Date of Birth underneath */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="dob" className="text-xs font-semibold text-foreground">
@@ -418,12 +429,11 @@ function ComprehensiveTeacherEnrollmentWizard() {
                     value={dateOfBirth}
                     onChange={(e) => setDateOfBirth(e.target.value)}
                     required
-                    disabled={formState === "submitting"}
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
 
-              {/* Primary Address */}
               <div className="space-y-1.5">
                 <Label htmlFor="address" className="text-xs font-semibold text-foreground">
                   Primary Residential Address <span className="text-red-500">*</span>
@@ -435,11 +445,10 @@ function ComprehensiveTeacherEnrollmentWizard() {
                   value={residentialAddress}
                   onChange={(e) => setResidentialAddress(e.target.value)}
                   required
-                  disabled={formState === "submitting"}
+                  disabled={isSubmitting}
                 />
               </div>
 
-              {/* Former School */}
               <div className="space-y-1.5">
                 <Label htmlFor="former-school" className="text-xs font-semibold text-foreground">
                   Alumni / Prior Educational Institution <span className="text-stone-400 text-[10px]">(Optional)</span>
@@ -450,7 +459,7 @@ function ComprehensiveTeacherEnrollmentWizard() {
                   className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
                   value={formerSchool}
                   onChange={(e) => setFormerSchool(e.target.value)}
-                  disabled={formState === "submitting"}
+                  disabled={isSubmitting}
                 />
               </div>
             </div>
@@ -473,7 +482,7 @@ function ComprehensiveTeacherEnrollmentWizard() {
                   <Label htmlFor="department" className="text-xs font-semibold text-foreground">
                     Assigned Academic Department <span className="text-red-500">*</span>
                   </Label>
-                  <Select value={departmentId} onValueChange={setDepartmentId} required disabled={formState === "submitting" || deptsLoading}>
+                  <Select value={departmentId} onValueChange={setDepartmentId} required disabled={isSubmitting || deptsLoading}>
                     <SelectTrigger id="department" className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800">
                       <SelectValue placeholder={deptsLoading ? "Loading faculty trackers..." : "Select department..."} />
                     </SelectTrigger>
@@ -498,7 +507,7 @@ function ComprehensiveTeacherEnrollmentWizard() {
                     value={jobTitle}
                     onChange={(e) => setJobTitle(e.target.value)}
                     required
-                    disabled={formState === "submitting"}
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
@@ -508,7 +517,7 @@ function ComprehensiveTeacherEnrollmentWizard() {
                   <Label htmlFor="employment-type" className="text-xs font-semibold text-foreground">
                     Employment Framework Classification <span className="text-red-500">*</span>
                   </Label>
-                  <Select value={employmentType} onValueChange={setEmploymentType} required disabled={formState === "submitting"}>
+                  <Select value={employmentType} onValueChange={setEmploymentType} required disabled={isSubmitting}>
                     <SelectTrigger id="employment-type" className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800">
                       <SelectValue placeholder="Select framework configuration..." />
                     </SelectTrigger>
@@ -524,7 +533,7 @@ function ComprehensiveTeacherEnrollmentWizard() {
                   <Label htmlFor="teaching-schedule" className="text-xs font-semibold text-foreground">
                     Academic Session Allocation <span className="text-red-500">*</span>
                   </Label>
-                  <Select value={teachingSchedule} onValueChange={setTeachingSchedule} required disabled={formState === "submitting"}>
+                  <Select value={teachingSchedule} onValueChange={setTeachingSchedule} required disabled={isSubmitting}>
                     <SelectTrigger id="teaching-schedule" className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800">
                       <SelectValue placeholder="Select tracking blocks..." />
                     </SelectTrigger>
@@ -563,7 +572,7 @@ function ComprehensiveTeacherEnrollmentWizard() {
                     value={nationalId}
                     onChange={(e) => setNationalId(e.target.value)}
                     required
-                    disabled={formState === "submitting"}
+                    disabled={isSubmitting}
                   />
                 </div>
 
@@ -578,7 +587,7 @@ function ComprehensiveTeacherEnrollmentWizard() {
                     value={ssnitNumber}
                     onChange={(e) => setSsnitNumber(e.target.value)}
                     required
-                    disabled={formState === "submitting"}
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
@@ -595,7 +604,7 @@ function ComprehensiveTeacherEnrollmentWizard() {
                     value={emergencyContactName}
                     onChange={(e) => setEmergencyContactName(e.target.value)}
                     required
-                    disabled={formState === "submitting"}
+                    disabled={isSubmitting}
                   />
                 </div>
 
@@ -610,7 +619,7 @@ function ComprehensiveTeacherEnrollmentWizard() {
                     value={emergencyContactPhone}
                     onChange={(e) => setEmergencyContactPhone(e.target.value)}
                     required
-                    disabled={formState === "submitting"}
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
@@ -632,7 +641,7 @@ function ComprehensiveTeacherEnrollmentWizard() {
                 <Label htmlFor="clearance-tier" className="text-xs font-semibold text-foreground">
                   System Authorization & Clearance Matrix <span className="text-red-500">*</span>
                 </Label>
-                <Select value={clearanceTier} onValueChange={setClearanceTier} required disabled={formState === "submitting"}>
+                <Select value={clearanceTier} onValueChange={setClearanceTier} required disabled={isSubmitting}>
                   <SelectTrigger id="clearance-tier" className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800">
                     <SelectValue placeholder="Assign faculty platform mapping..." />
                   </SelectTrigger>
@@ -660,7 +669,7 @@ function ComprehensiveTeacherEnrollmentWizard() {
                     value={baseSalary}
                     onChange={(e) => setBaseSalary(e.target.value)}
                     required
-                    disabled={formState === "submitting"}
+                    disabled={isSubmitting}
                   />
                 </div>
 
@@ -674,7 +683,7 @@ function ComprehensiveTeacherEnrollmentWizard() {
                     className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
                     value={bankName}
                     onChange={(e) => setBankName(e.target.value)}
-                    disabled={formState === "submitting"}
+                    disabled={isSubmitting}
                   />
                 </div>
 
@@ -688,31 +697,30 @@ function ComprehensiveTeacherEnrollmentWizard() {
                     className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800 font-mono"
                     value={bankAccount}
                     onChange={(e) => setBankAccount(e.target.value)}
-                    disabled={formState === "submitting"}
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
 
               {/* Action Operations */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-stone-100 dark:border-stone-900">
+              <div className="flex items-center justify-end gap-3 pt-5 border-t border-stone-200 dark:border-stone-800 bg-transparent">
                 <Button
                   type="button"
                   variant="ghost"
                   className="h-9 text-xs"
                   onClick={handleSkip}
-                  disabled={formState === "submitting"}
+                  disabled={isSubmitting}
                 >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
                   className="h-9 text-xs px-5 bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900"
-                  disabled={formState === "submitting"}
+                  disabled={isSubmitting}
                 >
-                  {formState === "submitting" ? "Processing Records..." : "Commit Faculty Registration"}
+                  {isSubmitting ? "Processing Records..." : "Commit Faculty Registration"}
                 </Button>
               </div>
-
             </div>
           </div>
 

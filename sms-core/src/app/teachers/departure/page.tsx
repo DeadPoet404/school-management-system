@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { fetchWithAuth } from "@/lib/fetch-with-auth"
 
 type FormState = "idle" | "submitting" | "success" | "error"
 
@@ -49,7 +50,7 @@ function TeacherDepartureForm() {
   React.useEffect(() => {
     const urlId = searchParams.get("id")
     const urlName = searchParams.get("name")
-    
+
     if (urlId) setTeacherId(urlId.trim())
     if (urlName) setTeacherName(urlName.trim())
   }, [searchParams])
@@ -74,15 +75,14 @@ function TeacherDepartureForm() {
     }
 
     try {
-      // Using relative path to utilize the Next.js proxy rewrite to port 5000
-      const response = await fetch(fetchWithAuth("teachers/departure", {
+      const response = await fetchWithAuth("teachers/departure", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(departurePayload),
       })
 
       const rawText = await response.text()
-      let json: any
+      let json: unknown
 
       try {
         json = JSON.parse(rawText)
@@ -90,14 +90,21 @@ function TeacherDepartureForm() {
         throw new Error("Server returned an unstable body string instead of structured application/json data.")
       }
 
-      if (!response.ok || !json.success) {
-        throw new Error(json.message || json.error || `Excision execution failure: Status ${response.status}`)
+      if (!response.ok || !(json as Record<string, unknown>).success) {
+        const errorData = json as Record<string, unknown>
+        throw new Error(
+          (errorData.message as string) ||
+          (errorData.error as string) ||
+          `Excision execution failure: Status ${response.status}`
+        )
       }
 
       setFormState("success")
-    } catch (err: any) {
+    } catch (err: unknown) {
       setFormState("error")
-      setErrorMessage(err?.message || "Critical failure trying to execute faculty offboarding routines.")
+      setErrorMessage(
+        (err as Error)?.message || "Critical failure trying to execute faculty offboarding routines."
+      )
     }
   }
 
@@ -123,12 +130,12 @@ function TeacherDepartureForm() {
             <span className="font-mono text-foreground bg-zinc-100 dark:bg-zinc-900 px-1.5 py-0.5 rounded text-xs">{teacherId}</span>.
           </p>
           <div className="flex items-center gap-3 mt-4">
-           <Button
-  className="h-9 text-xs px-4 bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900"
-  onClick={() => window.location.href = backConfig.href}
->
-  Return to Faculty Register
-</Button>
+            <Button
+              className="h-9 text-xs px-4 bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900"
+              onClick={() => window.location.href = backConfig.href}
+            >
+              Return to Faculty Register
+            </Button>
           </div>
         </div>
       </div>
@@ -147,11 +154,10 @@ function TeacherDepartureForm() {
 
   // ── MAIN FORM RENDER ──
   return (
-    // Fixed: flex-1 min-h-0 prevents layout clipping of the bottom buttons
     <div className="w-full max-w-3xl flex flex-col flex-1 min-h-0 space-y-6 bg-transparent">
       <div className="flex flex-col gap-2 shrink-0">
-        <Link 
-          href={backConfig.href} 
+        <Link
+          href={backConfig.href}
           className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-fit group"
         >
           <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
@@ -184,9 +190,8 @@ function TeacherDepartureForm() {
         </div>
       </div>
 
-      {/* Fixed: flex-1 min-h-0 dynamically fills remaining space without clipping */}
       <ScrollArea className="flex-1 min-h-0 w-full rounded-none border-none shadow-none bg-transparent">
-        <form onSubmit={handleSubmit} className="space-y-12 pr-4 pb-12 bg-transparent">
+        <form onSubmit={handleSubmit} className="space-y-12 pr-4 pb-24 bg-transparent">
 
           {/* ═══════════════════════════════════════════════════════
               STEP 1: IDENTITY & TERMINATION TARGET
@@ -195,15 +200,15 @@ function TeacherDepartureForm() {
             <StepBadge num={1} />
             <div className="space-y-5">
               <h3 className="text-base font-semibold text-foreground tracking-tight">Faculty Identity & Termination Target</h3>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
                 <div className="space-y-1.5">
                   <Label htmlFor="teacher-id" className="text-xs font-semibold text-foreground">
                     System Identifier Index ID <span className="text-red-500">*</span>
                   </Label>
-                  <Input 
-                    id="teacher-id" 
-                    placeholder="e.g. SCI-123456" 
+                  <Input
+                    id="teacher-id"
+                    placeholder="e.g. SCI-123456"
                     className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800 font-mono"
                     value={teacherId}
                     onChange={(e) => setTeacherId(e.target.value)}
@@ -215,9 +220,9 @@ function TeacherDepartureForm() {
                   <Label htmlFor="teacher-name" className="text-xs font-semibold text-foreground">
                     Confirm Faculty Full Name <span className="text-red-500">*</span>
                   </Label>
-                  <Input 
-                    id="teacher-name" 
-                    placeholder="e.g. Dr. Kwame Addo" 
+                  <Input
+                    id="teacher-name"
+                    placeholder="e.g. Dr. Kwame Addo"
                     className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
                     value={teacherName}
                     onChange={(e) => setTeacherName(e.target.value)}
@@ -249,9 +254,9 @@ function TeacherDepartureForm() {
                   <Label htmlFor="effective-date" className="text-xs font-semibold text-foreground">
                     Official Effective Exit Date <span className="text-red-500">*</span>
                   </Label>
-                  <Input 
-                    id="effective-date" 
-                    type="date" 
+                  <Input
+                    id="effective-date"
+                    type="date"
                     className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
                     value={effectiveDate}
                     onChange={(e) => setEffectiveDate(e.target.value)}
@@ -273,7 +278,7 @@ function TeacherDepartureForm() {
                 <BookOpenCheck className="h-4 w-4 text-stone-500 dark:text-stone-400" />
                 <h3 className="text-base font-semibold text-foreground tracking-tight">Academic Handover & Administrative Clearance</h3>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
                 <div className="space-y-1.5">
                   <Label htmlFor="academic-handover" className="text-xs font-semibold text-foreground">
@@ -312,9 +317,9 @@ function TeacherDepartureForm() {
                 <Label htmlFor="departure-reason" className="text-xs font-semibold text-foreground">
                   Official Exit Remarks & Regulatory Documentation Reasons <span className="text-red-500">*</span>
                 </Label>
-                <Textarea 
-                  id="departure-reason" 
-                  placeholder="State the permanent board records reasoning or formal document registry codes..." 
+                <Textarea
+                  id="departure-reason"
+                  placeholder="State the permanent board records reasoning or formal document registry codes..."
                   className="text-xs min-h-[100px] rounded-md bg-background border-stone-200 dark:border-stone-800 leading-relaxed"
                   value={departureRemarks}
                   onChange={(e) => setDepartureRemarks(e.target.value)}
@@ -328,8 +333,8 @@ function TeacherDepartureForm() {
                 <Button variant="ghost" type="button" className="h-9 text-xs font-normal text-stone-500" asChild>
                   <Link href={backConfig.href}>Cancel Process</Link>
                 </Button>
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   className="h-9 text-xs font-medium px-4 bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 transition-colors"
                   disabled={isSubmitting}
                 >
