@@ -16,6 +16,7 @@ import { StaffWorkforceTable } from "@/components/staff-workforce-table"
 import { StaffPayrollTable } from "@/components/staff-payroll-table"
 
 import { FileSpreadsheet, RefreshCw, Plus, UserMinus } from "lucide-react"
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 
 const staffTabs = [
   {
@@ -79,7 +80,7 @@ export default function StaffPage() {
     const liveRegistrySyncPipeline = async () => {
       try {
         setIsRegistrySyncing(true)
-        const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/staff")
+        const response = await fetchWithAuth("/staff")
 
         if (!response.ok) {
           throw new Error(`HTTP network cluster error code: ${response.status}`)

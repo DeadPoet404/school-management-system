@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useMemo, useState, useCallback, useEffect } from "react"
+import { fetchWithAuth } from "@/lib/fetch-with-auth"
 import { 
   DollarSign, 
   Plus, 
@@ -110,7 +111,7 @@ export function FeeStructureInvoiceConfig() {
     const fetchFeeMatrixRegistry = async () => {
       try {
         setIsLoading(true)
-        const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/finance/fee-structures")
+        const response = await fetchWithAuth("/finance/fee-structures")
         const payload = await response.json()
         
         if (payload.success && payload.data && Object.keys(payload.data).length > 0) {
@@ -202,7 +203,7 @@ export function FeeStructureInvoiceConfig() {
   const handleSaveMatrix = async () => {
     try {
       setIsSaving(true)
-      const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/finance/fee-structures", {
+      const response = await fetchWithAuth("/finance/fee-structures", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ data: feeMatrixState }),
@@ -227,7 +228,7 @@ export function FeeStructureInvoiceConfig() {
   const handleGenerateInvoices = async () => {
     try {
       setIsGenerating(true)
-      const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/finance/generate-invoices", {
+      const response = await fetchWithAuth("/finance/generate-invoices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sectionId: activeSection }),
@@ -346,7 +347,7 @@ export function FeeStructureInvoiceConfig() {
               <div className="flex h-7 w-7 items-center justify-center rounded-full border border-stone-200 dark:border-zinc-700 bg-background text-xs font-medium text-stone-500 dark:text-zinc-400">
                 1
               </div>
-              <div className="w-[1px] flex-1 bg-stone-200 dark:border-zinc-800 mt-2" />
+              <div className="w-[1px] flex-1 bg-stone-200 dark:bg-zinc-800 mt-2" />
             </div>
 
             <div className="space-y-5">
@@ -453,7 +454,7 @@ export function FeeStructureInvoiceConfig() {
               <div className="flex h-7 w-7 items-center justify-center rounded-full border border-stone-200 dark:border-zinc-700 bg-background text-xs font-medium text-stone-500 dark:text-zinc-400">
                 2
               </div>
-              <div className="w-[1px] flex-1 bg-stone-200 dark:border-zinc-800 mt-2" />
+              <div className="w-[1px] flex-1 bg-stone-200 dark:bg-zinc-800 mt-2" />
             </div>
 
             <div className="space-y-5">

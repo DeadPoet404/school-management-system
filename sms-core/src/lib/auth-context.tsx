@@ -26,7 +26,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // Restore session from localStorage on mount
   useEffect(() => {
     try {
       const storedToken = localStorage.getItem("sms_token")
@@ -44,15 +43,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const login = useCallback(async (email: string, password: string) => {
-    const response = await apiClient<{ token: string; user: AuthUser }>("/auth/login", {
+    const response = await apiClient<{ success: boolean; data: { token: string; user: AuthUser } }>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
     })
 
-    localStorage.setItem("sms_token", response.token)
-    localStorage.setItem("sms_user", JSON.stringify(response.user))
-    setToken(response.token)
-    setUser(response.user)
+    localStorage.setItem("sms_token", response.data.token)
+    localStorage.setItem("sms_user", JSON.stringify(response.data.user))
+    setToken(response.data.token)
+    setUser(response.data.user)
   }, [])
 
   const logout = useCallback(() => {

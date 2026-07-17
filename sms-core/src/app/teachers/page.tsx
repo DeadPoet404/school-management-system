@@ -16,6 +16,7 @@ import { FacultyLoadTable } from "@/components/faculty-load-table"
 import { FacultyPayrollTable } from "@/components/faculty-payroll-table"
 
 import { FileSpreadsheet, RefreshCw, Plus, UserMinus } from "lucide-react"
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 
 const teacherTabs = [
   {
@@ -79,7 +80,7 @@ export default function TeachersPage() {
     const liveRegistrySyncPipeline = async () => {
       try {
         setIsRegistrySyncing(true)
-        const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/teachers")
+        const response = await fetchWithAuth("/teachers")
         
         if (!response.ok) {
           throw new Error(`HTTP network cluster error code: ${response.status}`)

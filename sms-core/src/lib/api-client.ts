@@ -21,13 +21,6 @@ function getToken(): string | null {
   return localStorage.getItem('sms_token');
 }
 
-function clearAuth(): void {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem('sms_token');
-  localStorage.removeItem('sms_user');
-  window.location.href = '/login';
-}
-
 export async function apiClient<T = any>(
   endpoint: string,
   options: ApiClientOptions = {}
@@ -59,11 +52,9 @@ export async function apiClient<T = any>(
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
-    if (response.status === 401) {
-      clearAuth();
-      throw new ApiClientError(401, 'Session expired. Please log in again.');
-    }
-
+    // Do NOT auto-redirect here — let the caller (login page, component)
+    // decide how to handle the error. Only clear auth for 401s on
+    // protected routes, which is handled by ProtectedRoute + auth context.
     throw new ApiClientError(
       response.status,
       data?.message || `Request failed with status ${response.status}`,

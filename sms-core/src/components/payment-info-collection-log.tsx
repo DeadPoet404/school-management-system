@@ -154,30 +154,81 @@ export function PaymentInflowCollectionLog() {
     }))
   }, [activeSection])
 
-  const handleProcessCollection = useCallback((e: React.FormEvent) => {
+  const handleProcessCollection = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
     if (!currentForm.studentName || !currentForm.amountPaid) return
 
-    const generatedId = `tmp_${Math.random().toString(36).substring(2, 9)}`
-    const serialNumber = `REC-2026-${Math.floor(1000 + Math.random() * 9000)}`
     const timestamp = new Date().toISOString().split('T')[0]
 
-    const nextRecord: ReceiptRecord = {
-      id: generatedId,
-      receiptNumber: serialNumber,
+    const submissionPayload = {
       studentName: currentForm.studentName,
       amountPaid: currentForm.amountPaid,
       paymentMethod: currentForm.paymentMethod,
       referenceNo: currentForm.referenceNo || "N/A (Direct)",
       allocationTarget: currentForm.allocationTarget,
-      dateProcessed: timestamp
+      section: activeSection,
+      dateProcessed: timestamp,
     }
 
-    setReceiptLedger(prev => ({
-      ...prev,
-      [activeSection]: [nextRecord, ...(prev[activeSection] || [])]
-    }))
+    try {
+      const response = await fetch("/api/payment-inflow", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(submissionPayload),
+      })
 
+      const payload = await response.json()
+
+      if (payload.success) {
+        // Prepend new backend transaction record directly to active ledger stack
+        setReceiptLedger(prev => ({
+          ...prev,
+          [activeSection]: [payload.data, ...(prev[activeSection] || [])]
+        }))
+      } else {
+        // Backend rejected — fall back to local optimistic record
+        const generatedId = `tmp_${Math.random().toString(36).substring(2, 9)}`
+        const serialNumber = `REC-2026-${Math.floor(1000 + Math.random() * 9000)}`
+
+        const fallbackRecord: ReceiptRecord = {
+          id: generatedId,
+          receiptNumber: serialNumber,
+          studentName: submissionPayload.studentName,
+          amountPaid: submissionPayload.amountPaid,
+          paymentMethod: submissionPayload.paymentMethod,
+          referenceNo: submissionPayload.referenceNo,
+          allocationTarget: submissionPayload.allocationTarget,
+          dateProcessed: timestamp,
+        }
+
+        setReceiptLedger(prev => ({
+          ...prev,
+          [activeSection]: [fallbackRecord, ...(prev[activeSection] || [])]
+        }))
+      }
+    } catch {
+      // Network failure — fall back to local optimistic record
+      const generatedId = `tmp_${Math.random().toString(36).substring(2, 9)}`
+      const serialNumber = `REC-2026-${Math.floor(1000 + Math.random() * 9000)}`
+
+      const fallbackRecord: ReceiptRecord = {
+        id: generatedId,
+        receiptNumber: serialNumber,
+        studentName: submissionPayload.studentName,
+        amountPaid: submissionPayload.amountPaid,
+        paymentMethod: submissionPayload.paymentMethod,
+        referenceNo: submissionPayload.referenceNo,
+        allocationTarget: submissionPayload.allocationTarget,
+        dateProcessed: timestamp,
+      }
+
+      setReceiptLedger(prev => ({
+        ...prev,
+        [activeSection]: [fallbackRecord, ...(prev[activeSection] || [])]
+      }))
+    }
+
+    // Reset form regardless of outcome
     setFormState(prev => ({
       ...prev,
       [activeSection]: { studentName: "", amountPaid: "", paymentMethod: "Cash Settlement", referenceNo: "", allocationTarget: "Tuition Baseline Core" }

@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { UniversalDataTable, type DataTableColumn } from "@/components/universal-data-table"
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 
 type StudentOverviewRow = {
   id: string
@@ -37,7 +38,7 @@ export function StudentOverviewTable({ data: initialData }: StudentOverviewTable
     const fetchStudents = async () => {
       try {
         setLoading(true)
-        const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/students")
+        const response = await fetchWithAuth("/students")
         if (!response.ok) {
           throw new Error(`HTTP Error: ${response.status}`)
         }

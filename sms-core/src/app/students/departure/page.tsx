@@ -71,7 +71,7 @@ function StudentDepartureForm() {
     }
 
     try {
-      const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/students/departure", {
+      const response = await fetch(fetchWithAuth("students/departure", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(departurePayload),

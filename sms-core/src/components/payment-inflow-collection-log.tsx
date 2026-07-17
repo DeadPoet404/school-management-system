@@ -40,7 +40,7 @@ export interface ReceiptRecord {
   referenceNo: string
   allocationTarget: string
   dateProcessed: string
-  studentInternalId?: string // New field from backend
+  studentInternalId?: string
 }
 
 export interface IntakeFormState {
@@ -102,9 +102,9 @@ const DEFAULT_FORM_STATE = (): IntakeFormState => ({
 })
 
 export function PaymentInflowCollectionLog() {
-  const [activeSection, setActiveSection] = useState<string>("jhs-1") // Defaulted to jhs-1 for testing
+  const [activeSection, setActiveSection] = useState<string>("jhs-1")
   const [history, setHistory] = useState<ReceiptRecord[]>([])
-  const [dbStudents, setDbStudents] = useState<DbStudent[]>([]) // Replaces Mock Data
+  const [dbStudents, setDbStudents] = useState<DbStudent[]>([])
   const [loading, setLoading] = useState<boolean>(false)
   const [submitting, setSubmitting] = useState<boolean>(false)
   
@@ -115,7 +115,6 @@ export function PaymentInflowCollectionLog() {
     return dbStudents.map(s => s.studentName)
   }, [dbStudents])
 
-  // Live lookup of the currently selected student to show their balance
   const selectedStudentData = useMemo(() => {
     return dbStudents.find(s => s.studentName === formState.studentName)
   }, [dbStudents, formState.studentName])
@@ -128,10 +127,9 @@ export function PaymentInflowCollectionLog() {
   const fetchSectionData = useCallback(async (sectionId: string) => {
     setLoading(true)
     try {
-      // Fetch Real Students AND Ledger History in parallel
       const [studentRes, ledgerRes] = await Promise.all([
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/finance/students-by-section/${sectionId}`),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/finance/collections/${sectionId}`)
+        fetchWithAuth(`/finance/students-by-section/${sectionId}`),
+        fetchWithAuth(`/finance/collections/${sectionId}`)
       ])
       
       const studentPayload = await studentRes.json()
@@ -146,7 +144,6 @@ export function PaymentInflowCollectionLog() {
     }
   }, [])
 
-  // Auto-fetch data whenever the active section tab modifications occur
   useEffect(() => {
     fetchSectionData(activeSection)
     setFormState(DEFAULT_FORM_STATE())
@@ -163,12 +160,12 @@ export function PaymentInflowCollectionLog() {
     e.preventDefault()
     if (!formState.studentName || !formState.amountPaid || submitting) return
 
-    // Find the UUID of the selected student to pass to the smart backend
     const selectedStudent = dbStudents.find(s => s.studentName === formState.studentName)
 
     setSubmitting(true)
     try {
-      const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/finance/collections", {
+      // ✅ FIXED: removed the outer fetch() wrapper — fetchWithAuth IS the fetch
+      const response = await fetchWithAuth("/finance/collections", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -176,19 +173,14 @@ export function PaymentInflowCollectionLog() {
         body: JSON.stringify({
           sectionId: activeSection,
           ...formState,
-          // THE KEY UPGRADE: Pass UUID to trigger balance deduction & invoice linking
           studentInternalId: selectedStudent?.id || undefined 
         })
       })
 
       const payload = await response.json()
       if (payload.success) {
-        // Prepend new backend transaction record directly to active ledger stack
         setHistory(prev => [payload.data, ...prev])
-        // Reset inputs cleanly
         setFormState(DEFAULT_FORM_STATE())
-        
-        // Re-fetch students to update the balance shown in the dropdown
         fetchSectionData(activeSection)
       }
     } catch (error) {

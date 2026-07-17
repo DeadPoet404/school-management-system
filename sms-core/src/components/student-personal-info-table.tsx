@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { UniversalDataTable, type DataTableColumn } from "@/components/universal-data-table"
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 
 export type StudentPersonalInfoRow = {
   id: string
@@ -38,7 +39,7 @@ export function StudentPersonalInfoTable({ data: initialData }: StudentPersonalI
     const liveRegistrySync = async () => {
       try {
         setIsLoading(true)
-        const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/students")
+        const response = await fetchWithAuth("/students")
 
         if (!response.ok) {
           throw new Error(`HTTP network execution failure: ${response.status}`)

@@ -19,6 +19,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 
 // --- DATA TYPES & STRUCTS ---
 interface StaffPayrollRecord {
@@ -49,7 +50,7 @@ export function PayrollLedgersView() {
   // Operational Pipeline Hydration State
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [submitting, setSubmitting] = useState<boolean>(false)
-  const [disbursingId, setDisbursingId] = useState<string | null>(null) // Prevents double clicks
+  const [disbursingId, setDisbursingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   // Dynamic Journal Node Context
@@ -67,14 +68,13 @@ export function PayrollLedgersView() {
     setError(null)
     try {
       const [payrollResponse, ledgerResponse] = await Promise.all([
-        fetch("${process.env.NEXT_PUBLIC_API_URL}/finance/payroll"),
-        fetch("${process.env.NEXT_PUBLIC_API_URL}/finance/ledgers")
+        fetchWithAuth("/finance/payroll"),
+        fetchWithAuth("/finance/ledgers")
       ])
       
       const payrollData = await payrollResponse.json()
       const ledgerData = await ledgerResponse.json()
 
-      // Safely map backend { success, data } wrapper
       if (payrollData.success) setPayrollRegistry(payrollData.data)
       if (ledgerData.success) setLedgerRegistry(ledgerData.data)
       
@@ -123,7 +123,7 @@ export function PayrollLedgersView() {
   const handleDisbursePayroll = useCallback(async (id: string) => {
     setDisbursingId(id)
     try {
-      const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/finance/payroll", {
+      const response = await fetchWithAuth("/finance/payroll", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id })
@@ -132,8 +132,8 @@ export function PayrollLedgersView() {
       if (response.ok) {
         // Core Dual Pipeline Atomic Re-hydration sync
         const [payrollRes, ledgerRes] = await Promise.all([
-          fetch("${process.env.NEXT_PUBLIC_API_URL}/finance/payroll"),
-          fetch("${process.env.NEXT_PUBLIC_API_URL}/finance/ledgers")
+          fetchWithAuth("/finance/payroll"),
+          fetchWithAuth("/finance/ledgers")
         ])
         
         const payrollData = await payrollRes.json()
@@ -155,7 +155,7 @@ export function PayrollLedgersView() {
 
     setSubmitting(true)
     try {
-      const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/finance/ledgers", {
+      const response = await fetchWithAuth("/finance/ledgers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newJournal)

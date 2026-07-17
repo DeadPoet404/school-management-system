@@ -3,8 +3,6 @@
 import * as React from "react"
 import { UniversalDataTable, type DataTableColumn } from "@/components/universal-data-table"
 
-const BACKEND_API_URL = process.env.NEXT_PUBLIC_API_URL || "${process.env.NEXT_PUBLIC_API_URL}/teachers"
-
 export type TeacherProfileRow = {
   id: string
   teacherName: React.ReactNode
@@ -39,7 +37,7 @@ export function TeacherProfileTable({ data: initialData }: TeacherProfileTablePr
     const liveRegistrySync = async () => {
       try {
         setIsLoading(true)
-        const response = await fetch(BACKEND_API_URL)
+        const response = await fetchWithAuth("/teachers")
         
         if (!response.ok) {
           throw new Error(`HTTP network execution failure: ${response.status}`)

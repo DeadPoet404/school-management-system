@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useEffect, useRef, useMemo, useCallback, useState } from "react"
+import { fetchWithAuth } from "@/lib/fetch-with-auth"
 import { Clock, Coffee, Plus, Trash2, Layers, BookOpen, GraduationCap, Loader2 } from "lucide-react"
 import { TimepickerUI } from "timepicker-ui"
 import { cn } from "@/lib/utils"
@@ -9,7 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { toast } from "sonner" // Integrated sleek sonner handler
+import { toast } from "sonner"
 import {
   Combobox,
   ComboboxContent,
@@ -151,7 +152,7 @@ export function TimetableStructureSetup() {
     const fetchMatrixRegistry = async () => {
       try {
         setIsLoading(true)
-        const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/timetable/matrix")
+        const response = await fetchWithAuth("/timetable/matrix")
         const payload = await response.json()
         
         if (payload.success && payload.data && Object.keys(payload.data).length > 0) {
@@ -290,7 +291,7 @@ export function TimetableStructureSetup() {
     e.preventDefault()
     try {
       setIsSubmitting(true)
-      const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/timetable/matrix", {
+      const response = await fetchWithAuth("/timetable/matrix", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ data: matrixState }),

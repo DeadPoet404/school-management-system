@@ -77,7 +77,7 @@ function StaffDepartureForm() {
 
     try {
       // Using relative path to utilize the Next.js proxy rewrite to port 5000
-     const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/staff/departure", {
+     const response = await fetch(fetchWithAuth("staff/departure", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(departurePayload),

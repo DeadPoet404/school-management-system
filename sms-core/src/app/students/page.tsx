@@ -14,6 +14,7 @@ import { StudentPersonalInfoTable } from "@/components/student-personal-info-tab
 import { StudentFeeInfoTable } from "@/components/student-fees-info-table"
 import { FileSpreadsheet, RefreshCw, Plus, LogOut } from "lucide-react" 
 import { StudentFinancialTable } from "@/components/student-financial-table"
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 
 const studentTabs = [
   {
@@ -50,7 +51,7 @@ const StudentsPage = () => {
     const fetchLiveDatabaseRegistry = async () => {
       try {
         setLoading(true)
-        const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/students")
+        const response = await fetchWithAuth("/students")
         if (!response.ok) {
           throw new Error(`HTTP Error: ${response.status}`)
         }
