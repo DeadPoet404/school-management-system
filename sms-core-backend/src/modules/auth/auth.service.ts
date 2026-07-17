@@ -1,4 +1,4 @@
-import jwt, { SignOptions } from 'jsonwebtoken';
+import jwt, { SignOptions, JwtPayload as JsonWebTokenPayload } from 'jsonwebtoken';
 import { prisma } from '@/lib/prisma';
 import { comparePassword } from '@/utils/hash';
 import { AppError } from '@/middleware/error.handler';
@@ -6,96 +6,174 @@ import { JwtPayload } from '@/types/auth.types';
 
 export class AuthService {
   /**
-   * Attempts login against StudentAccount, then StaffAccount, then TeacherAccount.
-   * Returns a signed JWT and public user metadata.
+   * Login: validate credentials across all 3 account tables.
+   * Returns access token (stateless, 15min) + refresh token (stateful, 7d, DB-backed).
    */
   async login(email: string, password: string) {
-    // ── 1. Try StudentAccount (field: portalEmail) ──
+    const account = await this.findAccountByEmail(email);
+    if (!account) {
+      throw new AppError(401, 'Invalid email or password');
+    }
+
+    const isValid = await comparePassword(password, account.passwordHash);
+    if (!isValid) {
+      throw new AppError(401, 'Invalid email or password');
+    }
+
+    if (account.status === 'DEPARTED') {
+      throw new AppError(403, 'Account is inactive. Contact administration.');
+    }
+
+    const payload: JwtPayload = {
+      sub: account.accountId,
+      email: account.email,
+      role: account.role,
+      entityType: account.entityType,
+      entityInternalId: account.userId,
+    };
+
+    return this.signTokenPair(payload);
+  }
+
+  /**
+   * Refresh: validate refresh token from cookie, rotate it (single-use),
+   * issue new access + refresh token pair.
+   */
+  async refresh(refreshTokenValue: string) {
+    const secret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
+    if (!secret) throw new AppError(500, 'Authentication service is not configured.');
+
+    let decoded: JsonWebTokenPayload;
+    try {
+      decoded = jwt.verify(refreshTokenValue, secret, { algorithms: ['HS256'] }) as JsonWebTokenPayload;
+    } catch (err) {
+      if (err instanceof jwt.TokenExpiredError) {
+        throw new AppError(401, 'Refresh token has expired. Please log in again.');
+      }
+      throw new AppError(401, 'Invalid refresh token. Please log in again.');
+    }
+
+    // Must exist in DB and not be revoked
+    const stored = await prisma.refreshToken.findUnique({
+      where: { token: refreshTokenValue },
+    });
+
+    if (!stored || stored.revokedAt) {
+      throw new AppError(401, 'Invalid refresh token. Please log in again.');
+    }
+
+    // Delete old token (rotation — single use)
+    await prisma.refreshToken.delete({ where: { id: stored.id } });
+
+    // Issue new pair
+    const payload: JwtPayload = {
+      sub: decoded.sub as string,
+      email: decoded.email as string,
+      role: decoded.role as string,
+      entityType: decoded.entityType as 'STUDENT' | 'STAFF' | 'TEACHER',
+      entityInternalId: decoded.entityInternalId as string,
+    };
+
+    return this.signTokenPair(payload);
+  }
+
+  /**
+   * Logout: revoke the refresh token so it cannot be used again.
+   * Access token remains valid until its short expiry (up to 15 min).
+   */
+  async logout(refreshTokenValue: string) {
+    if (!refreshTokenValue) return;
+    await prisma.refreshToken.deleteMany({
+      where: { token: refreshTokenValue },
+    });
+  }
+
+  /**
+   * Return user metadata from an already-verified JWT payload.
+   * Used by GET /auth/me for frontend session validation.
+   */
+  async me(payload: JwtPayload) {
+    return {
+      email: payload.email,
+      role: payload.role,
+      entityType: payload.entityType,
+      entityInternalId: payload.entityInternalId,
+    };
+  }
+
+  // ── PRIVATE HELPERS ──
+
+  /**
+   * Look up an account by email across StudentAccount, StaffAccount, TeacherAccount.
+   * Returns a normalized shape or null.
+   *
+   * NOTE: Still uses 3 sequential DB lookups (finding B-14 timing oracle).
+   * Fix requires a unified login DB view — deferred to P2.
+   */
+  private async findAccountByEmail(email: string) {
     const studentAccount = await prisma.studentAccount.findUnique({
       where: { portalEmail: email },
       include: { student: { select: { id: true, status: true } } },
     });
-
     if (studentAccount) {
-      const isValid = await comparePassword(password, studentAccount.passwordHash);
-      if (!isValid) throw new AppError(401, 'Invalid email or password');
-      if (studentAccount.student?.status === 'DEPARTED') {
-        throw new AppError(403, 'Account is inactive. Contact administration.');
-      }
-
-      return this.signToken({
-        sub: studentAccount.id,
+      return {
+        accountId: studentAccount.id,
         email: studentAccount.portalEmail,
+        passwordHash: studentAccount.passwordHash,
         role: 'STUDENT',
-        entityType: 'STUDENT',
-        entityInternalId: studentAccount.student!.id,
-      });
+        entityType: 'STUDENT' as const,
+        userId: studentAccount.student!.id,
+        status: studentAccount.student?.status,
+      };
     }
 
-    // ── 2. Try StaffAccount (field: email) — covers STAFF and legacy FACULTY ──
     const staffAccount = await prisma.staffAccount.findUnique({
       where: { email },
       include: { staff: { select: { id: true, status: true } } },
     });
-
     if (staffAccount) {
-      const isValid = await comparePassword(password, staffAccount.passwordHash);
-      if (!isValid) throw new AppError(401, 'Invalid email or password');
-      if (staffAccount.staff?.status === 'DEPARTED') {
-        throw new AppError(403, 'Account is inactive. Contact administration.');
-      }
-
-      return this.signToken({
-        sub: staffAccount.id,
+      return {
+        accountId: staffAccount.id,
         email: staffAccount.email,
+        passwordHash: staffAccount.passwordHash,
         role: staffAccount.role,
-        entityType: 'STAFF',
-        entityInternalId: staffAccount.staff!.id,
-      });
+        entityType: 'STAFF' as const,
+        userId: staffAccount.staff!.id,
+        status: staffAccount.staff?.status,
+      };
     }
 
-    // ── 3. Try TeacherAccount (field: email) — for teachers created after TeacherAccount model ──
     const teacherAccount = await prisma.teacherAccount.findUnique({
       where: { email },
       include: { teacher: { select: { id: true, status: true } } },
     });
-
     if (teacherAccount) {
-      const isValid = await comparePassword(password, teacherAccount.passwordHash);
-      if (!isValid) throw new AppError(401, 'Invalid email or password');
-      if (teacherAccount.teacher?.status === 'DEPARTED') {
-        throw new AppError(403, 'Account is inactive. Contact administration.');
-      }
-
-      return this.signToken({
-        sub: teacherAccount.id,
+      return {
+        accountId: teacherAccount.id,
         email: teacherAccount.email,
+        passwordHash: teacherAccount.passwordHash,
         role: teacherAccount.role,
-        entityType: 'TEACHER',
-        entityInternalId: teacherAccount.teacher!.id,
-      });
+        entityType: 'TEACHER' as const,
+        userId: teacherAccount.teacher!.id,
+        status: teacherAccount.teacher?.status,
+      };
     }
 
-    // ── 4. No account matched ──
-    throw new AppError(401, 'Invalid email or password');
+    return null;
   }
 
   /**
-   * Signs a JWT with the provided payload.
-   * Reads secret and expiry from environment variables.
+   * Sign both access and refresh tokens.
+   * Access: stateless, short-lived, verified by signature alone.
+   * Refresh: stateful, long-lived, stored in DB for revocation/rotation.
    */
-  private signToken(payload: JwtPayload) {
-    const secret = process.env.JWT_SECRET;
-    if (!secret) {
-      throw new AppError(500, 'Authentication service is not configured.');
-    }
-
-    const options = { expiresIn: process.env.JWT_EXPIRES_IN || '8h' } as SignOptions;
-
-    const token = jwt.sign(payload, secret, options);
+  private async signTokenPair(payload: JwtPayload) {
+    const accessToken = this.signAccessToken(payload);
+    const refreshToken = await this.signRefreshToken(payload);
 
     return {
-      token,
+      accessToken,
+      refreshToken,
       user: {
         email: payload.email,
         role: payload.role,
@@ -103,5 +181,43 @@ export class AuthService {
         entityInternalId: payload.entityInternalId,
       },
     };
+  }
+
+  private signAccessToken(payload: JwtPayload): string {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) throw new AppError(500, 'Authentication service is not configured.');
+
+    const options: SignOptions = {
+      expiresIn: (process.env.JWT_ACCESS_EXPIRES_IN || '15m') as SignOptions['expiresIn'],
+      algorithm: 'HS256',
+    };
+
+    return jwt.sign(payload, secret, options);
+  }
+
+  private async signRefreshToken(payload: JwtPayload): Promise<string> {
+    const secret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
+    if (!secret) throw new AppError(500, 'Authentication service is not configured.');
+
+    const options: SignOptions = {
+      expiresIn: (process.env.JWT_REFRESH_EXPIRES_IN || '7d') as SignOptions['expiresIn'],
+      algorithm: 'HS256',
+    };
+
+    const token = jwt.sign(payload, secret, options);
+    const decoded = jwt.decode(token) as JsonWebTokenPayload;
+    const expiresAt = new Date((decoded.exp as number) * 1000);
+
+    await prisma.refreshToken.create({
+      data: {
+        token,
+        accountId: payload.sub,
+        accountType: payload.entityType,
+        userId: payload.entityInternalId,
+        expiresAt,
+      },
+    });
+
+    return token;
   }
 }

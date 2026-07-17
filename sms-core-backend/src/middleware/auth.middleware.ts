@@ -3,26 +3,20 @@ import jwt from 'jsonwebtoken';
 import { AppError } from './error.handler';
 import { JwtPayload } from '@/types/auth.types';
 
-// Extended request type for authenticated routes
 export interface AuthenticatedRequest extends Request {
   user?: JwtPayload;
 }
 
 /**
  * JWT authentication middleware.
- * Extracts Bearer token from Authorization header, verifies it,
- * and attaches the decoded payload to req.user.
+ * P1: Reads access_token from httpOnly cookie (migrated from Authorization header).
+ * B-4 fix: Explicitly specifies algorithms to prevent alg:none attacks.
  */
 export function authenticate(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  const authHeader = req.headers.authorization;
+  const token = req.cookies?.access_token;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return next(new AppError(401, 'Authentication required. Provide a valid Bearer token.'));
-  }
-
-  const token = authHeader.split(' ')[1];
   if (!token) {
-    return next(new AppError(401, 'Authentication required. Provide a valid Bearer token.'));
+    return next(new AppError(401, 'Authentication required. No access token cookie.'));
   }
 
   const secret = process.env.JWT_SECRET;
@@ -31,12 +25,13 @@ export function authenticate(req: AuthenticatedRequest, res: Response, next: Nex
   }
 
   try {
-    const decoded = jwt.verify(token, secret) as JwtPayload;
+    const decoded = jwt.verify(token, secret, { algorithms: ['HS256'] }) as JwtPayload;
     req.user = decoded;
     next();
   } catch (err) {
     if (err instanceof jwt.TokenExpiredError) {
-      return next(new AppError(401, 'Token has expired. Please log in again.'));
+      // Specific message so frontend can trigger token refresh
+      return next(new AppError(401, 'ACCESS_TOKEN_EXPIRED'));
     }
     return next(new AppError(401, 'Invalid token. Please log in again.'));
   }

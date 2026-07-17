@@ -615,3 +615,23 @@ model AuditLog {
   @@index([createdAt])
   @@map("audit_logs")
 }
+
+// ── P1: Refresh Token Storage ──
+// Access tokens are stateless (JWT verify only).
+// Refresh tokens are stateful (DB-backed) to support
+// rotation, revocation, and forced logout.
+model RefreshToken {
+  id          String    @id @default(uuid())
+  token       String    @unique
+  accountId   String    // StudentAccount.id | StaffAccount.id | TeacherAccount.id
+  accountType String    // 'STUDENT' | 'STAFF' | 'TEACHER'
+  userId      String    // Student.id | Staff.id | Teacher.id (for downstream queries)
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+  revokedAt   DateTime? // Non-null = token has been explicitly revoked
+
+  @@index([token])
+  @@index([accountId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}

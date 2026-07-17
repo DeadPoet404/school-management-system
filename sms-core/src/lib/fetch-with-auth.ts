@@ -1,33 +1,73 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
-function getToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem('sms_token');
+// ── Refresh promise lock: prevents concurrent refresh attempts ──
+let refreshPromise: Promise<boolean> | null = null;
+
+async function attemptRefresh(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    try {
+      const res = await fetch(`${API_URL}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      return res.ok;
+    } catch {
+      return false;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
 }
 
 /**
- * Drop-in replacement for raw fetch() that adds:
- * 1. Base API URL (no more hardcoded URLs)
- * 2. Authorization header from localStorage
- * 3. JSON content-type header
+ * Authenticated fetch wrapper.
  *
- * Returns a raw Response object so existing response.json() calls still work.
+ * P1: Reads access_token from httpOnly cookie (sent via credentials: 'include').
+ * No more localStorage reads or Authorization headers.
+ *
+ * Auto-refresh: On 401, attempts to refresh the access token via the
+ * refresh_token cookie. If successful, retries the original request.
+ * If refresh fails, returns the 401 response — the caller or
+ * ProtectedRoute/middleware handles routing.
  */
 export async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
-  };
-
-  const token = getToken();
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
   const fullUrl = url.startsWith('http') ? url : `${API_URL}${url}`;
 
-  return fetch(fullUrl, {
+  const response = await fetch(fullUrl, {
     ...options,
-    headers,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string>),
+    },
+    credentials: 'include',
   });
+
+  // ── Auto-refresh on 401 ──
+  if (response.status === 401) {
+    const refreshed = await attemptRefresh();
+
+    if (refreshed) {
+      // Retry original request with new cookies
+      return fetch(fullUrl, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(options.headers as Record<string, string>),
+        },
+        credentials: 'include',
+      });
+    }
+
+    // Refresh failed — return 401 response, do NOT redirect.
+    // The middleware guards route access; ProtectedRoute and
+    // auth-context handle session state. Redirecting here
+    // causes infinite loops on /login when no cookie exists.
+    return response;
+  }
+
+  return response;
 }

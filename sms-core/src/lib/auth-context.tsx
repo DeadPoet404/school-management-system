@@ -1,7 +1,9 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react"
-import { apiClient, ApiClientError } from "./api-client"
+import { fetchWithAuth } from "./fetch-with-auth"
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 interface AuthUser {
   email: string
@@ -12,7 +14,6 @@ interface AuthUser {
 
 interface AuthContextType {
   user: AuthUser | null
-  token: string | null
   isAuthenticated: boolean
   isLoading: boolean
   login: (email: string, password: string) => Promise<void>
@@ -23,51 +24,81 @@ const AuthContext = createContext<AuthContextType | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
-  const [token, setToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
+  // ── Validate session on mount via httpOnly cookies ──
+  // fetchWithAuth sends cookies and handles token refresh automatically.
+  // On failure (no cookie, expired, refresh failed), user stays null.
+  // The middleware and ProtectedRoute handle redirects — we never
+  // redirect from here to avoid infinite loops on /login.
   useEffect(() => {
-    try {
-      const storedToken = localStorage.getItem("sms_token")
-      const storedUser = localStorage.getItem("sms_user")
-      if (storedToken && storedUser) {
-        setToken(storedToken)
-        setUser(JSON.parse(storedUser))
+    let cancelled = false;
+
+    async function validateSession() {
+      try {
+        const res = await fetchWithAuth("/auth/me")
+        if (cancelled) return
+
+        if (res.ok) {
+          const json = await res.json()
+          if (json.success && json.data?.user) {
+            setUser(json.data.user)
+          }
+        }
+        // If not ok, user stays null = unauthenticated. No redirect.
+      } catch {
+        // Network error — user stays null
+      } finally {
+        if (!cancelled) setIsLoading(false)
       }
-    } catch {
-      localStorage.removeItem("sms_token")
-      localStorage.removeItem("sms_user")
-    } finally {
-      setIsLoading(false)
     }
+
+    validateSession()
+    return () => { cancelled = true }
   }, [])
 
   const login = useCallback(async (email: string, password: string) => {
-    const response = await apiClient<{ success: boolean; data: { token: string; user: AuthUser } }>("/auth/login", {
+    // Login is a public endpoint — use raw fetch, no auth wrapper needed
+    // Backend sets httpOnly cookies on success
+    const res = await fetch(`${API_URL}/auth/login`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ email, password }),
     })
 
-    localStorage.setItem("sms_token", response.data.token)
-    localStorage.setItem("sms_user", JSON.stringify(response.data.user))
-    setToken(response.data.token)
-    setUser(response.data.user)
+    const json = await res.json()
+
+    if (!res.ok || !json.success) {
+      throw new Error(json.message || "Login failed")
+    }
+
+    // Backend returns user metadata (no token in body — that's in the cookie)
+    if (json.data?.user) {
+      setUser(json.data.user)
+    }
   }, [])
 
-  const logout = useCallback(() => {
-    localStorage.removeItem("sms_token")
-    localStorage.removeItem("sms_user")
-    setToken(null)
-    setUser(null)
-    window.location.href = "/login"
+  const logout = useCallback(async () => {
+    try {
+      // Tell backend to revoke refresh token and clear cookies
+      await fetch(`${API_URL}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      })
+    } catch {
+      // Even if logout call fails, clear local state
+    } finally {
+      setUser(null)
+      window.location.href = "/login"
+    }
   }, [])
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        token,
-        isAuthenticated: !!token,
+        isAuthenticated: !!user,
         isLoading,
         login,
         logout,

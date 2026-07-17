@@ -10,6 +10,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import pinoHttp from 'pino-http';
 import { createId } from '@paralleldrive/cuid2';
+import cookieParser from 'cookie-parser';
 
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './lib/swagger';
@@ -81,6 +82,9 @@ app.use(cors({
 // ── GLOBAL MIDDLEWARE ──
 app.use(express.json());
 
+// ── P1: Cookie parser — required to read httpOnly cookies set by auth controller ──
+app.use(cookieParser());
+
 // ── XSS SANITIZATION: Strip HTML from all string inputs ──
 app.use(sanitizeInput);
 
@@ -97,9 +101,9 @@ const apiLimiter = rateLimit({
 });
 app.use('/api/', apiLimiter);
 
-// ═══════════════════════════════════════════
+// ═════════════════════════════════════════════
 // ── PUBLIC ROUTES (no JWT required) ──
-// ═══════════════════════════════════════════
+// ═════════════════════════════════════════════
 
 // Health check — for load balancers and monitoring (includes DB readiness)
 app.get('/api/health', async (_req, res) => {
@@ -124,12 +128,12 @@ app.get('/api/health', async (_req, res) => {
 // API Documentation
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-// Auth — login endpoint (has its own stricter rate limiter)
+// Auth — login, refresh, logout, me (login has its own stricter rate limiter)
 app.use('/api/auth', authRoutes);
 
-// ═══════════════════════════════════════════
+// ═════════════════════════════════════════════
 // ── PROTECTED ROUTES (JWT required) ──
-// ═══════════════════════════════════════════
+// ═════════════════════════════════════════════
 
 app.use('/api/students', authenticate, studentRoutes);
 app.use('/api/teachers', authenticate, teacherRoutes);

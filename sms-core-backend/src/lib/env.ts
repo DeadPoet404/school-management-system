@@ -9,6 +9,10 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(5000),
   JWT_EXPIRES_IN: z.string().default('8h'),
+  JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
+  JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
+  JWT_REFRESH_SECRET: z.string().min(16, 'JWT_REFRESH_SECRET must be at least 16 characters.').optional(),
+  COOKIE_DOMAIN: z.string().optional(),
   CORS_ORIGINS: z.string().default('http://localhost:3000,http://localhost:3001'),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(60000),
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().min(1).default(100),
@@ -41,6 +45,10 @@ function validateEnv() {
   process.env.NODE_ENV = env.NODE_ENV;
   process.env.PORT = String(env.PORT);
   process.env.JWT_EXPIRES_IN = env.JWT_EXPIRES_IN;
+  process.env.JWT_ACCESS_EXPIRES_IN = env.JWT_ACCESS_EXPIRES_IN;
+  process.env.JWT_REFRESH_EXPIRES_IN = env.JWT_REFRESH_EXPIRES_IN;
+  if (env.JWT_REFRESH_SECRET) process.env.JWT_REFRESH_SECRET = env.JWT_REFRESH_SECRET;
+  if (env.COOKIE_DOMAIN) process.env.COOKIE_DOMAIN = env.COOKIE_DOMAIN;
   process.env.CORS_ORIGINS = env.CORS_ORIGINS;
   process.env.RATE_LIMIT_WINDOW_MS = String(env.RATE_LIMIT_WINDOW_MS);
   process.env.RATE_LIMIT_MAX_REQUESTS = String(env.RATE_LIMIT_MAX_REQUESTS);
