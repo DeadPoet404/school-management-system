@@ -95,6 +95,7 @@ export interface IStudentRepository {
   createNestedStudent(data: Prisma.StudentCreateInput, tx?: TransactionClient): Promise<any>;
   createDepartureLog(data: Prisma.StudentDepartureUncheckedCreateInput, tx?: TransactionClient): Promise<any>;
   updateStatus(id: string, status: EntityStatus, tx?: TransactionClient): Promise<any>;
+update(id: string, data: any, tx?: TransactionClient): Promise<any>;
 }
 
 export interface ITeacherRepository {
@@ -104,6 +105,8 @@ export interface ITeacherRepository {
   createNestedTeacher(data: Prisma.TeacherCreateInput, tx?: TransactionClient): Promise<any>;
   createDepartureLog(data: Prisma.TeacherDepartureUncheckedCreateInput, tx?: TransactionClient): Promise<any>;
   updateStatus(id: string, status: EntityStatus, tx?: TransactionClient): Promise<any>;
+  findById(id: string, tx?: TransactionClient): Promise<any>;
+  update(id: string, data: any, tx?: TransactionClient): Promise<any>;
 }
 
 export interface IStaffRepository {
@@ -113,6 +116,8 @@ export interface IStaffRepository {
   createNestedStaff(data: Prisma.StaffCreateInput, tx?: TransactionClient): Promise<any>;
   createDepartureLog(data: Prisma.StaffDepartureUncheckedCreateInput, tx?: TransactionClient): Promise<any>;
   updateStatus(id: string, status: EntityStatus, tx?: TransactionClient): Promise<any>;
+  findById(id: string, tx?: TransactionClient): Promise<any>;
+  update(id: string, data: any, tx?: TransactionClient): Promise<any>;
 }
 
 export interface IGradesRepository {

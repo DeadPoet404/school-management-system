@@ -43,8 +43,6 @@ enum TreasuryClearanceStatus {
   EXEMPT
 }
 
-
-
 enum InvoiceStatus {
   UNPAID
   PARTIAL
@@ -64,80 +62,86 @@ enum ClearanceStatus {
 // ═══════════════════════════════════════════════════════════
 
 model Class {
-  id        String   @id @default(uuid())
-  name      String   @unique
+  id        String    @id @default(uuid())
+  deletedAt DateTime?
+  name      String    @unique
   section   String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
 
 model Subject {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  code      String   @unique
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id        String    @id @default(uuid())
+  deletedAt DateTime?
+  name      String    @unique
+  code      String    @unique
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
 
 model Term {
-  id           String   @id @default(uuid())
-  name         String   @unique
+  id           String    @id @default(uuid())
+  deletedAt    DateTime?
+  name         String    @unique
   academicYear String
   startDate    DateTime
   endDate      DateTime
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }
 
 model Department {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  code      String   @unique
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id        String    @id @default(uuid())
+  deletedAt DateTime?
+  name      String    @unique
+  code      String    @unique
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
 
 model FeeTier {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  code      String   @unique
-  amount    Decimal  @db.Decimal(10, 2)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id        String    @id @default(uuid())
+  deletedAt DateTime?
+  name      String    @unique
+  code      String    @unique
+  amount    Decimal   @db.Decimal(10, 2)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
+
 // ═══════════════════════════════════════════════════════════
 // ── STUDENT MANAGEMENT SYSTEM ──
 // ═══════════════════════════════════════════════════════════
 
 model Student {
-  id              String       @id @default(uuid())
-  studentId       String       @unique
-  studentName     String
-  enrollmentDate  DateTime
-  status          EntityStatus @default(ACTIVE)
-  currentGpa      Float        @default(0.0)
-  attendanceRate  Float        @default(100.0)    
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  id             String       @id @default(uuid())
+  studentId      String       @unique
+  studentName    String
+  enrollmentDate DateTime
+  status         EntityStatus @default(ACTIVE)
+  currentGpa     Float        @default(0.0)
+  attendanceRate Float        @default(100.0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
-  account         StudentAccount?
-  demographics    Demographics?
-  placement       Placement?
-  compliance      StudentCompliance?
-  guardians       Guardian[]
-  billing         BillingLedger?
-  departures      StudentDeparture[]
-  
-  invoices        Invoice[]
-  payments        Payment[]
-  paymentLogs     PaymentCollection[]
+  account      StudentAccount?
+  demographics Demographics?
+  placement    Placement?
+  compliance   StudentCompliance?
+  guardians    Guardian[]
+  billing      BillingLedger?
+  departures   StudentDeparture[]
+
+  invoices          Invoice[]
+  payments          Payment[]
+  paymentLogs       PaymentCollection[]
   attendanceRecords AttendanceRecord[]
-  grades GradeRecord[]
+  grades            GradeRecord[]
 }
 
 model StudentAccount {
@@ -153,40 +157,40 @@ model Demographics {
   studentId          String   @unique
   student            Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   dateOfBirth        DateTime
-  gender             String   
+  gender             String
   residentialAddress String
   medicalNotes       String?  @db.Text
-  bloodType          String?  
-  religion           String?  
-  formerSchool       String?  
-  nationalId         String?  
+  bloodType          String?
+  religion           String?
+  formerSchool       String?
+  nationalId         String?
 }
 
 model Placement {
   id             String  @id @default(uuid())
   studentId      String  @unique
   student        Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  classId        String  
-  academicTrack  String  
-  boardingStatus String  
+  classId        String
+  academicTrack  String
+  boardingStatus String
 }
 
 model StudentCompliance {
-  id                 String  @id @default(uuid())
-  studentId          String  @unique
-  student            Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  nationalId         String?
-  emergencyName      String?
-  emergencyPhone     String?
-  emergencyRelation  String?
+  id                String  @id @default(uuid())
+  studentId         String  @unique
+  student           Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  nationalId        String?
+  emergencyName     String?
+  emergencyPhone    String?
+  emergencyRelation String?
 }
 
 model Guardian {
   id           String  @id @default(uuid())
-  studentId    String 
+  studentId    String
   student      Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
   name         String
-  relationship String  
+  relationship String
   phone        String
   email        String?
 
@@ -194,61 +198,62 @@ model Guardian {
 }
 
 model BillingLedger {
-  id             String   @id @default(uuid())
-  studentId      String   @unique
-  student        Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  feeTierId      String  
-  initialDeposit Decimal  @default(0.0) @db.Decimal(10, 2)
-  currentBalance Decimal  @db.Decimal(10, 2)
+  id             String  @id @default(uuid())
+  studentId      String  @unique
+  student        Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  feeTierId      String
+  initialDeposit Decimal @default(0.0) @db.Decimal(10, 2)
+  currentBalance Decimal @db.Decimal(10, 2)
 }
 
 model Invoice {
-  id          String   @id @default(uuid())
-  invoiceNo   String   @unique 
+  id          String    @id @default(uuid())
+  deletedAt   DateTime?
+  invoiceNo   String    @unique
   studentId   String
-  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  description String   
-  amount      Decimal  @db.Decimal(10, 2)
+  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  description String
+  amount      Decimal   @db.Decimal(10, 2)
   dueDate     DateTime
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   // ── ADD THESE TWO LINES ──
-  status      InvoiceStatus @default(UNPAID) 
-  configId    String?  
+  status   InvoiceStatus @default(UNPAID)
+  configId String?
 
   @@index([studentId])
 }
 
 model Payment {
-  id          String   @id @default(uuid())
-  receiptNo   String   @unique 
+  id          String    @id @default(uuid())
+  deletedAt   DateTime?
+  receiptNo   String    @unique
   studentId   String
-  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  description String   @default("Fee Payment Clearance")
-  amount      Decimal  @db.Decimal(10, 2)
-  paymentType String   
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  description String    @default("Fee Payment Clearance")
+  amount      Decimal   @db.Decimal(10, 2)
+  paymentType String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([studentId])
 }
 
 model StudentDeparture {
-  id                       String                 @id @default(uuid())
-  studentInternalId        String
-  student                  Student                @relation(fields: [studentInternalId], references: [id], onDelete: Cascade)
-  departureType            DepartureType          
-  effectiveDate            DateTime
-  destinationInstitution   String                 @default("N/A")
-  treasuryClearanceStatus  TreasuryClearanceStatus 
-  academicRecordsArchived  Boolean                @default(false)
-  remarks                  String                 @db.Text
-  processedAt              DateTime               @default(now())
+  id                      String                  @id @default(uuid())
+  studentInternalId       String
+  student                 Student                 @relation(fields: [studentInternalId], references: [id], onDelete: Cascade)
+  departureType           DepartureType
+  effectiveDate           DateTime
+  destinationInstitution  String                  @default("N/A")
+  treasuryClearanceStatus TreasuryClearanceStatus
+  academicRecordsArchived Boolean                 @default(false)
+  remarks                 String                  @db.Text
+  processedAt             DateTime                @default(now())
 
   @@index([studentInternalId])
 }
-
 
 // ═══════════════════════════════════════════════════════════
 // ── FACULTY & STAFF MANAGEMENT SYSTEM ──
@@ -268,11 +273,11 @@ model Teacher {
   updatedAt         DateTime     @updatedAt
 
   // ── RELATIONAL UPGRADES (Now matches Staff depth) ──
-  account         TeacherAccount?
-  demographics    TeacherDemographics?
-  compliance      TeacherCompliance?
-  payroll         TeacherPayroll?
-  departures      TeacherDeparture[]
+  account      TeacherAccount?
+  demographics TeacherDemographics?
+  compliance   TeacherCompliance?
+  payroll      TeacherPayroll?
+  departures   TeacherDeparture[]
 }
 
 // ── Teacher Portal Account (resolves StaffAccount FK violation) ──
@@ -287,9 +292,9 @@ model TeacherAccount {
 
 // ── NEW: Teacher Personal & Background Data ──
 model TeacherDemographics {
-  id                 String  @id @default(uuid())
-  teacherId          String  @unique
-  teacher            Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  id                 String   @id @default(uuid())
+  teacherId          String   @unique
+  teacher            Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   dateOfBirth        DateTime
   gender             String
   residentialAddress String
@@ -312,29 +317,29 @@ model TeacherCompliance {
 
 // ── NEW: Teacher Compensation & Disbursement Data ──
 model TeacherPayroll {
-  id               String        @id @default(uuid())
-  teacherId        String        @unique
-  teacher          Teacher       @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  clearanceTier    String
-  baseSalary       Decimal       @default(0) @db.Decimal(10, 2)
-  deductions       Decimal       @default(0) @db.Decimal(10, 2)
-  netPay           Decimal       @default(0) @db.Decimal(10, 2)
-  paymentRoute     String        @default("BANK_TRANSFER") // e.g., BANK_TRANSFER, MOBILE_MONEY
-  bankName         String?
-  bankAccount      String?
-  salaryStatus     PayrollStatus @default(PENDING)
+  id            String        @id @default(uuid())
+  teacherId     String        @unique
+  teacher       Teacher       @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  clearanceTier String
+  baseSalary    Decimal       @default(0) @db.Decimal(10, 2)
+  deductions    Decimal       @default(0) @db.Decimal(10, 2)
+  netPay        Decimal       @default(0) @db.Decimal(10, 2)
+  paymentRoute  String        @default("BANK_TRANSFER") // e.g., BANK_TRANSFER, MOBILE_MONEY
+  bankName      String?
+  bankAccount   String?
+  salaryStatus  PayrollStatus @default(PENDING)
 }
 
 model TeacherDeparture {
-  id                       String                 @id @default(uuid())
-  teacherInternalId        String
-  teacher                  Teacher                @relation(fields: [teacherInternalId], references: [id], onDelete: Cascade)
-  departureType            PersonnelDepartureType 
-  effectiveDate            DateTime
-  academicClearanceStatus  ClearanceStatus                 
-  treasuryClearanceStatus  ClearanceStatus                 
-  remarks                  String                 @db.Text
-  processedAt              DateTime               @default(now())
+  id                      String                 @id @default(uuid())
+  teacherInternalId       String
+  teacher                 Teacher                @relation(fields: [teacherInternalId], references: [id], onDelete: Cascade)
+  departureType           PersonnelDepartureType
+  effectiveDate           DateTime
+  academicClearanceStatus ClearanceStatus
+  treasuryClearanceStatus ClearanceStatus
+  remarks                 String                 @db.Text
+  processedAt             DateTime               @default(now())
 
   @@index([teacherInternalId])
 }
@@ -348,42 +353,42 @@ model Staff {
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
-  account         StaffAccount?
-  demographics    StaffDemographics?
-  placement       StaffPlacement?
-  compliance      StaffCompliance?
-  payroll         StaffPayroll?
-  departures      StaffDeparture[]
+  account      StaffAccount?
+  demographics StaffDemographics?
+  placement    StaffPlacement?
+  compliance   StaffCompliance?
+  payroll      StaffPayroll?
+  departures   StaffDeparture[]
 }
 
 model StaffDeparture {
-  id                       String                 @id @default(uuid())
-  staffInternalId          String
-  staff                    Staff                  @relation(fields: [staffInternalId], references: [id], onDelete: Cascade)
-  departureType            PersonnelDepartureType 
-  effectiveDate            DateTime
-  hrClearanceStatus        ClearanceStatus                 
-  itAssetReturnStatus      ClearanceStatus                 
-  treasuryClearanceStatus  ClearanceStatus                 
-  remarks                  String                 @db.Text
-  processedAt              DateTime               @default(now())
+  id                      String                 @id @default(uuid())
+  staffInternalId         String
+  staff                   Staff                  @relation(fields: [staffInternalId], references: [id], onDelete: Cascade)
+  departureType           PersonnelDepartureType
+  effectiveDate           DateTime
+  hrClearanceStatus       ClearanceStatus
+  itAssetReturnStatus     ClearanceStatus
+  treasuryClearanceStatus ClearanceStatus
+  remarks                 String                 @db.Text
+  processedAt             DateTime               @default(now())
 
   @@index([staffInternalId])
 }
 
 model StaffAccount {
-  id           String  @id @default(uuid())
-  staffId      String  @unique
-  staff        Staff   @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  email        String  @unique
+  id           String @id @default(uuid())
+  staffId      String @unique
+  staff        Staff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  email        String @unique
   passwordHash String
-  role         String  @default("STAFF")
+  role         String @default("STAFF")
 }
 
 model StaffDemographics {
-  id                 String  @id @default(uuid())
-  staffId            String  @unique
-  staff              Staff   @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  id                 String   @id @default(uuid())
+  staffId            String   @unique
+  staff              Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
   dateOfBirth        DateTime
   gender             String
   residentialAddress String
@@ -394,9 +399,9 @@ model StaffDemographics {
 }
 
 model StaffPlacement {
-  id             String  @id @default(uuid())
-  staffId        String  @unique
-  staff          Staff   @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  id             String @id @default(uuid())
+  staffId        String @unique
+  staff          Staff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
   departmentId   String
   jobTitle       String
   employmentType String
@@ -414,34 +419,33 @@ model StaffCompliance {
 }
 
 model StaffPayroll {
-  id               String        @id @default(uuid())
-  staffId          String        @unique
-  staff            Staff         @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  clearanceTier    String
-  baseSalary       Decimal       @default(0) @db.Decimal(10, 2)
-  deductions       Decimal       @default(0) @db.Decimal(10, 2)
-  netPay           Decimal       @default(0) @db.Decimal(10, 2)
-  paymentRoute     String        @default("BANK_TRANSFER")
-  bankName         String?
-  bankAccount      String?
-  salaryStatus     PayrollStatus @default(PENDING)
+  id            String        @id @default(uuid())
+  staffId       String        @unique
+  staff         Staff         @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  clearanceTier String
+  baseSalary    Decimal       @default(0) @db.Decimal(10, 2)
+  deductions    Decimal       @default(0) @db.Decimal(10, 2)
+  netPay        Decimal       @default(0) @db.Decimal(10, 2)
+  paymentRoute  String        @default("BANK_TRANSFER")
+  bankName      String?
+  bankAccount   String?
+  salaryStatus  PayrollStatus @default(PENDING)
 }
-
 
 // ═══════════════════════════════════════════════════════════
 // ── TIMETABLE CONFIGURATION DOMAIN ──
 // ═══════════════════════════════════════════════════════════
 
 model TimetableConfiguration {
-  id           String            @id @default(uuid())
-  sectionId    String            @unique 
-  periodsCount Int               @default(0)
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  id           String   @id @default(uuid())
+  sectionId    String   @unique
+  periodsCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  periods      TimetablePeriod[]
-  breaks       TimetableBreak[]
-  subjects     SubjectAllocation[]
+  periods  TimetablePeriod[]
+  breaks   TimetableBreak[]
+  subjects SubjectAllocation[]
 }
 
 model TimetablePeriod {
@@ -449,11 +453,11 @@ model TimetablePeriod {
   configurationId String
   configuration   TimetableConfiguration @relation(fields: [configurationId], references: [id], onDelete: Cascade)
   periodNumber    Int
-  dayOfWeek       String? 
+  dayOfWeek       String?
   startTime       String
   endTime         String
 
-  @@unique([configurationId, periodNumber, dayOfWeek]) 
+  @@unique([configurationId, periodNumber, dayOfWeek])
 }
 
 model TimetableBreak {
@@ -461,7 +465,7 @@ model TimetableBreak {
   configurationId String
   configuration   TimetableConfiguration @relation(fields: [configurationId], references: [id], onDelete: Cascade)
   name            String
-  dayOfWeek       String? 
+  dayOfWeek       String?
   startTime       String
   endTime         String
 }
@@ -471,52 +475,54 @@ model SubjectAllocation {
   configurationId String
   configuration   TimetableConfiguration @relation(fields: [configurationId], references: [id], onDelete: Cascade)
   subjectName     String
-  teacherId       String 
-  dayOfWeek       String? 
+  teacherId       String
+  dayOfWeek       String?
 }
-
 
 // ═══════════════════════════════════════════════════════════
 // ── INSTITUTIONAL FINANCE & ACCOUNTING ENGINE ──
 // ═══════════════════════════════════════════════════════════
 
 model FeeStructureConfiguration {
-  id               String         @id @default(uuid())
-  sectionId        String         @unique 
-  issueDate        DateTime       
-  dueDate          DateTime       
-  allowInstallments Boolean       @default(true)
-  lateFeeRate      Decimal        @default(0) @db.Decimal(5, 2)
-  
-  components       FeeComponent[]
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  id                String    @id @default(uuid())
+  deletedAt         DateTime?
+  sectionId         String    @unique
+  issueDate         DateTime
+  dueDate           DateTime
+  allowInstallments Boolean   @default(true)
+  lateFeeRate       Decimal   @default(0) @db.Decimal(5, 2)
+
+  components FeeComponent[]
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
 }
 
 model FeeComponent {
-  id          String                    @id @default(uuid())
+  id          String    @id @default(uuid())
+  deletedAt   DateTime?
   configId    String
   name        String
-  amount      Decimal                   @db.Decimal(10, 2)
+  amount      Decimal   @db.Decimal(10, 2)
   frequency   String
-  isMandatory Boolean                   @default(true)
-  
+  isMandatory Boolean   @default(true)
+
   configuration FeeStructureConfiguration @relation(fields: [configId], references: [id], onDelete: Cascade)
 }
 
 model PaymentCollection {
-  id               String   @id @default(uuid())
-  receiptNumber    String   @unique
-  sectionId        String   
+  id               String    @id @default(uuid())
+  deletedAt        DateTime?
+  receiptNumber    String    @unique
+  sectionId        String
   studentName      String
-  amountPaid       Decimal  @db.Decimal(10, 2)
+  amountPaid       Decimal   @db.Decimal(10, 2)
   paymentMethod    String
-  referenceNo      String   @default("N/A (Direct)")
+  referenceNo      String    @default("N/A (Direct)")
   allocationTarget String
-  dateProcessed    DateTime @default(now())
+  dateProcessed    DateTime  @default(now())
 
   // ── NEW: SMART PAYMENT ROUTING ──
-  studentInternalId String?  
+  studentInternalId String?
   student           Student? @relation(fields: [studentInternalId], references: [id], onDelete: SetNull)
 
   @@index([sectionId])
@@ -524,13 +530,14 @@ model PaymentCollection {
 }
 
 model LedgerAccount {
-  code        String   @id 
+  code        String    @id
+  deletedAt   DateTime?
   accountName String
-  category    String   
-  debit       Decimal  @default(0.0) @db.Decimal(10, 2)
-  credit      Decimal  @default(0.0) @db.Decimal(10, 2)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  category    String
+  debit       Decimal   @default(0.0) @db.Decimal(10, 2)
+  credit      Decimal   @default(0.0) @db.Decimal(10, 2)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@map("ledger_accounts")
 }
@@ -540,7 +547,7 @@ model LedgerAccount {
 // ==========================================
 model AttendanceRecord {
   id        String           @id @default(uuid())
-  studentId String           
+  studentId String
   date      DateTime         @db.Date
   status    AttendanceStatus
   remarks   String?          @db.Text
@@ -548,9 +555,9 @@ model AttendanceRecord {
   updatedAt DateTime         @updatedAt
 
   // Relations
-  student   Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
-  @@unique([studentId, date]) 
+  @@unique([studentId, date])
   @@index([studentId, status])
 }
 
@@ -566,24 +573,25 @@ enum AttendanceStatus {
 // ==========================================
 model GradeRecord {
   id                   String   @id @default(uuid())
-  studentId            String   
-  subjectId            String   
-  classId              String   
-  termId               String   
-  continuousAssessment Decimal  @db.Decimal(5, 2) 
-  examination          Decimal  @db.Decimal(5, 2) 
-  finalScore           Decimal  @db.Decimal(5, 2) 
+  studentId            String
+  subjectId            String
+  classId              String
+  termId               String
+  continuousAssessment Decimal  @db.Decimal(5, 2)
+  examination          Decimal  @db.Decimal(5, 2)
+  finalScore           Decimal  @db.Decimal(5, 2)
   letterGrade          String   @db.VarChar(2)
-  gradePoints          Decimal  @db.Decimal(3, 2) 
+  gradePoints          Decimal  @db.Decimal(3, 2)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
   // Relations
-  student              Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, subjectId, termId], name: "studentId_subjectId_termId")
   @@index([studentId, termId])
 }
+
 // ═══════════════════════════════════════════════════════════
 // ── AUDIT TRAIL ──
 // ═══════════════════════════════════════════════════════════

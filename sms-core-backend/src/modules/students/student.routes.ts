@@ -5,6 +5,7 @@ import { StudentRepository } from "./student.repository";
 import { validate } from "@/middleware/validate";
 import { requireRole, ROLES } from "@/middleware/rbac.middleware";
 import { studentEnrollmentSchema, studentDepartureSchema } from "@/types/registry.types";
+import { studentUpdateSchema } from "./student.validation";
 
 const router = Router();
 
@@ -31,6 +32,14 @@ router.post(
   requireRole(ROLES.STAFF, ROLES.ADMIN),
   validate(studentEnrollmentSchema),
   controller.enrollStudent
+);
+
+// ── UPDATE ──
+router.patch(
+  "/:id",
+  requireRole(ROLES.STAFF, ROLES.ADMIN),
+  validate(studentUpdateSchema),
+  controller.updateStudent
 );
 
 export default router;

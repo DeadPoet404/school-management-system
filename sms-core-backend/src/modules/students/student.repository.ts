@@ -81,4 +81,28 @@ export class StudentRepository implements IStudentRepository {
       data: { status },
     });
   }
+
+  async update(id: string, data: any, tx = prisma) {
+    const updateData: any = {};
+    if (data.studentName) updateData.studentName = data.studentName;
+    if (data.demographics) updateData.demographics = { update: data.demographics };
+    if (data.placement) updateData.placement = { update: data.placement };
+    if (data.compliance) updateData.compliance = { update: data.compliance };
+
+    return tx.student.update({
+      where: { id },
+      data: updateData,
+      include: {
+        account: true,
+        demographics: true,
+        placement: true,
+        compliance: true,
+        guardians: true,
+        billing: true,
+        invoices: true,
+        payments: true,
+      },
+    });
+  }
+
 }

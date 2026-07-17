@@ -175,4 +175,18 @@ export class StudentService {
       return departureLog;
     });
   }
+
+  async update(id: string, payload: any) {
+    const student = await this.repo.findById(id);
+    if (!student) throw new Error(`Student not found with ID: ${id}`);
+    if (student.status === 'DEPARTED') throw new Error('Cannot update a departed student.');
+
+    const data: any = { ...payload };
+    if (data.demographics?.dateOfBirth) {
+      data.demographics.dateOfBirth = new Date(data.demographics.dateOfBirth);
+    }
+
+    return this.repo.update(id, data);
+  }
+
 }

@@ -63,4 +63,15 @@ export class StudentController {
       next(error);
     }
   };
+
+  public updateStudent = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+    try {
+      const { id } = req.params;
+      const updated = await this.studentService.update(id, req.body);
+      return res.status(200).json({ success: true, data: updated });
+    } catch (error) {
+      next(error);
+    }
+  };
+
 }

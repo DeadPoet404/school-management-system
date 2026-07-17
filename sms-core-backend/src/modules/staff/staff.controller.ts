@@ -62,4 +62,15 @@ export class StaffController {
       next(error);
     }
   };
+
+  public updateStaff = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+    try {
+      const { id } = req.params;
+      const updated = await this.staffService.update(id, req.body);
+      return res.status(200).json({ success: true, data: updated });
+    } catch (error) {
+      next(error);
+    }
+  };
+
 }

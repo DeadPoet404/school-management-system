@@ -44,4 +44,40 @@ export class StaffRepository implements IStaffRepository {
   async updateStatus(id: string, status: EntityStatus, tx = prisma) {
     return tx.staff.update({ where: { id }, data: { status } });
   }
+
+  async findById(id: string, tx = prisma) {
+    return tx.staff.findUnique({
+      where: { id },
+      include: {
+        account: { select: { email: true, role: true } },
+        demographics: true,
+        placement: true,
+        compliance: true,
+        payroll: true,
+        departures: true,
+      },
+    });
+  }
+
+  async update(id: string, data: any, tx = prisma) {
+    const updateData: any = {};
+    if (data.staffName) updateData.staffName = data.staffName;
+    if (data.demographics) updateData.demographics = { update: data.demographics };
+    if (data.placement) updateData.placement = { update: data.placement };
+    if (data.compliance) updateData.compliance = { update: data.compliance };
+    if (data.payroll) updateData.payroll = { update: data.payroll };
+    return tx.staff.update({
+      where: { id },
+      data: updateData,
+      include: {
+        account: { select: { email: true, role: true } },
+        demographics: true,
+        placement: true,
+        compliance: true,
+        payroll: true,
+        departures: true,
+      },
+    });
+  }
+
 }

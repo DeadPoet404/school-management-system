@@ -242,4 +242,23 @@ export class StaffService {
       return departureLog;
     });
   }
+
+  async update(id: string, payload: any) {
+    const staff = await this.repo.findById(id);
+    if (!staff) throw new Error(`Staff member not found with ID: ${id}`);
+    if (staff.status === 'DEPARTED') throw new Error('Cannot update a departed staff member.');
+
+    const data: any = { ...payload };
+    if (data.demographics?.dateOfBirth) {
+      data.demographics.dateOfBirth = new Date(data.demographics.dateOfBirth);
+    }
+    if (data.payroll) {
+      if (data.payroll.baseSalary !== undefined) data.payroll.baseSalary = parseFloat(String(data.payroll.baseSalary)) || 0;
+      if (data.payroll.deductions !== undefined) data.payroll.deductions = parseFloat(String(data.payroll.deductions)) || 0;
+      if (data.payroll.netPay !== undefined) data.payroll.netPay = parseFloat(String(data.payroll.netPay)) || 0;
+    }
+
+    return this.repo.update(id, data);
+  }
+
 }
