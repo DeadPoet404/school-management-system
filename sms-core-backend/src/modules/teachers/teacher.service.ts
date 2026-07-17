@@ -17,10 +17,8 @@ type TeacherWithRelations = Prisma.TeacherGetPayload<{
 export class TeacherService {
   constructor(private repo: ITeacherRepository = new TeacherRepository()) {}
 
-  async getAllTeachers() {
-    const rawTeachers = await this.repo.findAllActive();
-
-    return rawTeachers.map((teacher: TeacherWithRelations) => ({
+  private mapTeacher(teacher: TeacherWithRelations) {
+    return {
       ...teacher,
       account: {
         fullName: teacher.teacherName,
@@ -63,7 +61,23 @@ export class TeacherService {
         bankAccount: teacher.payroll?.bankAccount ?? "—",
         salaryStatus: teacher.payroll?.salaryStatus ?? "PENDING",
       },
-    }));
+    };
+  }
+
+  async getAllTeachers() {
+    const rawTeachers = await this.repo.findAllActive();
+    return rawTeachers.map((teacher: TeacherWithRelations) => this.mapTeacher(teacher));
+  }
+
+  async getPaginatedTeachers(skip: number, take: number) {
+    const [rawTeachers, total] = await Promise.all([
+      this.repo.findAllActive(skip, take),
+      this.repo.countActive(),
+    ]);
+    return {
+      data: (rawTeachers as TeacherWithRelations[]).map((t) => this.mapTeacher(t)),
+      total,
+    };
   }
 
   async createTeacher(payload: {

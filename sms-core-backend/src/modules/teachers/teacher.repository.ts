@@ -3,20 +3,28 @@ import { Prisma, EntityStatus } from "@prisma/client";
 import { ITeacherRepository } from "@/types/repositories";
 
 export class TeacherRepository implements ITeacherRepository {
-  async findAllActive(tx = prisma) {
+  async findAllActive(skip?: number, take?: number, tx = prisma) {
     return tx.teacher.findMany({
-      where: { 
-        status: { not: "DEPARTED" } 
+      where: {
+        status: { not: "DEPARTED" }
       },
+      skip: skip ?? undefined,
+      take: take ?? undefined,
       include: {
         demographics: true,
         compliance: true,
         payroll: true,
         departures: true,
       },
-      orderBy: { 
-        createdAt: "desc" 
+      orderBy: {
+        createdAt: "desc"
       },
+    });
+  }
+
+  async countActive(tx = prisma) {
+    return tx.teacher.count({
+      where: { status: { not: "DEPARTED" } },
     });
   }
 
@@ -27,7 +35,7 @@ export class TeacherRepository implements ITeacherRepository {
   }
 
   async createNestedTeacher(data: Prisma.TeacherCreateInput, tx = prisma) {
-    return tx.teacher.create({ 
+    return tx.teacher.create({
       data,
       select: {
         id: true,

@@ -29,6 +29,14 @@ export class StudentService {
     return this.repo.findAll();
   }
 
+  async getPaginated(skip: number, take: number) {
+    const [data, total] = await Promise.all([
+      this.repo.findAll(skip, take),
+      this.repo.count(),
+    ]);
+    return { data, total };
+  }
+
   async getFinancialMatrix() {
     const students = await this.repo.findWithFinancialData();
 

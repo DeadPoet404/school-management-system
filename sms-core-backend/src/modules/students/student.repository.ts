@@ -3,8 +3,10 @@ import { Prisma, EntityStatus } from "@prisma/client";
 import { IStudentRepository } from "@/types/repositories";
 
 export class StudentRepository implements IStudentRepository {
-  async findAll(tx = prisma) {
+  async findAll(skip?: number, take?: number, tx = prisma) {
     return tx.student.findMany({
+      skip: skip ?? undefined,
+      take: take ?? undefined,
       include: {
         account: true,
         demographics: true,
@@ -19,6 +21,10 @@ export class StudentRepository implements IStudentRepository {
         createdAt: "desc",
       },
     });
+  }
+
+  async count(tx = prisma) {
+    return tx.student.count();
   }
 
   async findById(id: string, tx = prisma) {
@@ -55,7 +61,7 @@ export class StudentRepository implements IStudentRepository {
   }
 
   async createNestedStudent(data: Prisma.StudentCreateInput, tx = prisma) {
-    return tx.student.create({ 
+    return tx.student.create({
       data,
       select: {
         id: true,

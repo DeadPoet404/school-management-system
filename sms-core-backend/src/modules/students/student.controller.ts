@@ -8,10 +8,8 @@ export class StudentController {
   public getAllStudents = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
       const { page, limit, skip } = parsePaginationQuery(req.query);
-      const allStudents = await this.studentService.getAll();
-      const totalItems = allStudents.length;
-      const paginatedStudents = allStudents.slice(skip, skip + limit);
-      return res.status(200).json(buildPaginationResponse(paginatedStudents, totalItems, page, limit));
+      const { data, total } = await this.studentService.getPaginated(skip, limit);
+      return res.status(200).json(buildPaginationResponse(data, total, page, limit));
     } catch (error) {
       next(error);
     }

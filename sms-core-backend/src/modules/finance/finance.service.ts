@@ -165,6 +165,14 @@ export class FinanceService {
     return await this.repo.findAllLedgerAccounts();
   }
 
+  async getPaginatedLedgers(skip: number, take: number) {
+    const [data, total] = await Promise.all([
+      this.repo.findAllLedgerAccounts(skip, take),
+      this.repo.countLedgerAccounts(),
+    ]);
+    return { data, total };
+  }
+
   async createLedger(data: { code: string; accountName: string; category: string; amount: string; type: "debit" | "credit" }) {
     return await this.repo.createLedgerAccount({
       code: data.code,
@@ -175,11 +183,8 @@ export class FinanceService {
     });
   }
 
-  async getCombinedPayroll() {
-    const staffPayroll = (await this.repo.getAllStaffPayroll()) as StaffPayrollRow[];
-    const teacherPayroll = (await this.repo.getAllTeacherPayroll()) as TeacherPayrollRow[];
-
-    const staffMapped = staffPayroll.map((p) => ({
+  private mapStaffPayrollRow(p: StaffPayrollRow) {
+    return {
       id: p.id,
       name: p.staff.staffName,
       role: p.staff.account?.role || "General Staff",
@@ -187,9 +192,11 @@ export class FinanceService {
       allowances: 0,
       deductions: parseFloat(p.deductions.toString()),
       status: p.salaryStatus === "DISBURSED" ? "Disbursed" as const : "Pending" as const
-    }));
+    };
+  }
 
-    const teacherMapped = teacherPayroll.map((p) => ({
+  private mapTeacherPayrollRow(p: TeacherPayrollRow) {
+    return {
       id: p.id,
       name: p.teacher.teacherName,
       role: p.teacher.subject || "Faculty",
@@ -197,9 +204,44 @@ export class FinanceService {
       allowances: 0,
       deductions: parseFloat(p.deductions.toString()),
       status: p.salaryStatus === "DISBURSED" ? "Disbursed" as const : "Pending" as const
-    }));
+    };
+  }
 
-    return [...staffMapped, ...teacherMapped];
+  async getCombinedPayroll() {
+    const staffPayroll = (await this.repo.getAllStaffPayroll()) as StaffPayrollRow[];
+    const teacherPayroll = (await this.repo.getAllTeacherPayroll()) as TeacherPayrollRow[];
+
+    return [
+      ...staffPayroll.map((p) => this.mapStaffPayrollRow(p)),
+      ...teacherPayroll.map((p) => this.mapTeacherPayrollRow(p)),
+    ];
+  }
+
+  async getPaginatedPayroll(skip: number, take: number) {
+    const [staffCount, teacherCount] = await Promise.all([
+      this.repo.countStaffPayroll(),
+      this.repo.countTeacherPayroll(),
+    ]);
+    const total = staffCount + teacherCount;
+
+    // Over-fetch from each table to cover the requested page window,
+    // then merge in memory and slice to exact boundaries.
+    // This fetches at most (skip+take)*2 records instead of ALL records.
+    const fetchLimit = skip + take;
+    const [staffPayroll, teacherPayroll] = await Promise.all([
+      this.repo.getAllStaffPayroll(0, fetchLimit),
+      this.repo.getAllTeacherPayroll(0, fetchLimit),
+    ]);
+
+    const merged = [
+      ...(staffPayroll as StaffPayrollRow[]).map((p) => this.mapStaffPayrollRow(p)),
+      ...(teacherPayroll as TeacherPayrollRow[]).map((p) => this.mapTeacherPayrollRow(p)),
+    ];
+
+    return {
+      data: merged.slice(skip, skip + take),
+      total,
+    };
   }
 
   async disbursePayroll(id: string) {

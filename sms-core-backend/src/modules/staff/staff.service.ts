@@ -19,10 +19,8 @@ type StaffWithRelations = Prisma.StaffGetPayload<{
 export class StaffService {
   constructor(private repo: IStaffRepository = new StaffRepository()) {}
 
-  async getAllStaff() {
-    const rawStaff = await this.repo.findAllActive();
-
-    return (rawStaff as StaffWithRelations[]).map((staff: StaffWithRelations) => ({
+  private mapStaff(staff: StaffWithRelations) {
+    return {
       ...staff,
       account: {
         fullName: staff.staffName,
@@ -58,8 +56,24 @@ export class StaffService {
         bankAccount: staff.payroll?.bankAccount ?? "—",
         salaryStatus: staff.payroll?.salaryStatus ?? "PENDING",
       }
-    }));
-  } 
+    };
+  }
+
+  async getAllStaff() {
+    const rawStaff = await this.repo.findAllActive();
+    return (rawStaff as StaffWithRelations[]).map((staff) => this.mapStaff(staff));
+  }
+
+  async getPaginatedStaff(skip: number, take: number) {
+    const [rawStaff, total] = await Promise.all([
+      this.repo.findAllActive(skip, take),
+      this.repo.countActive(),
+    ]);
+    return {
+      data: (rawStaff as StaffWithRelations[]).map((s) => this.mapStaff(s)),
+      total,
+    };
+  }
 
   async getWorkforceMatrix() {
     const rawStaff = await this.repo.findAllActive();

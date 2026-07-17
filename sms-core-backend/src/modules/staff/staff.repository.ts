@@ -3,9 +3,11 @@ import { Prisma, EntityStatus } from "@prisma/client";
 import { IStaffRepository } from "@/types/repositories";
 
 export class StaffRepository implements IStaffRepository {
-  async findAllActive(tx = prisma) {
+  async findAllActive(skip?: number, take?: number, tx = prisma) {
     return tx.staff.findMany({
       where: { status: { not: "DEPARTED" } },
+      skip: skip ?? undefined,
+      take: take ?? undefined,
       include: {
         account: { select: { email: true, role: true } },
         demographics: true,
@@ -15,6 +17,12 @@ export class StaffRepository implements IStaffRepository {
         departures: true,
       },
       orderBy: { createdAt: "desc" }
+    });
+  }
+
+  async countActive(tx = prisma) {
+    return tx.staff.count({
+      where: { status: { not: "DEPARTED" } },
     });
   }
 

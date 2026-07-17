@@ -97,24 +97,44 @@ export class FinanceRepository implements IFinanceRepository {
     return tx.payment.create({ data });
   }
 
-  async findAllLedgerAccounts(tx: TransactionClient = prisma) {
-    return tx.ledgerAccount.findMany({ orderBy: { code: 'asc' } });
+  async findAllLedgerAccounts(skip?: number, take?: number, tx: TransactionClient = prisma) {
+    return tx.ledgerAccount.findMany({
+      skip: skip ?? undefined,
+      take: take ?? undefined,
+      orderBy: { code: 'asc' },
+    });
+  }
+
+  async countLedgerAccounts(tx: TransactionClient = prisma) {
+    return tx.ledgerAccount.count();
   }
 
   async createLedgerAccount(data: LedgerAccountCreateData, tx: TransactionClient = prisma) {
     return tx.ledgerAccount.create({ data });
   }
 
-  async getAllStaffPayroll(tx: TransactionClient = prisma) {
+  async getAllStaffPayroll(skip?: number, take?: number, tx: TransactionClient = prisma) {
     return tx.staffPayroll.findMany({
+      skip: skip ?? undefined,
+      take: take ?? undefined,
       include: { staff: { select: { staffName: true, account: { select: { role: true } } } } },
     });
   }
 
-  async getAllTeacherPayroll(tx: TransactionClient = prisma) {
+  async getAllTeacherPayroll(skip?: number, take?: number, tx: TransactionClient = prisma) {
     return tx.teacherPayroll.findMany({
+      skip: skip ?? undefined,
+      take: take ?? undefined,
       include: { teacher: { select: { teacherName: true, subject: true } } },
     });
+  }
+
+  async countStaffPayroll(tx: TransactionClient = prisma) {
+    return tx.staffPayroll.count();
+  }
+
+  async countTeacherPayroll(tx: TransactionClient = prisma) {
+    return tx.teacherPayroll.count();
   }
 
   async findStaffPayrollById(id: string, tx: TransactionClient = prisma) {

@@ -8,10 +8,8 @@ export class StaffController {
   public getAllStaff = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
       const { page, limit, skip } = parsePaginationQuery(req.query);
-      const allStaff = await this.staffService.getAllStaff();
-      const totalItems = allStaff.length;
-      const paginatedStaff = allStaff.slice(skip, skip + limit);
-      return res.status(200).json(buildPaginationResponse(paginatedStaff, totalItems, page, limit));
+      const { data, total } = await this.staffService.getPaginatedStaff(skip, limit);
+      return res.status(200).json(buildPaginationResponse(data, total, page, limit));
     } catch (error) {
       next(error);
     }

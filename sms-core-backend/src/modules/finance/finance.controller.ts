@@ -56,10 +56,8 @@ export class FinanceController {
   getLedgers = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { page, limit, skip } = parsePaginationQuery(req.query);
-      const allLedgers = await this.financeService.getAllLedgers();
-      const totalItems = allLedgers.length;
-      const paginatedLedgers = allLedgers.slice(skip, skip + limit);
-      return res.status(200).json(buildPaginationResponse(paginatedLedgers, totalItems, page, limit));
+      const { data, total } = await this.financeService.getPaginatedLedgers(skip, limit);
+      return res.status(200).json(buildPaginationResponse(data, total, page, limit));
     } catch (error) { next(error); }
   };
 
@@ -73,10 +71,8 @@ export class FinanceController {
   getPayroll = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { page, limit, skip } = parsePaginationQuery(req.query);
-      const allPayroll = await this.financeService.getCombinedPayroll();
-      const totalItems = allPayroll.length;
-      const paginatedPayroll = allPayroll.slice(skip, skip + limit);
-      return res.status(200).json(buildPaginationResponse(paginatedPayroll, totalItems, page, limit));
+      const { data, total } = await this.financeService.getPaginatedPayroll(skip, limit);
+      return res.status(200).json(buildPaginationResponse(data, total, page, limit));
     } catch (error) { next(error); }
   };
 

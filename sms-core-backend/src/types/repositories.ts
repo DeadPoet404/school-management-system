@@ -87,7 +87,8 @@ export interface AttendanceRecordCreateData {
 // ═══════════════════════════════════════════════════════════
 
 export interface IStudentRepository {
-  findAll(tx?: TransactionClient): Promise<any>;
+  findAll(skip?: number, take?: number, tx?: TransactionClient): Promise<any>;
+  count(tx?: TransactionClient): Promise<number>;
   findById(id: string, tx?: TransactionClient): Promise<any>;
   findWithFinancialData(tx?: TransactionClient): Promise<any>;
   findByPublicId(studentId: string, tx?: TransactionClient): Promise<any>;
@@ -97,7 +98,8 @@ export interface IStudentRepository {
 }
 
 export interface ITeacherRepository {
-  findAllActive(tx?: TransactionClient): Promise<any>;
+  findAllActive(skip?: number, take?: number, tx?: TransactionClient): Promise<any>;
+  countActive(tx?: TransactionClient): Promise<number>;
   findByPublicId(teacherId: string, tx?: TransactionClient): Promise<any>;
   createNestedTeacher(data: Prisma.TeacherCreateInput, tx?: TransactionClient): Promise<any>;
   createDepartureLog(data: Prisma.TeacherDepartureUncheckedCreateInput, tx?: TransactionClient): Promise<any>;
@@ -105,7 +107,8 @@ export interface ITeacherRepository {
 }
 
 export interface IStaffRepository {
-  findAllActive(tx?: TransactionClient): Promise<any>;
+  findAllActive(skip?: number, take?: number, tx?: TransactionClient): Promise<any>;
+  countActive(tx?: TransactionClient): Promise<number>;
   findByPublicId(staffId: string, tx?: TransactionClient): Promise<any>;
   createNestedStaff(data: Prisma.StaffCreateInput, tx?: TransactionClient): Promise<any>;
   createDepartureLog(data: Prisma.StaffDepartureUncheckedCreateInput, tx?: TransactionClient): Promise<any>;
@@ -140,11 +143,14 @@ export interface IFinanceRepository {
   upsertBillingLedger(studentId: string, feeTierId: string, amount: number, tx?: TransactionClient): Promise<any>;
   countStudentPayments(tx?: TransactionClient): Promise<any>;
   createStudentPayment(data: StudentPaymentCreateData, tx?: TransactionClient): Promise<any>;
-  // General ledger & payroll
-  findAllLedgerAccounts(tx?: TransactionClient): Promise<any>;
+  // General ledger & payroll (with pagination support)
+  findAllLedgerAccounts(skip?: number, take?: number, tx?: TransactionClient): Promise<any>;
+  countLedgerAccounts(tx?: TransactionClient): Promise<number>;
   createLedgerAccount(data: LedgerAccountCreateData, tx?: TransactionClient): Promise<any>;
-  getAllStaffPayroll(tx?: TransactionClient): Promise<any>;
-  getAllTeacherPayroll(tx?: TransactionClient): Promise<any>;
+  getAllStaffPayroll(skip?: number, take?: number, tx?: TransactionClient): Promise<any>;
+  getAllTeacherPayroll(skip?: number, take?: number, tx?: TransactionClient): Promise<any>;
+  countStaffPayroll(tx?: TransactionClient): Promise<number>;
+  countTeacherPayroll(tx?: TransactionClient): Promise<number>;
   findStaffPayrollById(id: string, tx?: TransactionClient): Promise<any>;
   disburseStaffPayroll(id: string, tx?: TransactionClient): Promise<any>;
   findTeacherPayrollById(id: string, tx?: TransactionClient): Promise<any>;
