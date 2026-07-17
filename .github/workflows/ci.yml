@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-ci:
+    name: Backend (Lint + Build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sms-core-backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: sms-core-backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run lint
+      - run: npm run build
+
+  frontend-ci:
+    name: Frontend (Lint + Build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sms-core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: sms-core/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: NEXT_PUBLIC_API_URL=http://localhost:5000/api npm run build
+
+  docker-build:
+    name: Docker Build Verification
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [backend-ci, frontend-ci]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend image
+        run: docker build -t sms-backend ./sms-core-backend
+      - name: Build frontend image
+        run: docker build -t sms-frontend ./sms-core

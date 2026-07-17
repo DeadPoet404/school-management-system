@@ -11,6 +11,9 @@ import rateLimit from 'express-rate-limit';
 import pinoHttp from 'pino-http';
 import { createId } from '@paralleldrive/cuid2';
 
+import swaggerUi from 'swagger-ui-express';
+import { swaggerSpec } from './lib/swagger';
+
 import { logger } from './lib/logger';
 import studentRoutes from './modules/students/student.routes';
 import teacherRoutes from './modules/teachers/teacher.routes';
@@ -98,17 +101,28 @@ app.use('/api/', apiLimiter);
 // ── PUBLIC ROUTES (no JWT required) ──
 // ═══════════════════════════════════════════
 
-// Health check — for load balancers and monitoring
-app.get('/api/health', (_req, res) => {
+// Health check — for load balancers and monitoring (includes DB readiness)
+app.get('/api/health', async (_req, res) => {
+  const start = Date.now();
+  let dbStatus = 'disconnected';
+  try {
+    const { prisma } = await import('./lib/prisma');
+    await prisma.$queryRaw`SELECT 1`;
+    dbStatus = 'connected';
+  } catch (_e) { /* db not available */ }
   res.json({
     success: true,
     data: {
-      status: 'healthy',
+      status: dbStatus === 'connected' ? 'healthy' : 'degraded',
       timestamp: new Date().toISOString(),
       uptime: Math.floor(process.uptime()),
+      db: { status: dbStatus, latencyMs: Date.now() - start },
     }
   });
 });
+
+// API Documentation
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Auth — login endpoint (has its own stricter rate limiter)
 app.use('/api/auth', authRoutes);
