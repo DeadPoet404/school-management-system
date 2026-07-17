@@ -11,7 +11,7 @@ describe('requireRole middleware', () => {
   it('should return 401 if no user on request', () => {
     const middleware = requireRole(ROLES.ADMIN);
     const next = vi.fn();
-    middleware({} as AuthenticatedRequest, mockRes(), next);
+    middleware({} as AuthenticatedRequest, mockRes() as any, next);
     expect(next).toHaveBeenCalledWith(expect.any(AppError));
     expect((next.mock.calls[0][0] as AppError).statusCode).toBe(401);
   });
@@ -19,7 +19,7 @@ describe('requireRole middleware', () => {
   it('should return 403 if user role not allowed', () => {
     const middleware = requireRole(ROLES.ADMIN, ROLES.ACCOUNTANT);
     const next = vi.fn();
-    middleware({ user: { role: 'STUDENT' } } as AuthenticatedRequest, mockRes(), next);
+    middleware({ user: { role: 'STUDENT' } } as AuthenticatedRequest, mockRes() as any, next);
     expect(next).toHaveBeenCalledWith(expect.any(AppError));
     expect((next.mock.calls[0][0] as AppError).statusCode).toBe(403);
   });
@@ -27,7 +27,7 @@ describe('requireRole middleware', () => {
   it('should call next() with no args if role is allowed', () => {
     const middleware = requireRole(ROLES.ADMIN, ROLES.ACCOUNTANT);
     const next = vi.fn();
-    middleware({ user: { role: 'ADMIN' } } as AuthenticatedRequest, mockRes(), next);
+    middleware({ user: { role: 'ADMIN' } } as AuthenticatedRequest, mockRes() as any, next);
     expect(next).toHaveBeenCalledWith();
   });
 
@@ -36,7 +36,7 @@ describe('requireRole middleware', () => {
     const next = vi.fn();
     for (const role of [ROLES.STAFF, ROLES.FACULTY, ROLES.ADMIN]) {
       next.mockClear();
-      middleware({ user: { role } } as AuthenticatedRequest, mockRes(), next);
+      middleware({ user: { role } } as AuthenticatedRequest, mockRes() as any, next);
       expect(next).toHaveBeenCalledWith();
     }
   });
@@ -44,7 +44,7 @@ describe('requireRole middleware', () => {
   it('should reject similar but different role', () => {
     const middleware = requireRole(ROLES.STAFF, ROLES.FACULTY);
     const next = vi.fn();
-    middleware({ user: { role: 'ACCOUNTANT' } } as AuthenticatedRequest, mockRes(), next);
+    middleware({ user: { role: 'ACCOUNTANT' } } as AuthenticatedRequest, mockRes() as any, next);
     expect(next).toHaveBeenCalledWith(expect.any(AppError));
     expect((next.mock.calls[0][0] as AppError).statusCode).toBe(403);
   });

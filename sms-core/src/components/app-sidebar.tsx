@@ -48,7 +48,12 @@ const advancedNavigationItems = [
   { title: "Reports", url: "/reporting", icon: ReportIcon },
 ]
 
-export function AppSidebar() {
+interface AppSidebarProps {
+  user?: { email: string; role: string } | null;
+  initials?: string;
+  onLogout?: () => void;
+}
+export function AppSidebar({ user, initials = "??", onLogout }: AppSidebarProps) {
   const pathname = usePathname()
 
   return (
@@ -180,13 +185,13 @@ export function AppSidebar() {
                 >
                   {/* AVATAR WRAPPER - Profile Picture */}
                   <div className="flex aspect-square h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-900 text-white dark:bg-neutral-100 dark:text-black font-semibold text-xs uppercase shadow-sm">
-                    CY
+                    {initials}
                   </div>
                   
                   {/* TEXT DETAILS LAYER */}
                   <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-                    <span className="font-medium text-black dark:text-white truncate">Cypher Dev</span>
-                    <span className="text-xs text-muted-foreground truncate">cypher@jocomfy.com</span>
+                    <span className="font-medium text-black dark:text-white truncate">user?.email?.split("@")[0] || "User"</span>
+                    <span className="text-xs text-muted-foreground truncate">user?.email || "Not authenticated"</span>
                   </div>
                   
                   <ChevronDown className="ml-auto h-4 w-4 shrink-0 opacity-50 group-data-[collapsible=icon]:hidden" />
@@ -195,7 +200,8 @@ export function AppSidebar() {
               
               {/* DROPDOWN MENU OPTIONS */}
               <DropdownMenuContent className="w-[--radix-popper-anchor-width] min-w-56 rounded-lg" side="top" align="start">
-                <DropdownMenuItem className="gap-2 p-2 text-destructive focus:text-destructive cursor-pointer">
+                <DropdownMenuItem className="gap-2 p-2 text-destructive focus:text-destructive cursor-pointer"
+                  onClick={onLogout}>
                   <LogOut className="h-4 w-4 shrink-0" />
                   <span>Logout Account</span>
                 </DropdownMenuItem>

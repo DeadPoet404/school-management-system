@@ -1,21 +1,21 @@
+"use client"
+
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { AppSidebar } from "@/components/app-sidebar"
 import { Separator } from "@/components/ui/separator"
+import { useAuth } from "@/lib/auth-context"
+import { ProtectedRoute } from "@/components/protected-route"
 
-export default function WorkspaceLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+function DashboardShell({ children }: { children: React.ReactNode }) {
+  const { user, logout } = useAuth()
+  const initials = user?.email?.charAt(0).toUpperCase() || "??"
+
   return (
     <TooltipProvider delayDuration={0}>
-      {/* CHANGED: Switched defaultOpen to false to make it closed by default */}
       <SidebarProvider defaultOpen={false}>
-        {/* Our updated composable sidebar */}
-        <AppSidebar />
-        
-        {/* SidebarInset gives the main canvas a modern framed panel container */}
+        <AppSidebar user={user} initials={initials} onLogout={logout} />
+
         <SidebarInset className="bg-background transition-all duration-200 ease-linear">
           <header className="flex h-16 shrink-0 items-center gap-2 px-4 border-b border-sidebar-border">
             <div className="flex items-center gap-2">
@@ -27,12 +27,23 @@ export default function WorkspaceLayout({
             </div>
           </header>
 
-          {/* Core Page Content Viewport */}
           <main className="flex-1 overflow-y-auto p-1">
             {children}
           </main>
         </SidebarInset>
       </SidebarProvider>
     </TooltipProvider>
+  )
+}
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <ProtectedRoute>
+      <DashboardShell>{children}</DashboardShell>
+    </ProtectedRoute>
   )
 }

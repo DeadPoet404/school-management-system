@@ -63,8 +63,8 @@ async function seedDatabase() {
           create: {
             departureType: "RESIGNATION",
             effectiveDate: new Date("2025-11-30"),
-            academicClearanceStatus: "FINALIZED",
-            treasuryClearanceStatus: "FINAL_PAY_PROCESSED",
+            academicClearanceStatus: "CLEARED",
+            treasuryClearanceStatus: "CLEARED",
             remarks: "Resigned to take up a university lecturing position."
           }
         }
@@ -97,8 +97,8 @@ async function seedDatabase() {
             departureType: "TERMINATION",
             effectiveDate: new Date("2025-10-20"),
             hrClearanceStatus: "CLEARED",
-            itAssetReturnStatus: "RETURNED",
-            treasuryClearanceStatus: "FINAL_PAY_PROCESSED",
+            itAssetReturnStatus: "CLEARED",
+            treasuryClearanceStatus: "CLEARED",
             remarks: "Terminated due to gross misconduct."
           }
         }
