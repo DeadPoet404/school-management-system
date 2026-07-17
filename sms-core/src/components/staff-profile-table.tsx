@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { UniversalDataTable, type DataTableColumn } from "@/components/universal-data-table"
+import { fetchWithAuth } from "@/lib/fetch-with-auth"
 
 
 export type StaffProfileRow = {

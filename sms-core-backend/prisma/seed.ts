@@ -4,6 +4,12 @@ import { hashPassword } from "../src/utils/hash"; // Adjust this path if necessa
 const prisma = new PrismaClient();
 
 async function main() {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("SEED PRODUCTION GUARD: Seed script cannot run in production. This would destroy all data.");
+  }
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("SEED PRODUCTION GUARD: Seed script cannot run in production. This would destroy all data.");
+  }
   console.log("🚀 Starting comprehensive database matrix seeding execution...");
 
   // Clear existing records to ensure idempotent execution environment

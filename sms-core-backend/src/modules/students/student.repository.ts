@@ -8,7 +8,7 @@ export class StudentRepository implements IStudentRepository {
       skip: skip ?? undefined,
       take: take ?? undefined,
       include: {
-        account: true,
+        account: { select: { id: true, studentId: true, portalEmail: true } },
         demographics: true,
         placement: true,
         compliance: true,
@@ -31,7 +31,7 @@ export class StudentRepository implements IStudentRepository {
     return tx.student.findUnique({
       where: { id },
       include: {
-        account: true,
+        account: { select: { id: true, studentId: true, portalEmail: true } },
         demographics: true,
         placement: true,
         compliance: true,
@@ -47,7 +47,7 @@ export class StudentRepository implements IStudentRepository {
   async findWithFinancialData(tx = prisma) {
     return tx.student.findMany({
       include: {
-        account: true,
+        account: { select: { id: true, studentId: true, portalEmail: true } },
         invoices: true,
         payments: true,
       },
@@ -93,7 +93,7 @@ export class StudentRepository implements IStudentRepository {
       where: { id },
       data: updateData,
       include: {
-        account: true,
+        account: { select: { id: true, studentId: true, portalEmail: true } },
         demographics: true,
         placement: true,
         compliance: true,

@@ -16,6 +16,7 @@ import {
   Wallet
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { fetchWithAuth } from "@/lib/fetch-with-auth"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"

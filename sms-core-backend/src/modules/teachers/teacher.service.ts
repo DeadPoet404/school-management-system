@@ -102,10 +102,6 @@ export class TeacherService {
 
     const rawPassword = account.password || crypto.randomBytes(16).toString('base64url');
 
-    if (!account.password) {
-      console.log(`[SMS] Temporary password for ${account.email}: ${rawPassword}`);
-    }
-
     return await prisma.$transaction(async (tx) => {
       const hashedPassword = await hashPassword(rawPassword);
 

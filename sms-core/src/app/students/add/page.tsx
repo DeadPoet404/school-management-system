@@ -15,6 +15,10 @@
     SelectTrigger,
     SelectValue,
   } from "@/components/ui/select"
+  import { fetchWithAuth } from "@/lib/fetch-with-auth"
+
+
+
 
   // ── TYPE DEFINITIONS ──
   type FormState = "idle" | "submitting" | "success" | "error"
@@ -247,7 +251,7 @@
       // API TRANSMISSION
       // ═══════════════════════════════════════════════════════════
       try {
-        const response = await fetch("http://localhost:5000/api/students", {
+        const response = await fetchWithAuth("students", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(enrollmentPayload),

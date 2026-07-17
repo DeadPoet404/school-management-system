@@ -3,7 +3,7 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: sms_user
-      POSTGRES_PASSWORD: sms_password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: sms_db
     ports:
       - "5432:5432"
@@ -20,9 +20,9 @@ services:
     ports:
       - "5000:5000"
     environment:
-      DATABASE_URL: postgresql://sms_user:sms_password@postgres:5432/sms_db?schema=public
+      DATABASE_URL: postgresql://sms_user:${POSTGRES_PASSWORD}@postgres:5432/sms_db?schema=public
       # ⚠️ CHANGE THIS IN PRODUCTION — generate with: openssl rand -base64 32
-      JWT_SECRET: docker-compose-local-dev-secret-not-for-production
+      JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: 8h
       NODE_ENV: production
       CORS_ORIGINS: http://localhost:3000
