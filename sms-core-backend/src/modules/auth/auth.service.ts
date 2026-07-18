@@ -40,7 +40,10 @@ export class AuthService {
    * issue new access + refresh token pair.
    */
   async refresh(refreshTokenValue: string) {
-    const secret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
+    // P1-9: No fallback to JWT_SECRET — refresh tokens MUST use
+    // a separate signing key. If JWT_REFRESH_SECRET is not set,
+    // env.ts validation will prevent the server from starting.
+    const secret = process.env.JWT_REFRESH_SECRET;
     if (!secret) throw new AppError(500, 'Authentication service is not configured.');
 
     let decoded: JsonWebTokenPayload;
@@ -104,58 +107,72 @@ export class AuthService {
   // ── PRIVATE HELPERS ──
 
   /**
-   * Look up an account by email across StudentAccount, StaffAccount, TeacherAccount.
-   * Returns a normalized shape or null.
+   * P1-1 fix: Look up an account by email across all 3 account tables
+   * using parallel queries instead of sequential lookups.
    *
-   * NOTE: Still uses 3 sequential DB lookups (finding B-14 timing oracle).
-   * Fix requires a unified login DB view — deferred to P2.
+   * HOW THIS FIXES THE TIMING ORACLE:
+   * The old implementation queried StudentAccount, then StaffAccount, then
+   * TeacherAccount sequentially. If the email belonged to a student, the
+   * response came back after 1 query (~20ms). If it belonged to a teacher,
+   * it took 3 queries (~60-80ms). An attacker could determine account type
+   * by measuring response time.
+   *
+   * Promise.all fires all 3 queries simultaneously and waits for ALL to
+   * complete before returning. Total time is always ~max(query1, query2,
+   * query3) regardless of which table contains the match, eliminating the
+   * timing side-channel.
    */
   private async findAccountByEmail(email: string) {
-    const studentAccount = await prisma.studentAccount.findUnique({
-      where: { portalEmail: email },
-      include: { student: { select: { id: true, status: true } } },
-    });
-    if (studentAccount) {
+    const [studentAccount, staffAccount, teacherAccount] = await Promise.all([
+      prisma.studentAccount.findUnique({
+        where: { portalEmail: email },
+        include: { student: { select: { id: true, status: true } } },
+      }),
+      prisma.staffAccount.findUnique({
+        where: { email },
+        include: { staff: { select: { id: true, status: true } } },
+      }),
+      prisma.teacherAccount.findUnique({
+        where: { email },
+        include: { teacher: { select: { id: true, status: true } } },
+      }),
+    ]);
+
+    // Use optional chaining instead of ! to handle edge case where
+    // account exists but related record was hard-deleted
+    if (studentAccount?.student) {
       return {
         accountId: studentAccount.id,
         email: studentAccount.portalEmail,
         passwordHash: studentAccount.passwordHash,
         role: 'STUDENT',
         entityType: 'STUDENT' as const,
-        userId: studentAccount.student!.id,
-        status: studentAccount.student?.status,
+        userId: studentAccount.student.id,
+        status: studentAccount.student.status,
       };
     }
 
-    const staffAccount = await prisma.staffAccount.findUnique({
-      where: { email },
-      include: { staff: { select: { id: true, status: true } } },
-    });
-    if (staffAccount) {
+    if (staffAccount?.staff) {
       return {
         accountId: staffAccount.id,
         email: staffAccount.email,
         passwordHash: staffAccount.passwordHash,
         role: staffAccount.role,
         entityType: 'STAFF' as const,
-        userId: staffAccount.staff!.id,
-        status: staffAccount.staff?.status,
+        userId: staffAccount.staff.id,
+        status: staffAccount.staff.status,
       };
     }
 
-    const teacherAccount = await prisma.teacherAccount.findUnique({
-      where: { email },
-      include: { teacher: { select: { id: true, status: true } } },
-    });
-    if (teacherAccount) {
+    if (teacherAccount?.teacher) {
       return {
         accountId: teacherAccount.id,
         email: teacherAccount.email,
         passwordHash: teacherAccount.passwordHash,
         role: teacherAccount.role,
         entityType: 'TEACHER' as const,
-        userId: teacherAccount.teacher!.id,
-        status: teacherAccount.teacher?.status,
+        userId: teacherAccount.teacher.id,
+        status: teacherAccount.teacher.status,
       };
     }
 
@@ -196,7 +213,9 @@ export class AuthService {
   }
 
   private async signRefreshToken(payload: JwtPayload): Promise<string> {
-    const secret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
+    // P1-9: No fallback to JWT_SECRET — refresh tokens MUST use
+    // a separate signing key to prevent cross-type token forgery.
+    const secret = process.env.JWT_REFRESH_SECRET;
     if (!secret) throw new AppError(500, 'Authentication service is not configured.');
 
     const options: SignOptions = {

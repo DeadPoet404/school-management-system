@@ -75,11 +75,13 @@ export default function TeachersPage() {
   
   const [teachers, setTeachers] = useState<TeacherRow[]>([])
   const [isRegistrySyncing, setIsRegistrySyncing] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
   useEffect(() => {
     const liveRegistrySyncPipeline = async () => {
       try {
         setIsRegistrySyncing(true)
+        setFetchError(null)
         const response = await fetchWithAuth("/teachers")
         
         if (!response.ok) {
@@ -91,7 +93,7 @@ export default function TeachersPage() {
           setTeachers(payload.data)
         }
       } catch (error) {
-        console.error("[Telemetry Sync Fault]: Unable to pull live database records:", error)
+        setFetchError("Unable to load faculty records. Please check your connection and try again.")
       } finally {
         setIsRegistrySyncing(false)
       }
@@ -213,6 +215,11 @@ export default function TeachersPage() {
         {isRegistrySyncing ? (
           <div className="flex items-center justify-center h-48 text-zinc-400 dark:text-zinc-500 text-xs font-mono tracking-tight">
             Syncing live faculty registry matrix from database infrastructure...
+          </div>
+        ) : fetchError ? (
+          <div className="flex flex-col items-center justify-center h-48 gap-3">
+            <p className="text-sm text-destructive">{fetchError}</p>
+            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>Retry</Button>
           </div>
         ) : (
           <div className="w-full h-full overflow-x-auto">

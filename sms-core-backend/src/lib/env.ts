@@ -4,6 +4,12 @@ const envSchema = z.object({
   // ── REQUIRED — server will not start without these ──
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required and cannot be empty.'),
   JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 characters for security.'),
+  // P1-9: JWT_REFRESH_SECRET is now REQUIRED. Previously optional with a
+  // fallback to JWT_SECRET, which meant refresh and access tokens shared
+  // the same signing key — defeating the purpose of dual-token architecture.
+  // If an access token was compromised, an attacker could forge refresh tokens.
+  // Generate a separate secret and add it to your .env file.
+  JWT_REFRESH_SECRET: z.string().min(16, 'JWT_REFRESH_SECRET must be at least 16 characters and MUST differ from JWT_SECRET.'),
 
   // ── OPTIONAL — have safe defaults ──
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -11,7 +17,6 @@ const envSchema = z.object({
   JWT_EXPIRES_IN: z.string().default('8h'),
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
-  JWT_REFRESH_SECRET: z.string().min(16, 'JWT_REFRESH_SECRET must be at least 16 characters.').optional(),
   COOKIE_DOMAIN: z.string().optional(),
   CORS_ORIGINS: z.string().default('http://localhost:3000,http://localhost:3001'),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(60000),
@@ -47,7 +52,8 @@ function validateEnv() {
   process.env.JWT_EXPIRES_IN = env.JWT_EXPIRES_IN;
   process.env.JWT_ACCESS_EXPIRES_IN = env.JWT_ACCESS_EXPIRES_IN;
   process.env.JWT_REFRESH_EXPIRES_IN = env.JWT_REFRESH_EXPIRES_IN;
-  if (env.JWT_REFRESH_SECRET) process.env.JWT_REFRESH_SECRET = env.JWT_REFRESH_SECRET;
+  // P1-9: No conditional — JWT_REFRESH_SECRET is now always present
+  process.env.JWT_REFRESH_SECRET = env.JWT_REFRESH_SECRET;
   if (env.COOKIE_DOMAIN) process.env.COOKIE_DOMAIN = env.COOKIE_DOMAIN;
   process.env.CORS_ORIGINS = env.CORS_ORIGINS;
   process.env.RATE_LIMIT_WINDOW_MS = String(env.RATE_LIMIT_WINDOW_MS);

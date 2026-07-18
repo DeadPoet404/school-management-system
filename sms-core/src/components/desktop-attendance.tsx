@@ -1,13 +1,16 @@
 "use client"
 
 import * as React from "react"
-import { useState, useMemo, useCallback } from "react"
-import { Save, ShieldCheck, Loader2, Check, ClipboardList } from "lucide-react"
+import { useState, useMemo, useCallback, useEffect } from "react"
+import { Save, Loader2, Check, ClipboardList } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { UniversalSearch } from "@/components/universal-search"
 import { UniversalDataTable, type DataTableColumn } from "@/components/universal-data-table"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { fetchWithAuth } from "@/lib/fetch-with-auth"
 
 type AttendanceStatus = "PRESENT" | "ABSENT" | "LATE" | "EXCUSED"
 
@@ -25,56 +28,67 @@ export type AttendanceRowModel = {
   status: AttendanceStatus
 }
 
-const INITIAL_STUDENT_DATA: StudentAttendanceRecord[] = [
-  { id: "1", indexNumber: "UCC-2024-0481", fullName: "Emmanuel Hagan", status: "PRESENT" },
-  { id: "2", indexNumber: "UCC-2024-1102", fullName: "Abigail Mensah", status: "PRESENT" },
-  { id: "3", indexNumber: "UCC-2024-0891", fullName: "Kofi Ansah Boateng", status: "ABSENT" },
-  { id: "4", indexNumber: "UCC-2024-1340", fullName: "Priscilla Osei", status: "PRESENT" },
-  { id: "5", indexNumber: "UCC-2024-0312", fullName: "Kwame Asante Opoku", status: "LATE" },
-  { id: "6", indexNumber: "UCC-2024-1905", fullName: "Blessing Arthur", status: "PRESENT" },
-  { id: "7", indexNumber: "UCC-2024-0221", fullName: "Selorm Degraft-Johnson", status: "EXCUSED" },
-]
-
 export default function DesktopAttendancePage() {
-  const [students, setStudents] = useState<StudentAttendanceRecord[]>(INITIAL_STUDENT_DATA)
+  const [students, setStudents] = useState<StudentAttendanceRecord[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [date, setDate] = useState(new Date().toISOString().split("T")[0])
+  const [classId, setClassId] = useState("")
 
-  // Real-time metrics dashboard
-  const metrics = useMemo(() => {
-    return {
-      total: students.length,
-      present: students.filter((s) => s.status === "PRESENT").length,
-      absent: students.filter((s) => s.status === "ABSENT").length,
-      late: students.filter((s) => s.status === "LATE").length,
-      excused: students.filter((s) => s.status === "EXCUSED").length,
+  // Fetch students from API
+  useEffect(() => {
+    async function loadStudents() {
+      try {
+        setIsLoading(true)
+        setFetchError(null)
+        const response = await fetchWithAuth("/students?limit=500")
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        const payload = await response.json()
+        const data: Array<Record<string, unknown>> = payload.data || []
+        setStudents(
+          data.map((s) => ({
+            id: (s.id as string) || "",
+            indexNumber: (s.studentId as string) || (s.id as string),
+            fullName: (s.studentName as string) || (s.account as Record<string, string>)?.fullName || "Unknown",
+            status: "PRESENT" as AttendanceStatus,
+          }))
+        )
+      } catch {
+        setFetchError("Unable to load students.")
+      } finally {
+        setIsLoading(false)
+      }
     }
-  }, [students])
+    loadStudents()
+  }, [])
+
+  const metrics = useMemo(() => ({
+    total: students.length,
+    present: students.filter((s) => s.status === "PRESENT").length,
+    absent: students.filter((s) => s.status === "ABSENT").length,
+    late: students.filter((s) => s.status === "LATE").length,
+    excused: students.filter((s) => s.status === "EXCUSED").length,
+  }), [students])
 
   const handleStatusUpdate = useCallback((id: string, targetStatus: AttendanceStatus) => {
-    setStudents((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, status: targetStatus } : s))
-    )
+    setStudents((prev) => prev.map((s) => (s.id === id ? { ...s, status: targetStatus } : s)))
   }, [])
 
   const handleBulkStatusUpdate = useCallback((targetStatus: AttendanceStatus) => {
     setStudents((prev) => prev.map((s) => ({ ...s, status: targetStatus })))
-    toast.success(`All roster records updated to ${targetStatus.toLowerCase()}`)
+    toast.success(`All records set to ${targetStatus.toLowerCase()}`)
   }, [])
 
-  // Text search parsing pipeline
   const filteredData = useMemo<AttendanceRowModel[]>(() => {
     const query = searchQuery.toLowerCase().trim()
     return students.filter((student) => {
       if (!query) return true
-      return (
-        student.fullName.toLowerCase().includes(query) ||
-        student.indexNumber.toLowerCase().includes(query)
-      )
+      return student.fullName.toLowerCase().includes(query) || student.indexNumber.toLowerCase().includes(query)
     })
   }, [students, searchQuery])
 
-  // Dynamic Checkbox Column Renderer helper
   const createStatusColumn = (statusType: AttendanceStatus, activeStyles: string): DataTableColumn<AttendanceRowModel> => ({
     key: statusType.toLowerCase(),
     header: statusType.charAt(0) + statusType.slice(1).toLowerCase(),
@@ -88,19 +102,16 @@ export default function DesktopAttendancePage() {
             onClick={() => handleStatusUpdate(row.id, statusType)}
             className={cn(
               "h-5 w-5 rounded border transition-all flex items-center justify-center focus:outline-none",
-              isSelected 
-                ? activeStyles 
-                : "border-zinc-300 dark:border-zinc-700 bg-background hover:bg-zinc-50 dark:hover:bg-zinc-900"
+              isSelected ? activeStyles : "border-zinc-300 dark:border-zinc-700 bg-background hover:bg-zinc-50 dark:hover:bg-zinc-900"
             )}
           >
             {isSelected && <Check className="h-3.5 w-3.5 stroke-[3]" />}
           </button>
         </div>
       )
-    }
+    },
   })
 
-  // Concrete column definitions targeting the 4 status grids + live badge column
   const columns = useMemo<DataTableColumn<AttendanceRowModel>[]>(() => [
     {
       key: "indexNumber",
@@ -110,13 +121,13 @@ export default function DesktopAttendancePage() {
     },
     {
       key: "fullName",
-      header: "Student Full Name",
+      header: "Student Name",
       className: "min-w-[200px] border-r border-zinc-200 dark:border-zinc-800",
       cellClassName: "font-medium text-zinc-900 dark:text-zinc-100 text-sm align-middle",
     },
     {
       key: "status",
-      header: "Current State",
+      header: "Status",
       className: "w-[120px] text-center border-r border-zinc-200 dark:border-zinc-800",
       cell: (row) => (
         <span className={cn(
@@ -136,15 +147,35 @@ export default function DesktopAttendancePage() {
     createStatusColumn("EXCUSED", "bg-zinc-500 text-white border-zinc-500 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700"),
   ], [handleStatusUpdate])
 
+  // --- REAL PERSISTENCE: POST all records to /attendance/section ---
   const handleSubmit = async () => {
+    if (!classId.trim()) {
+      toast.error("Class ID is required to submit attendance.")
+      return
+    }
+
     try {
       setIsSubmitting(true)
-      await new Promise((resolve) => setTimeout(resolve, 800))
-      toast.success("Attendance ledger synchronized", {
-        description: "Status column matrices successfully committed to backend engines.",
+      const response = await fetchWithAuth("/attendance/section", {
+        method: "POST",
+        body: JSON.stringify({
+          date,
+          classId: classId.trim(),
+          records: students.map((s) => ({ studentId: s.id, status: s.status })),
+        }),
       })
-    } catch (error) {
-      toast.error("Transmission connection failure.")
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP ${response.status}`)
+      }
+
+      toast.success("Attendance submitted successfully", {
+        description: `${students.length} records committed for ${date}.`,
+      })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to submit attendance.")
     } finally {
       setIsSubmitting(false)
     }
@@ -152,84 +183,60 @@ export default function DesktopAttendancePage() {
 
   return (
     <div className="w-full h-screen min-h-0 flex flex-col pt-6 px-6 pb-4 space-y-4 overflow-hidden">
-      
-      {/* ─── TITLE HUD HEADER ─── */}
       <div className="shrink-0 flex items-start justify-between">
         <div>
-          <h1 className="text-4xl tracking-tight text-foreground font-medium">
-            Daily Attendance Ledger
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            BSc. Computer Science — Session Checkpoint Management Grid.
-          </p>
-        </div>
-        <div className="h-8 px-3 flex items-center gap-1.5 bg-zinc-50 dark:bg-zinc-900 rounded border border-zinc-200 dark:border-zinc-800 text-xs font-mono font-bold text-zinc-500">
-          <ShieldCheck className="h-3.5 w-3.5 text-zinc-400" /> STATUS: OPERATIONAL
+          <h1 className="text-4xl tracking-tight text-foreground font-medium">Daily Attendance Ledger</h1>
+          <p className="text-sm text-muted-foreground mt-1">Mark attendance and submit to the database.</p>
         </div>
       </div>
 
-      {/* ─── UNIFIED SYSTEM TOOLBAR CONTROLS ─── */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pt-4 border-b border-zinc-100 dark:border-zinc-900 pb-3 w-full shrink-0">
-        
-        {/* Left Segment: Search Input Framework */}
-        <div className="flex items-center gap-3">
-          <UniversalSearch
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder="Search students, index IDs..."
-            className="w-[260px]"
-          />
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 pt-4 border-b border-zinc-100 dark:border-zinc-900 pb-3 w-full shrink-0">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="space-y-1">
+            <Label className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider">Date</Label>
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-8 text-xs w-40" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider">Class ID</Label>
+            <Input placeholder="e.g. cls-abc123" value={classId} onChange={(e) => setClassId(e.target.value)} className="h-8 text-xs w-40" />
+          </div>
+          <UniversalSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search students..." className="w-[200px]" />
         </div>
 
-        {/* Right Segment: Master Mass Status Set Toggles */}
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <span className="text-[10px] font-mono font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider pr-1">Global Set:</span>
-
-          <Button
-            variant="outline"
-            onClick={() => handleBulkStatusUpdate("PRESENT")}
-            className="h-8 text-xs font-medium border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900/60 shadow-none"
-          >
-            All Present
-          </Button>
-
-          <Button
-            variant="outline"
-            onClick={() => handleBulkStatusUpdate("ABSENT")}
-            className="h-8 text-xs font-medium border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900/60 shadow-none"
-          >
-            All Absent
-          </Button>
-
+          <Button variant="outline" onClick={() => handleBulkStatusUpdate("PRESENT")} className="h-8 text-xs font-medium border-zinc-200 dark:border-zinc-800 shadow-none">All Present</Button>
+          <Button variant="outline" onClick={() => handleBulkStatusUpdate("ABSENT")} className="h-8 text-xs font-medium border-zinc-200 dark:border-zinc-800 shadow-none">All Absent</Button>
           <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-800 self-center mx-1" />
-
-          <Button 
-            disabled={isSubmitting}
-            onClick={handleSubmit} 
-            className="h-8 gap-1.5 px-3 text-xs font-medium shadow-none bg-zinc-900 text-zinc-50 hover:bg-zinc-800/90 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-200/90 transition-colors"
-          >
+          <Button disabled={isSubmitting} onClick={handleSubmit} className="h-8 gap-1.5 px-3 text-xs font-medium shadow-none bg-zinc-900 text-zinc-50 hover:bg-zinc-800/90 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-200/90 transition-colors">
             {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5 stroke-[2]" />}
-            <span>Commit Registry</span>
+            <span>Submit Attendance</span>
           </Button>
         </div>
       </div>
 
-      {/* ─── GRID CONTAINER AUTO-SCROLL VIEWPORT ─── */}
       <div className="w-full flex-1 min-h-0 overflow-hidden rounded-md bg-background custom-scrollbar [&>div]:h-full [&>div]:flex [&>div]:flex-col [&>div]:space-y-0 [&>div>div]:flex-1 [&>div>div]:min-h-0 [&>div>div]:overflow-y-auto [&>div>div]:rounded-md [&>div>div]:border-zinc-200 [&>div>div]:dark:border-zinc-800">
-        <UniversalDataTable
-          data={filteredData}
-          columns={columns}
-          rowId={(record) => record.id}
-          selectable={false}
-          emptyMessage="No matching student roster paths encountered inside this framework query."
-        />
+        {isLoading ? (
+          <div className="flex items-center justify-center h-48 text-zinc-400 text-xs">Loading students...</div>
+        ) : fetchError ? (
+          <div className="flex flex-col items-center justify-center h-48 gap-3">
+            <p className="text-sm text-destructive">{fetchError}</p>
+            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>Retry</Button>
+          </div>
+        ) : (
+          <UniversalDataTable
+            data={filteredData}
+            columns={columns}
+            rowId={(record) => record.id}
+            selectable={false}
+            emptyMessage="No students found."
+          />
+        )}
       </div>
 
-      {/* ─── LIVE METRICS COUNTER FOOTER LEDGER ─── */}
       <div className="flex items-center justify-between border-t border-zinc-100 dark:border-zinc-900 pt-3 shrink-0">
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
           <ClipboardList className="h-3.5 w-3.5 text-zinc-400" />
-          <span>Active Registry Framework Volume: {filteredData.length} of {metrics.total} students metrics sorted.</span>
+          <span>{filteredData.length} of {metrics.total} students</span>
         </div>
         <div className="flex gap-4 text-[11px] font-mono text-zinc-400 dark:text-zinc-500">
           <div>Present: <span className="text-zinc-900 dark:text-zinc-100 font-bold">{metrics.present}</span></div>
@@ -238,7 +245,6 @@ export default function DesktopAttendancePage() {
           <div>Excused: <span className="text-zinc-900 dark:text-zinc-100 font-bold">{metrics.excused}</span></div>
         </div>
       </div>
-
     </div>
   )
 }

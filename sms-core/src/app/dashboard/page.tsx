@@ -1,129 +1,134 @@
-  import React from 'react'
-  import { UniversalBarChart, ChartDataPoint, MetricConfig } from '@/components/universal-bar-chart'
-  import { UniversalAreaMiniChart } from '@/components/universal-area-mini-chart'
-  import { UniversalLineMiniChart } from '@/components/universal-line-mini-chart'
-  import { UniversalBarMiniChart } from '@/components/universal-bar-mini-chart'
+"use client"
 
+import { useEffect, useState } from "react"
+import { GraduationCap, Users, UserCog, ArrowRight } from "lucide-react"
+import Link from "next/link"
+import { fetchWithAuth } from "@/lib/fetch-with-auth"
 
-  // Deep time-series mock dataset containing 47 sequential tracking dates
-  const platformData: ChartDataPoint[] = [
-    { date: "2026-05-01", platformFee: 220, transactions: 150 },
-    { date: "2026-05-02", platformFee: 197, transactions: 180 },
-    { date: "2026-05-03", platformFee: 267, transactions: 120 },
-    { date: "2026-05-04", platformFee: 342, transactions: 260 },
-    { date: "2026-05-05", platformFee: 473, transactions: 290 },
-    { date: "2026-05-06", platformFee: 401, transactions: 340 },
-    { date: "2026-05-07", platformFee: 345, transactions: 180 },
-    { date: "2026-05-08", platformFee: 509, transactions: 320 },
-    { date: "2026-05-09", platformFee: 159, transactions: 110 },
-    { date: "2026-05-10", platformFee: 361, transactions: 190 },
-    { date: "2026-05-11", platformFee: 427, transactions: 350 },
-    { date: "2026-05-12", platformFee: 392, transactions: 210 },
-    { date: "2026-05-13", platformFee: 442, transactions: 380 },
-    { date: "2026-05-14", platformFee: 237, transactions: 220 },
-    { date: "2026-05-15", platformFee: 220, transactions: 170 },
-    { date: "2026-05-16", platformFee: 238, transactions: 190 },
-    { date: "2026-05-17", platformFee: 546, transactions: 360 },
-    { date: "2026-05-18", platformFee: 464, transactions: 410 },
-    { date: "2026-05-19", platformFee: 343, transactions: 180 },
-    { date: "2026-05-20", platformFee: 277, transactions: 230 },
-    { date: "2026-05-21", platformFee: 182, transactions: 140 },
-    { date: "2026-05-22", platformFee: 181, transactions: 120 },
-    { date: "2026-05-23", platformFee: 352, transactions: 290 },
-    { date: "2026-05-24", platformFee: 487, transactions: 290 },
-    { date: "2026-05-25", platformFee: 315, transactions: 250 },
-    { date: "2026-05-26", platformFee: 175, transactions: 130 },
-    { date: "2026-05-27", platformFee: 483, transactions: 420 },
-    { date: "2026-05-28", platformFee: 222, transactions: 180 },
-    { date: "2026-05-29", platformFee: 415, transactions: 240 },
-    { date: "2026-05-30", platformFee: 554, transactions: 380 },
-    { date: "2026-05-31", platformFee: 265, transactions: 220 },
-    { date: "2026-06-01", platformFee: 420, transactions: 210 },
-    { date: "2026-06-02", platformFee: 380, transactions: 190 },
-    { date: "2026-06-03", platformFee: 510, transactions: 320 },
-    { date: "2026-06-04", platformFee: 490, transactions: 280 },
-    { date: "2026-06-05", platformFee: 620, transactions: 410 },
-    { date: "2026-06-06", platformFee: 580, transactions: 390 },
-    { date: "2026-06-07", platformFee: 690, transactions: 510 },
-    { date: "2026-06-08", platformFee: 440, transactions: 310 },
-    { date: "2026-06-09", platformFee: 495, transactions: 360 },
-    { date: "2026-06-10", platformFee: 520, transactions: 440 },
-    { date: "2026-06-11", platformFee: 610, transactions: 490 },
-    { date: "2026-06-12", platformFee: 575, transactions: 420 },
-    { date: "2026-06-13", platformFee: 410, transactions: 290 },
-    { date: "2026-06-14", platformFee: 430, transactions: 330 },
-    { date: "2026-06-15", platformFee: 550, transactions: 410 },
-    { date: "2026-06-16", platformFee: 680, transactions: 520 },
+export default function DashboardPage() {
+  const [kpis, setKpis] = useState({
+    students: null as number | null,
+    teachers: null as number | null,
+    staff: null as number | null,
+  })
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function fetchKpis() {
+      try {
+        setIsLoading(true)
+        setError(null)
+
+        const [studentsRes, teachersRes, staffRes] = await Promise.all([
+          fetchWithAuth("/students?limit=1"),
+          fetchWithAuth("/teachers?limit=1"),
+          fetchWithAuth("/staff?limit=1"),
+        ])
+
+        const [studentsData, teachersData, staffData] = await Promise.all([
+          studentsRes.json(),
+          teachersRes.json(),
+          staffRes.json(),
+        ])
+
+        setKpis({
+          students: studentsData.total ?? studentsData.pagination?.total ?? null,
+          teachers: teachersData.total ?? teachersData.pagination?.total ?? null,
+          staff: staffData.total ?? staffData.pagination?.total ?? null,
+        })
+      } catch {
+        setError("Unable to load dashboard metrics.")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchKpis()
+  }, [])
+
+  const cards = [
+    {
+      label: "Total Students",
+      value: kpis.students,
+      icon: <GraduationCap className="h-5 w-5" />,
+      href: "/students",
+      color: "bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400",
+    },
+    {
+      label: "Total Teachers",
+      value: kpis.teachers,
+      icon: <Users className="h-5 w-5" />,
+      href: "/teachers",
+      color: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400",
+    },
+    {
+      label: "Total Staff",
+      value: kpis.staff,
+      icon: <UserCog className="h-5 w-5" />,
+      href: "/staff",
+      color: "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400",
+    },
   ]
 
-  // Standardized Core Colors: 
-  // Hero Orange: #E85002 | Dark Zinc Neutral: #18181b | Muted Zinc: #71717a
-  const platformMetrics: MetricConfig[] = [
-    { key: "platformFee", label: "Platform Revenue", color: "#E85002" },
-    { key: "transactions", label: "Volume Metrics", color: "#18181b" },
+  const quickActions = [
+    { label: "Attendance", href: "/operations/attendance" },
+    { label: "Gradebook", href: "/students/gradebook" },
+    { label: "Finance", href: "/finance" },
+    { label: "Timetable", href: "/operations" },
   ]
 
-  export default function DashboardPage() {
-    return (
-      <div className="flex flex-col gap-4 p-2 md:p-1">
-      
-        {/* Universal Interactive Chart View Engine */}
-        <div className="w-full bg-white rounded-xl border border-zinc-200 p-4 shadow-sm">
-          <UniversalBarChart 
-            title="Overview"
-            description="Operational metrics and volume analytics across the instance lifecycle."
-            data={platformData}
-            metrics={platformMetrics}
-            defaultMetricKey="platformFee"
-          />
-        </div>
-        
-        {/* Visual Hierarchy Layout centered on the primary Orange accent */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          
-          {/* Slot 1: Stacked Layered Area Layout — Hero base orange overlapping with dark tracking text */}
-          <UniversalAreaMiniChart
-            title="Yield vs Volume"
-            subtitle="Revenue mapped directly against runs"
-            data={platformData}
-            dataKey="platformFee"
-            secondaryDataKey="transactions"
-            color="#E85002"
-            secondaryColor="#18181b"
-            height={135}
-          />
-
-          {/* Slot 2: Secondary metric as a crisp, structural dark neutral */}
-          <UniversalLineMiniChart
-            title="Transaction Runs"
-            subtitle="Total volume operations processed"
-            data={platformData}
-            dataKey="transactions"
-            color="#18181b"
-            height={135}
-          />
-          
-          {/* Slot 3: Mini Bar Chart uses the clean core accent color */}
-          <UniversalBarMiniChart
-            title="Average Yield"
-            subtitle="Relative profit margins across windows"
-            data={platformData}
-            dataKey="platformFee"
-            color="#E85002"
-            height={135}
-          />
-          
-          {/* Slot 4: Muted slate-zinc distribution component so it blends elegantly into the background */}
-          <UniversalBarMiniChart
-            title="Average Yield"
-            subtitle="Relative profit margins across windows"
-            data={platformData}
-            dataKey="platformFee"
-            color="#18181b"
-            height={135}
-          />
-        </div>
-
+  return (
+    <div className="flex flex-col gap-6 p-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+        <p className="text-sm text-muted-foreground mt-1">School management overview</p>
       </div>
-    )
-  }
+
+      {error && (
+        <div className="flex items-center gap-3 p-4 rounded-md border border-destructive/50 bg-destructive/5 text-sm text-destructive">
+          <p>{error}</p>
+          <button onClick={() => window.location.reload()} className="underline text-xs">Retry</button>
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-32 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 animate-pulse" />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {cards.map((card) => (
+            <Link key={card.label} href={card.href} className="group rounded-xl border border-zinc-200 dark:border-zinc-800 p-6 hover:shadow-md transition-all">
+              <div className="flex items-center justify-between">
+                <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${card.color}`}>
+                  {card.icon}
+                </div>
+                <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+              <div className="mt-4">
+                <p className="text-3xl font-bold tracking-tight">
+                  {card.value !== null ? card.value.toLocaleString() : "\u2014"}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">{card.label}</p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+
+      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-6">
+        <h2 className="text-lg font-medium">Quick Actions</h2>
+        <p className="text-sm text-muted-foreground mt-1">Common tasks and navigation</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+          {quickActions.map((link) => (
+            <Link key={link.label} href={link.href} className="flex items-center justify-center h-12 rounded-lg border border-zinc-200 dark:border-zinc-800 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors">
+              {link.label}
+            </Link>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}

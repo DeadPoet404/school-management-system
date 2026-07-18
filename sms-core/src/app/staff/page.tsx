@@ -74,12 +74,14 @@ export default function StaffPage() {
   // Dynamic registry state tracking live database layers
   const [staff, setStaff] = useState<StaffRow[]>([])
   const [isRegistrySyncing, setIsRegistrySyncing] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
   // Dispatches network loop tracking database state rows on mount
   useEffect(() => {
     const liveRegistrySyncPipeline = async () => {
       try {
         setIsRegistrySyncing(true)
+        setFetchError(null)
         const response = await fetchWithAuth("/staff")
 
         if (!response.ok) {
@@ -91,7 +93,7 @@ export default function StaffPage() {
           setStaff(payload.data)
         }
       } catch (error) {
-        console.error("[Telemetry Sync Fault]: Unable to pull live staff records:", error)
+        setFetchError("Unable to load staff records. Please check your connection and try again.")
       } finally {
         setIsRegistrySyncing(false)
       }
@@ -204,6 +206,11 @@ export default function StaffPage() {
         {isRegistrySyncing ? (
           <div className="flex items-center justify-center h-48 text-zinc-400 dark:text-zinc-500 text-xs font-mono tracking-tight">
             Syncing live staff registry matrix from database infrastructure...
+          </div>
+        ) : fetchError ? (
+          <div className="flex flex-col items-center justify-center h-48 gap-3">
+            <p className="text-sm text-destructive">{fetchError}</p>
+            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>Retry</Button>
           </div>
         ) : (
           <div className="w-full h-full overflow-x-auto">

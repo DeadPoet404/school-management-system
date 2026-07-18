@@ -1,7 +1,7 @@
 import { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "Add New Student | Platform Workspace",
+  title: "Add Staff Member | Platform Workspace",
   description: "Administrative form interface for onboarding new student profiles into the registry.",
 }
 
