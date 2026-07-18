@@ -22,8 +22,9 @@ export class GradesService {
     termId: string;
     continuousAssessment: number;
     examination: number;
+    creditHours?: number;
   }) {
-    const { studentId, subjectId, classId, termId, continuousAssessment, examination } = payload;
+    const { studentId, subjectId, classId, termId, continuousAssessment, examination, creditHours } = payload;
 
     const finalScore = parseFloat((continuousAssessment + examination).toFixed(2));
     const { letterGrade, gradePoints } = this.calculateGradeMetrics(finalScore);
@@ -39,13 +40,29 @@ export class GradesService {
         finalScore,
         letterGrade,
         gradePoints,
+        creditHours,
       }, tx);
 
       const allGrades = await this.repo.getAllStudentGrades(studentId, tx);
 
       if (allGrades.length > 0) {
-        const totalPoints = allGrades.reduce((sum: number, item: { gradePoints: number }) => sum + item.gradePoints, 0);
-        const compiledGpa = parseFloat((totalPoints / allGrades.length).toFixed(2));
+        // P2-9: Weighted GPA calculation.
+        // Old: Σ(gradePoints) / count — treats 2-credit and 4-credit equally
+        // New: Σ(gradePoints × creditHours) / Σ(creditHours) — correct weighting
+        let totalWeightedPoints = 0;
+        let totalCreditHours = 0;
+
+        for (const item of allGrades) {
+          const gp = Number(item.gradePoints);
+          const ch = item.creditHours ?? 3;
+          totalWeightedPoints += gp * ch;
+          totalCreditHours += ch;
+        }
+
+        const compiledGpa = totalCreditHours > 0
+          ? parseFloat((totalWeightedPoints / totalCreditHours).toFixed(2))
+          : 0;
+
         await this.repo.updateStudentGpa(studentId, compiledGpa, tx);
       }
 

@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react"
-import { fetchWithAuth } from "./fetch-with-auth"
+import { fetchWithAuth, ApiClientError } from "./fetch-with-auth"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
@@ -70,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const json = await res.json()
 
     if (!res.ok || !json.success) {
-      throw new Error(json.message || "Login failed")
+      throw new ApiClientError(res.status, json.message || "Login failed", json)
     }
 
     // Backend returns user metadata (no token in body — that's in the cookie)

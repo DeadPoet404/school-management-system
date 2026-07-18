@@ -17,6 +17,7 @@ export interface GradeRecordUpsertData {
   finalScore: number;
   letterGrade: string;
   gradePoints: number;
+  creditHours?: number;
 }
 
 export interface FeeConfigCreateData {
@@ -134,6 +135,8 @@ export interface IFinanceRepository {
   createFeeConfig(data: FeeConfigCreateData, tx?: TransactionClient): Promise<any>;
   // Payment collections
   findCollectionsBySection(sectionId: string, tx?: TransactionClient): Promise<any>;
+  findCollectionsBySectionPaginated(sectionId: string, skip: number, take: number, tx?: TransactionClient): Promise<any>;
+  countCollectionsBySection(sectionId: string, tx?: TransactionClient): Promise<any>;
   countCollections(tx?: TransactionClient): Promise<any>;
   createCollection(data: CollectionCreateData, tx?: TransactionClient): Promise<any>;
   // Student financials

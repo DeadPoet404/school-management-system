@@ -100,6 +100,8 @@ export default function DesktopAttendancePage() {
           <button
             type="button"
             onClick={() => handleStatusUpdate(row.id, statusType)}
+            aria-label={`Mark as ${statusType.toLowerCase()}`}
+            aria-pressed={isSelected}
             className={cn(
               "h-5 w-5 rounded border transition-all flex items-center justify-center focus:outline-none",
               isSelected ? activeStyles : "border-zinc-300 dark:border-zinc-700 bg-background hover:bg-zinc-50 dark:hover:bg-zinc-900"
@@ -130,7 +132,7 @@ export default function DesktopAttendancePage() {
       header: "Status",
       className: "w-[120px] text-center border-r border-zinc-200 dark:border-zinc-800",
       cell: (row) => (
-        <span className={cn(
+        <span role="status" className={cn(
           "inline-flex items-center rounded px-2 py-0.5 text-[10px] font-mono font-bold tracking-tight uppercase border align-middle",
           row.status === "PRESENT" && "bg-emerald-50 text-emerald-700 border-emerald-200/60 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30",
           row.status === "ABSENT" && "bg-rose-50 text-rose-700 border-rose-200/60 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/30",
@@ -238,7 +240,7 @@ export default function DesktopAttendancePage() {
           <ClipboardList className="h-3.5 w-3.5 text-zinc-400" />
           <span>{filteredData.length} of {metrics.total} students</span>
         </div>
-        <div className="flex gap-4 text-[11px] font-mono text-zinc-400 dark:text-zinc-500">
+        <div aria-live="polite" className="flex gap-4 text-[11px] font-mono text-zinc-400 dark:text-zinc-500">
           <div>Present: <span className="text-zinc-900 dark:text-zinc-100 font-bold">{metrics.present}</span></div>
           <div>Absent: <span className="text-zinc-900 dark:text-zinc-100 font-bold">{metrics.absent}</span></div>
           <div>Late: <span className="text-zinc-900 dark:text-zinc-100 font-bold">{metrics.late}</span></div>

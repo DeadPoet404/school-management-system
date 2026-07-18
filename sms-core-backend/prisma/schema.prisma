@@ -170,7 +170,7 @@ model Placement {
   id             String  @id @default(uuid())
   studentId      String  @unique
   student        Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  classId        String
+  classId        String?
   academicTrack  String
   boardingStatus String
 }
@@ -201,7 +201,7 @@ model BillingLedger {
   id             String  @id @default(uuid())
   studentId      String  @unique
   student        Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  feeTierId      String
+  feeTierId      String?
   initialDeposit Decimal @default(0.0) @db.Decimal(10, 2)
   currentBalance Decimal @db.Decimal(10, 2)
 }
@@ -263,8 +263,8 @@ model Teacher {
   id                String       @id @default(uuid())
   teacherId         String       @unique
   teacherName       String
-  department        String
-  subject           String
+  department        String?
+  subject           String?
   status            EntityStatus @default(ACTIVE)
   employmentType    String
   email             String       @unique
@@ -582,6 +582,7 @@ model GradeRecord {
   finalScore           Decimal  @db.Decimal(5, 2)
   letterGrade          String   @db.VarChar(2)
   gradePoints          Decimal  @db.Decimal(3, 2)
+  creditHours         Int             @default(3)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 

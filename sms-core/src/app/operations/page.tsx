@@ -60,7 +60,7 @@ const OPERATIONS_MANIFEST: OperationRegistryItem[] = [
   {
     id: "hr-leave",
     title: "Staff Leave Management",
-    action: { type: "route", path: "/staff/departure?from=operations" },
+    action: { type: "view", component: PlaceholderView as React.ComponentType<{ title?: string }> },
   },
   {
     id: "enrollment-workflow",
@@ -70,7 +70,7 @@ const OPERATIONS_MANIFEST: OperationRegistryItem[] = [
   {
     id: "student-leave",
     title: "Student Leave Processing",
-    action: { type: "route", path: "/students/departure?from=operations" },
+    action: { type: "view", component: PlaceholderView as React.ComponentType<{ title?: string }> },
   },
 ]
 

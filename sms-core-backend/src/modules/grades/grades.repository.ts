@@ -17,15 +17,21 @@ export class GradesRepository implements IGradesRepository {
         finalScore: data.finalScore,
         letterGrade: data.letterGrade,
         gradePoints: data.gradePoints,
+        creditHours: data.creditHours ?? 3,
       },
-      create: data,
+      create: {
+        ...data,
+        creditHours: data.creditHours ?? 3,
+      },
     });
   }
 
+  // P2-9: Now selects creditHours alongside gradePoints for
+  // weighted GPA calculation in the service layer.
   async getAllStudentGrades(studentInternalId: string, tx: TransactionClient = prisma) {
     return tx.gradeRecord.findMany({
       where: { studentId: studentInternalId },
-      select: { gradePoints: true },
+      select: { gradePoints: true, creditHours: true },
     });
   }
 

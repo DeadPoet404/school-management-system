@@ -23,11 +23,14 @@ export const staffUpdateSchema = z.object({
     emergencyName: z.string().nullable().optional(),
     emergencyPhone: z.string().nullable().optional(),
   }).optional(),
+  // P1-8: Payroll fields were z.union([z.string(), z.number()]) which let
+  // non-numeric strings like "abc" pass validation. Now uses z.coerce.number()
+  // which rejects non-numeric input at the validation boundary.
   payroll: z.object({
     clearanceTier: z.string().optional(),
-    baseSalary: z.union([z.string(), z.number()]).optional(),
-    deductions: z.union([z.string(), z.number()]).optional(),
-    netPay: z.union([z.string(), z.number()]).optional(),
+    baseSalary: z.coerce.number({ message: "Base salary must be a valid number" }).min(0, "Base salary cannot be negative").optional(),
+    deductions: z.coerce.number({ message: "Deductions must be a valid number" }).min(0, "Deductions cannot be negative").optional(),
+    netPay: z.coerce.number({ message: "Net pay must be a valid number" }).min(0, "Net pay cannot be negative").optional(),
     paymentRoute: z.string().optional(),
     bankName: z.string().nullable().optional(),
     bankAccount: z.string().nullable().optional(),

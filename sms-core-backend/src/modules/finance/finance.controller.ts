@@ -21,11 +21,16 @@ export class FinanceController {
     } catch (error) { next(error); }
   };
 
+  // P2-13: Added pagination to section ledger endpoint.
+  // Previously returned ALL payment collections for a section
+  // with no limit — unbounded as payments accumulate.
   getSectionLedger = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { sectionId } = req.params;
-      const history = await this.financeService.getInflowLedgerBySection(sectionId);
-      return res.status(200).json({ success: true, data: history });
+      const { page, limit, skip } = parsePaginationQuery(req.query);
+      const history = await this.financeService.getInflowLedgerBySection(sectionId, skip, limit);
+      const total = await this.financeService.countCollectionsBySection(sectionId);
+      return res.status(200).json(buildPaginationResponse(history, total, page, limit));
     } catch (error) { next(error); }
   };
 

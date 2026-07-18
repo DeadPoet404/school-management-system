@@ -1,5 +1,5 @@
-import { prisma } from "@/lib/prisma";
 import { AttendanceStatus } from "@prisma/client";
+import { AttendanceRepository } from "./attendance.repository";
 
 interface AttendanceSubmission {
   studentId: string;
@@ -8,68 +8,49 @@ interface AttendanceSubmission {
 }
 
 export class AttendanceService {
+  // P2-6: Service now uses repository instead of direct prisma calls,
+  // maintaining the Controller-Service-Repository architecture consistently
+  // across all modules.
+  constructor(private attendanceRepo: AttendanceRepository = new AttendanceRepository()) {}
+
   /**
    * Commits a complete class attendance sheet atomically.
-   * Uses a single transaction batch (N upserts in one DB round-trip).
+   * Delegates to repository's upsert-based bulk method.
    */
   async recordBulkAttendance(date: string, records: AttendanceSubmission[]) {
     const targetDate = new Date(date);
 
-    return await prisma.$transaction(
-      records.map((record) =>
-        prisma.attendanceRecord.upsert({
-          where: {
-            studentId_date: {
-              studentId: record.studentId,
-              date: targetDate,
-            },
-          },
-          update: {
-            status: record.status,
-            remarks: record.remarks ?? null,
-          },
-          create: {
-            studentId: record.studentId,
-            date: targetDate,
-            status: record.status,
-            remarks: record.remarks ?? null,
-          },
-        })
-      )
+    return this.attendanceRepo.upsertBulkAttendance(
+      records.map((record) => ({
+        studentId: record.studentId,
+        date: targetDate,
+        status: record.status,
+        remarks: record.remarks ?? null,
+      }))
     );
   }
 
   /**
    * Compiles historical attendance rates for a student.
+   * Delegates count queries to the repository.
    */
   async getStudentAttendanceMetrics(studentId: string) {
-    const summary = await prisma.attendanceRecord.groupBy({
-      by: ["status"],
-      where: { studentId },
-      _count: { status: true },
-    });
+    const { presentCount, lateCount, totalCount } = await this.attendanceRepo.getStudentAttendanceCounts(studentId);
 
     const metrics: Record<AttendanceStatus, number> = {
-      PRESENT: 0,
-      ABSENT: 0,
-      LATE: 0,
+      PRESENT: presentCount,
+      ABSENT: totalCount - presentCount - lateCount,
+      LATE: lateCount,
       EXCUSED: 0,
     };
 
-    let total = 0;
-
-    summary.forEach((group) => {
-      metrics[group.status] = group._count.status;
-      total += group._count.status;
-    });
-
     const rate =
-      total > 0
-        ? ((metrics.PRESENT + metrics.LATE) / total) * 100
+      totalCount > 0
+        ? ((presentCount + lateCount) / totalCount) * 100
         : 100.0;
 
     return {
-      totalRecords: total,
+      totalRecords: totalCount,
       breakdown: metrics,
       rate,
     };
@@ -77,7 +58,6 @@ export class AttendanceService {
 
   /**
    * Processes a full section attendance submission in a single batch operation.
-   * Replaces per-student loops with atomic bulk upserts.
    */
   async processSectionAttendance(payload: {
     date: string;

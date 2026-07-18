@@ -67,8 +67,17 @@ export class FinanceService {
     });
   }
 
-  async getInflowLedgerBySection(sectionId: string) {
-    return await this.repo.findCollectionsBySection(sectionId);
+  async getInflowLedgerBySection(sectionId: string, skip: number = 0, limit: number = 10) {
+    return await prisma.paymentCollection.findMany({
+      where: { sectionId },
+      skip,
+      take: limit,
+      orderBy: { dateProcessed: 'desc' },
+    });
+  }
+
+  async countCollectionsBySection(sectionId: string) {
+    return await prisma.paymentCollection.count({ where: { sectionId } });
   }
 
   async processInflowCollection(data: {

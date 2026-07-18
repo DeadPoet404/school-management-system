@@ -27,7 +27,18 @@ export function StudentOverviewTable({ data: initialData }: StudentOverviewTable
   const [loading, setLoading] = React.useState<boolean>(!initialData)
   const [error, setError] = React.useState<string | null>(null)
 
+  // P2-16: Use a ref to track initialization instead of depending on
+  // initialData (an array). Array props create new references on every
+  // parent render, which would re-trigger this effect unnecessarily.
+  // The ref ensures we only fetch once on mount.
+  const initializedRef = React.useRef(false)
+
   React.useEffect(() => {
+    // Prevent re-execution when parent re-renders with a new
+    // array reference but identical data
+    if (initializedRef.current) return
+    initializedRef.current = true
+
     if (initialData) {
       setStudents(initialData)
       setLoading(false)
@@ -57,7 +68,7 @@ export function StudentOverviewTable({ data: initialData }: StudentOverviewTable
     }
 
     fetchStudents()
-  }, [initialData])
+  }, []) // Empty deps — runs once on mount only
 
   const normalizedData: StudentOverviewRow[] = students.map((student) => {
     const formattedDate = student.enrollmentDate 
@@ -72,14 +83,12 @@ export function StudentOverviewTable({ data: initialData }: StudentOverviewTable
     if (student.feesStatus === "Paid") financialStatus = "Paid"
     else if (student.feesStatus === "Partial") financialStatus = "Partial"
 
-    // FIXED: Dig into the nested demographics relation for raw gender
     const rawGender = student.demographics?.gender || student.gender
     let cleanGender = "—"
     if (rawGender === "MALE") cleanGender = "Male"
     else if (rawGender === "FEMALE") cleanGender = "Female"
     else if (rawGender) cleanGender = rawGender.charAt(0).toUpperCase() + rawGender.slice(1).toLowerCase()
 
-    // FIXED: Dig into the nested placement relation for raw class and track
     const rawClass = student.placement?.classId || student.class
     const rawTrack = student.placement?.academicTrack || student.grade
     const assignedClass = (rawClass && rawClass !== "N/A") 
@@ -91,7 +100,6 @@ export function StudentOverviewTable({ data: initialData }: StudentOverviewTable
       studentName: student.studentName || "Unknown Student",
       gender: cleanGender,
       class: assignedClass,
-      // FIXED: Dig into the nested guardians array (raw Prisma returns an array)
       parentName: student.guardians?.[0]?.name || student.guardian?.name || "Not Specified",
       parentContact: student.guardians?.[0]?.phone || student.guardian?.phone || "—",
       gpa: student.currentGpa?.toFixed(2) || "0.00",
