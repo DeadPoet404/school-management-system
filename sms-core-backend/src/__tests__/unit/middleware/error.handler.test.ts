@@ -1,6 +1,19 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- test mocks use any for flexibility */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AppError, globalErrorHandler } from '@/middleware/error.handler';
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '@/lib/logger';
+
+// Mock Pino logger so we can assert on logger.error calls
+// without producing real log output during tests
+vi.mock('@/lib/logger', () => ({
+  logger: {
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
 
 function mockRes(): Response {
   return { status: vi.fn().mockReturnThis(), json: vi.fn() } as unknown as Response;
@@ -26,6 +39,7 @@ describe('globalErrorHandler', () => {
 
   beforeEach(() => {
     originalEnv = process.env.NODE_ENV;
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
@@ -130,11 +144,9 @@ describe('globalErrorHandler', () => {
       });
     });
 
-    it('should return generic 500 for unknown non-operational errors', () => {
+    it('should log via Pino and return generic 500 for unknown non-operational errors', () => {
       const err = new Error('secret leak') as any;
       err.isOperational = false;
-      // Suppress console.error output in test
-      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
       const res = mockRes();
       globalErrorHandler(err, {} as Request, res, vi.fn());
       expect(res.status).toHaveBeenCalledWith(500);
@@ -142,8 +154,8 @@ describe('globalErrorHandler', () => {
         success: false,
         message: 'An unexpected internal server error occurred.',
       });
-      expect(spy).toHaveBeenCalledWith('💥 UNEXPECTED ERROR:', err);
-      spy.mockRestore();
+      // Pino signature: logger.error(err, message)
+      expect(logger.error).toHaveBeenCalledWith(err, 'UNEXPECTED ERROR');
     });
   });
 });

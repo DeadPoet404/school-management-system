@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- generic utility functions */
 import { init } from "@paralleldrive/cuid2";
 
 // Generates a secure, highly optimized, non-colliding sequential fingerprint block.

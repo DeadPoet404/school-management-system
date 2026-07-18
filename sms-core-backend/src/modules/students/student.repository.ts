@@ -73,8 +73,8 @@ export class StudentRepository implements IStudentRepository {
     return tx.student.findMany({
       include: {
         account: { select: { id: true, studentId: true, portalEmail: true } },
-        invoices: true,
-        payments: true,
+        invoices: { orderBy: { createdAt: 'desc' }, take: 1 },
+        payments: { orderBy: { createdAt: 'desc' }, take: 1 },
       },
     });
   }
@@ -107,8 +107,8 @@ export class StudentRepository implements IStudentRepository {
     });
   }
 
-  async update(id: string, data: any, tx = prisma) {
-    const updateData: any = {};
+    async update(id: string, data: Record<string, unknown>, tx = prisma) {
+    const updateData: Record<string, unknown> = {};
     if (data.studentName) updateData.studentName = data.studentName;
     if (data.demographics) updateData.demographics = { update: data.demographics };
     if (data.placement) updateData.placement = { update: data.placement };

@@ -1,7 +1,42 @@
-node_modules
-dist
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment files (secrets)
 .env
 .env.*
 !.env.example
-.git
-coverage
+
+# Git
+.git/
+.gitignore
+
+# Testing & coverage
+coverage/
+src/__tests__/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docs
+*.md
+LICENSE
+
+# Docker
+Dockerfile
+docker-compose.yml
+docker-entrypoint.sh
+
+# Misc
+npm-debug.log*
+.eslintcache
+*.tsbuildinfo

@@ -9,6 +9,13 @@ type FeeConfigRow = Prisma.FeeStructureConfigurationGetPayload<{ include: { comp
 type StaffPayrollRow = Prisma.StaffPayrollGetPayload<{ include: { staff: { select: { staffName: true; account: { select: { role: true } } } } } }>;
 type TeacherPayrollRow = Prisma.TeacherPayrollGetPayload<{ include: { teacher: { select: { teacherName: true; subject: true } } } }>;
 
+interface FeeMatrixSection {
+  components: Array<{ id: string; name: string; amount: string | number; frequency: string; isMandatory: boolean }>;
+  billingConfig: { issueDate: Date | string; dueDate: Date | string; allowInstallments: boolean; lateFeeRate: string | number };
+}
+
+type InvoiceRow = Prisma.InvoiceGetPayload<{ include: { student: { select: { studentId: true; studentName: true } } } }>;
+
 interface MatrixSectionData {
   components: Array<{ name?: string; amount?: string | number; frequency?: string; isMandatory?: boolean }>;
   billingConfig: { issueDate?: string | Date; dueDate?: string | Date; allowInstallments?: boolean; lateFeeRate?: string | number };
@@ -17,16 +24,16 @@ interface MatrixSectionData {
 export class FinanceService {
   constructor(private repo: IFinanceRepository = new FinanceRepository()) {}
 
-  async getGlobalMatrix(): Promise<Record<string, any>> {
+  async getGlobalMatrix(): Promise<Record<string, FeeMatrixSection>> {
     const records = (await this.repo.findAllFeeConfigurations()) as FeeConfigRow[];
-    const matrix: Record<string, any> = {};
+    const matrix: Record<string, FeeMatrixSection> = {};
 
     records.forEach((rec) => {
       matrix[rec.sectionId] = {
         components: rec.components.map((c) => ({
           id: c.id,
           name: c.name,
-          amount: c.amount,
+          amount: c.amount.toString(),
           frequency: c.frequency,
           isMandatory: c.isMandatory,
         })),
@@ -34,7 +41,7 @@ export class FinanceService {
           issueDate: rec.issueDate,
           dueDate: rec.dueDate,
           allowInstallments: rec.allowInstallments,
-          lateFeeRate: rec.lateFeeRate,
+          lateFeeRate: rec.lateFeeRate.toString(),
         },
       };
     });
@@ -121,8 +128,8 @@ export class FinanceService {
         }, tx);
 
         const unpaidInvoice = await this.repo.findOldestUnpaidInvoice(data.studentInternalId, tx);
-        if (unpaidInvoice && numericAmount >= parseDecimal(unpaidInvoice.amount)) {
-          await this.repo.markInvoicePaid(unpaidInvoice.id, tx);
+        if (unpaidInvoice) {
+          await this.repo.applyPaymentToInvoice(unpaidInvoice.id, numericAmount, tx);
         }
       }
 
@@ -143,32 +150,45 @@ export class FinanceService {
 
     const configTyped = config as FeeConfigRow;
     const totalFeeAmount = configTyped.components.reduce((sum, comp) => sum + parseDecimal(String(comp.amount)), 0);
-    let generatedCount = 0;
 
-    await prisma.$transaction(async (tx) => {
+    return await prisma.$transaction(async (tx) => {
+      // Bulk check: which students already have an invoice for this config?
+      const studentIds = students.map((s: { id: string }) => s.id);
+      const alreadyInvoiced = await this.repo.findExistingInvoiceStudentIds(studentIds, config.id, tx);
+
+      // Count invoices once — increment in memory for serial generation
+      let invCount = await this.repo.countInvoices(tx);
+      let generatedCount = 0;
+
       for (const student of students) {
-        const existingInvoice = await this.repo.findExistingInvoice(student.id, config.id, tx);
-        if (!existingInvoice) {
-          const invCount = await this.repo.countInvoices(tx);
-          const invoiceNo = generateSerial(`INV-${sectionId.toUpperCase().replace(/-/g, '')}`, invCount, 4);
+        if (alreadyInvoiced.has(student.id)) continue;
 
-          await this.repo.createInvoice({
-            invoiceNo,
-            studentId: student.id,
-            description: `Term Fees - ${new Date().toLocaleDateString()}`,
-            amount: totalFeeAmount,
-            dueDate: config.dueDate,
-            status: "UNPAID",
-            configId: config.id
-          }, tx);
+        const invoiceNo = generateSerial(`INV-${sectionId.toUpperCase().replace(/-/g, '')}`, invCount, 4);
+        invCount++;
 
-          await this.repo.upsertBillingLedger(student.id, sectionId, totalFeeAmount, tx);
-          generatedCount++;
-        }
+        await this.repo.createInvoice({
+          invoiceNo,
+          studentId: student.id,
+          description: `Term Fees - ${new Date().toLocaleDateString()}`,
+          amount: totalFeeAmount,
+          dueDate: config.dueDate,
+          status: "UNPAID",
+          configId: config.id,
+        }, tx);
+
+        await this.repo.upsertBillingLedger(student.id, sectionId, totalFeeAmount, tx);
+        generatedCount++;
       }
-    });
 
-    return { message: `Generated ${generatedCount} invoices for ${students.length} students in ${sectionId}.`, totalAmount: totalFeeAmount };
+      if (generatedCount === 0) {
+        throw new AppError(400, `All ${students.length} students in ${sectionId} already have invoices for this fee configuration.`);
+      }
+
+      return {
+        message: `Generated ${generatedCount} invoices for ${students.length} students in ${sectionId}.`,
+        totalAmount: totalFeeAmount,
+      };
+    });
   }
 
   async getAllLedgers() {
@@ -270,5 +290,49 @@ export class FinanceService {
 
       throw new AppError(404, "Payroll record not found for disbursement.");
     });
+  }
+
+  async getPaginatedCollections(skip: number, take: number) {
+    const [data, total] = await Promise.all([
+      this.repo.findAllCollections(skip, take),
+      this.repo.countAllCollections(),
+    ]);
+    return { data, total };
+  }
+
+  async getAllCollections() {
+    return this.repo.findAllCollections();
+  }
+
+  async getPaginatedInvoices(skip: number, take: number) {
+    const [data, total] = await Promise.all([
+      this.repo.findAllInvoices(skip, take),
+      this.repo.countAllInvoices(),
+    ]);
+    const mapped = data.map((inv: InvoiceRow) => ({
+      id: inv.invoiceNo,
+      studentId: inv.student?.studentId || "N/A",
+      feeCategory: inv.description,
+      totalAmount: parseFloat(inv.amount.toString()),
+      paidAmount: parseFloat(inv.paidAmount.toString()),
+      status: inv.status === "PAID" ? "Paid" : inv.status === "PARTIAL" ? "Partial" : "Overdue",
+      issueDate: inv.createdAt.toISOString(),
+      dueDate: inv.dueDate.toISOString(),
+    }));
+    return { data: mapped, total };
+  }
+
+  async getAllInvoices() {
+    const data = await this.repo.findAllInvoices();
+    return data.map((inv: InvoiceRow) => ({
+      id: inv.invoiceNo,
+      studentId: inv.student?.studentId || "N/A",
+      feeCategory: inv.description,
+      totalAmount: parseFloat(inv.amount.toString()),
+      paidAmount: parseFloat(inv.paidAmount.toString()),
+      status: inv.status === "PAID" ? "Paid" : inv.status === "PARTIAL" ? "Partial" : "Overdue",
+      issueDate: inv.createdAt.toISOString(),
+      dueDate: inv.dueDate.toISOString(),
+    }));
   }
 }

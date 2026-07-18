@@ -28,6 +28,7 @@ import gradesRoutes from './modules/grades/grades.routes';
 // ── Auth ──
 import authRoutes from './modules/auth/auth.routes';
 import { authenticate } from './middleware/auth.middleware';
+import { startBlocklistCleanup } from './lib/token-blocklist';
 
 // ── Security ──
 import { sanitizeInput } from './middleware/xss.middleware';
@@ -165,27 +166,30 @@ app.use(globalErrorHandler);
 
 
 // ── GRACEFUL SHUTDOWN: Drain connections on SIGTERM/SIGINT ──
-// Prevents connection leaks when container orchestrators send shutdown signals
-const server = app.listen(port, () => {
-  logger.info({ port }, '[SMS-Core-Backend] Pipeline online.');
-});
-
-async function gracefulShutdown(signal: string) {
-  logger.info({ signal }, '[SMS-Core-Backend] Received shutdown signal. Draining connections...');
-  server.close(() => {
-    logger.info('[SMS-Core-Backend] HTTP server closed. No longer accepting connections.');
+// Only start the HTTP server when run directly (not when imported by tests)
+if (require.main === module) {
+  const server = app.listen(port, () => {
+    logger.info({ port }, '[SMS-Core-Backend] Pipeline online.');
+    startBlocklistCleanup();
   });
-  try {
-    const { prisma } = await import('./lib/prisma');
-    await prisma.$disconnect();
-    logger.info('[SMS-Core-Backend] Prisma connection pool drained.');
-  } catch (err) {
-    logger.error({ err }, '[SMS-Core-Backend] Error during Prisma disconnect.');
-  }
-  process.exit(0);
-}
 
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+  async function gracefulShutdown(signal: string) {
+    logger.info({ signal }, '[SMS-Core-Backend] Received shutdown signal. Draining connections...');
+    server.close(() => {
+      logger.info('[SMS-Core-Backend] HTTP server closed. No longer accepting connections.');
+    });
+    try {
+      const { prisma } = await import('./lib/prisma');
+      await prisma.$disconnect();
+      logger.info('[SMS-Core-Backend] Prisma connection pool drained.');
+    } catch (err) {
+      logger.error({ err }, '[SMS-Core-Backend] Error during Prisma disconnect.');
+    }
+    process.exit(0);
+  }
+
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+}
 
 export default app;

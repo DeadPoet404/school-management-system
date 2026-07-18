@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 
@@ -15,7 +16,7 @@ if (!pw) {
 }
 
 async function run() {
-  const hash = await bcrypt.hash(pw, 10);
+  const hash = await bcrypt.hash(pw!, 10);
   let r = await prisma.staffAccount.updateMany({ where: { email }, data: { passwordHash: hash } });
   if (r.count) return console.log(`Staff ${email} -> ${pw}`);
   r = await prisma.teacherAccount.updateMany({ where: { email }, data: { passwordHash: hash } });

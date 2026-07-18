@@ -26,8 +26,6 @@ export class GradesRepository implements IGradesRepository {
     });
   }
 
-  // P2-9: Now selects creditHours alongside gradePoints for
-  // weighted GPA calculation in the service layer.
   async getAllStudentGrades(studentInternalId: string, tx: TransactionClient = prisma) {
     return tx.gradeRecord.findMany({
       where: { studentId: studentInternalId },
@@ -40,5 +38,23 @@ export class GradesRepository implements IGradesRepository {
       where: { id: studentInternalId },
       data: { currentGpa: gpa },
     });
+  }
+
+  async findTeacherAllocation(
+    teacherId: string,
+    subjectName: string,
+    sectionId: string,
+    tx: TransactionClient = prisma,
+  ): Promise<boolean> {
+    const allocation = await tx.subjectAllocation.findFirst({
+      where: {
+        teacherId,
+        subjectName: { equals: subjectName, mode: "insensitive" },
+        configuration: {
+          sectionId,
+        },
+      },
+    });
+    return allocation !== null;
   }
 }

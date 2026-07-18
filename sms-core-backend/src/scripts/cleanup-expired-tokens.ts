@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import { prisma } from "@/lib/prisma";
 
 // P3-20: Cleanup job for expired and revoked RefreshTokens.

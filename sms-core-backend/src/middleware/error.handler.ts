@@ -1,4 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- Express error handler must accept unknown error shapes */
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '@/lib/logger';
 
 // ── CUSTOM APPLICATION ERROR CLASS ──
 // We'll use this later to throw specific HTTP errors (e.g., throw new AppError(404, "Not found"))
@@ -75,8 +77,8 @@ export const globalErrorHandler = (
       });
     }
 
-    // Unknown programming errors -> send generic message
-    console.error('💥 UNEXPECTED ERROR:', err);
+    // Unknown programming errors -> log via Pino, send generic message
+    logger.error(err, 'UNEXPECTED ERROR');
     
     res.status(500).json({
       success: false,

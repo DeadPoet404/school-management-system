@@ -84,8 +84,8 @@ export class TeacherRepository implements ITeacherRepository {
     });
   }
 
-  async update(id: string, data: any, tx = prisma) {
-    const updateData: any = {};
+    async update(id: string, data: Record<string, unknown>, tx = prisma) {
+    const updateData: Record<string, unknown> = {};
     if (data.teacherName) updateData.teacherName = data.teacherName;
     if (data.department) updateData.department = data.department;
     if (data.subject) updateData.subject = data.subject;

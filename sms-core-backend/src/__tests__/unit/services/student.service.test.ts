@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- test mocks use any for flexibility */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AppError } from '@/middleware/error.handler';
 
@@ -57,7 +58,7 @@ describe('StudentService', () => {
   // ── getById ──
   describe('getById', () => {
     it('should throw 404 when student not found', async () => {
-      repo.findById.mockResolvedValue(null);
+      (repo.findById as any).mockResolvedValue(null);
       await expect(service.getById('nonexistent')).rejects.toMatchObject({
         statusCode: 404,
         message: 'Student not found with ID: nonexistent',
@@ -65,7 +66,7 @@ describe('StudentService', () => {
     });
 
     it('should return student when found', async () => {
-      repo.findById.mockResolvedValue(FOUND_STUDENT);
+      (repo.findById as any).mockResolvedValue(FOUND_STUDENT);
       const result = await service.getById('stu-uuid-1');
       expect(result).toBe(FOUND_STUDENT);
       expect(repo.findById).toHaveBeenCalledWith('stu-uuid-1');
@@ -75,8 +76,8 @@ describe('StudentService', () => {
   // ── getFilteredPaginated ──
   describe('getFilteredPaginated', () => {
     it('should call findAllFiltered and countFiltered with empty filters', async () => {
-      repo.findAllFiltered.mockResolvedValue([FOUND_STUDENT]);
-      repo.countFiltered.mockResolvedValue(1);
+      (repo.findAllFiltered as any).mockResolvedValue([FOUND_STUDENT]);
+      (repo.countFiltered as any).mockResolvedValue(1);
 
       const result = await service.getFilteredPaginated({}, 0, 20);
 
@@ -87,8 +88,8 @@ describe('StudentService', () => {
     });
 
     it('should pass search filter to findAllFiltered', async () => {
-      repo.findAllFiltered.mockResolvedValue([]);
-      repo.countFiltered.mockResolvedValue(0);
+      (repo.findAllFiltered as any).mockResolvedValue([]);
+      (repo.countFiltered as any).mockResolvedValue(0);
 
       await service.getFilteredPaginated({ search: 'john' }, 0, 20);
 
@@ -98,8 +99,8 @@ describe('StudentService', () => {
     });
 
     it('should pass status filter directly', async () => {
-      repo.findAllFiltered.mockResolvedValue([]);
-      repo.countFiltered.mockResolvedValue(0);
+      (repo.findAllFiltered as any).mockResolvedValue([]);
+      (repo.countFiltered as any).mockResolvedValue(0);
 
       await service.getFilteredPaginated({ status: 'DEPARTED' }, 0, 20);
 
@@ -111,14 +112,14 @@ describe('StudentService', () => {
   // ── update ──
   describe('update', () => {
     it('should throw 404 when student not found', async () => {
-      repo.findById.mockResolvedValue(null);
+      (repo.findById as any).mockResolvedValue(null);
       await expect(service.update('nonexistent', { studentName: 'X' })).rejects.toMatchObject({
         statusCode: 404,
       });
     });
 
     it('should throw 409 when student is departed', async () => {
-      repo.findById.mockResolvedValue(DEPARTED_STUDENT);
+      (repo.findById as any).mockResolvedValue(DEPARTED_STUDENT);
       await expect(service.update('stu-uuid-1', { studentName: 'X' })).rejects.toMatchObject({
         statusCode: 409,
         message: 'Cannot update a departed student.',
@@ -126,8 +127,8 @@ describe('StudentService', () => {
     });
 
     it('should convert dateOfBirth string to Date before passing to repo', async () => {
-      repo.findById.mockResolvedValue(FOUND_STUDENT);
-      repo.update.mockResolvedValue(FOUND_STUDENT);
+      (repo.findById as any).mockResolvedValue(FOUND_STUDENT);
+      (repo.update as any).mockResolvedValue(FOUND_STUDENT);
 
       await service.update('stu-uuid-1', {
         demographics: { dateOfBirth: '2010-05-20' },
@@ -138,8 +139,8 @@ describe('StudentService', () => {
     });
 
     it('should call repo.update with id and payload', async () => {
-      repo.findById.mockResolvedValue(FOUND_STUDENT);
-      repo.update.mockResolvedValue(FOUND_STUDENT);
+      (repo.findById as any).mockResolvedValue(FOUND_STUDENT);
+      (repo.update as any).mockResolvedValue(FOUND_STUDENT);
 
       await service.update('stu-uuid-1', { studentName: 'Updated Name' });
 
@@ -158,7 +159,7 @@ describe('StudentService', () => {
     };
 
     it('should throw 404 when studentId not found', async () => {
-      repo.findByPublicId.mockResolvedValue(null);
+      (repo.findByPublicId as any).mockResolvedValue(null);
       await expect(service.processDeparture(DEPARTURE_PAYLOAD)).rejects.toMatchObject({
         statusCode: 404,
         message: expect.stringContaining('STU-DEPT-abc123'),
@@ -166,7 +167,7 @@ describe('StudentService', () => {
     });
 
     it('should throw 409 when student already departed', async () => {
-      repo.findByPublicId.mockResolvedValue(DEPARTED_STUDENT);
+      (repo.findByPublicId as any).mockResolvedValue(DEPARTED_STUDENT);
       await expect(service.processDeparture(DEPARTURE_PAYLOAD)).rejects.toMatchObject({
         statusCode: 409,
         message: expect.stringContaining('already been processed'),
@@ -174,9 +175,9 @@ describe('StudentService', () => {
     });
 
     it('should create departure log and update status to DEPARTED', async () => {
-      repo.findByPublicId.mockResolvedValue(FOUND_STUDENT);
-      repo.createDepartureLog.mockResolvedValue({ id: 'dep-1' });
-      repo.updateStatus.mockResolvedValue({});
+      (repo.findByPublicId as any).mockResolvedValue(FOUND_STUDENT);
+      (repo.createDepartureLog as any).mockResolvedValue({ id: 'dep-1' });
+      (repo.updateStatus as any).mockResolvedValue({});
 
       const result = await service.processDeparture(DEPARTURE_PAYLOAD);
 
@@ -189,9 +190,10 @@ describe('StudentService', () => {
   // ── createStudent ──
   describe('createStudent', () => {
     it('should throw 400 when neither guardian nor parent provided', async () => {
-      const payload = { ...VALID_ENROLLMENT_PAYLOAD };
-      delete payload.guardian;
-      await expect(service.createStudent(payload as any)).rejects.toMatchObject({
+      await expect(service.createStudent({
+        ...VALID_ENROLLMENT_PAYLOAD,
+        guardian: undefined,
+      } as any)).rejects.toMatchObject({
         statusCode: 400,
         message: expect.stringContaining('guardian'),
       });
@@ -205,7 +207,7 @@ describe('StudentService', () => {
     });
 
     it('should use parent as fallback when guardian is missing', async () => {
-      repo.createNestedStudent.mockResolvedValue({ id: 'new-1', studentId: 'STU-X', studentName: 'Jane' });
+      (repo.createNestedStudent as any).mockResolvedValue({ id: 'new-1', studentId: 'STU-X', studentName: 'Jane' });
 
       const payload = { ...VALID_ENROLLMENT_PAYLOAD, guardian: undefined, parent: VALID_ENROLLMENT_PAYLOAD.guardian };
       const result = await service.createStudent(payload);
@@ -216,7 +218,7 @@ describe('StudentService', () => {
 
     it('should calculate balance as feeTier amount minus initial deposit', async () => {
       (prisma.feeTier.findUnique as any).mockResolvedValue({ code: 'TIER-A', amount: '2000' });
-      repo.createNestedStudent.mockResolvedValue({ id: 'new-1', studentId: 'STU-X', studentName: 'Jane' });
+      (repo.createNestedStudent as any).mockResolvedValue({ id: 'new-1', studentId: 'STU-X', studentName: 'Jane' });
 
       await service.createStudent({
         ...VALID_ENROLLMENT_PAYLOAD,
@@ -229,7 +231,7 @@ describe('StudentService', () => {
 
     it('should handle missing feeTier gracefully (balance = full deposit)', async () => {
       (prisma.feeTier.findUnique as any).mockResolvedValue(null);
-      repo.createNestedStudent.mockResolvedValue({ id: 'new-1', studentId: 'STU-X', studentName: 'Jane' });
+      (repo.createNestedStudent as any).mockResolvedValue({ id: 'new-1', studentId: 'STU-X', studentName: 'Jane' });
 
       await service.createStudent({
         ...VALID_ENROLLMENT_PAYLOAD,
@@ -244,7 +246,7 @@ describe('StudentService', () => {
   // ── getFinancialMatrix ──
   describe('getFinancialMatrix', () => {
     it('should aggregate invoice and payment totals per student', async () => {
-      repo.findWithFinancialData.mockResolvedValue([
+      (repo.findWithFinancialData as any).mockResolvedValue([
         { id: 's1', studentId: 'STU-1', studentName: 'A', status: 'ACTIVE', account: {}, invoices: [], payments: [] },
         { id: 's2', studentId: 'STU-2', studentName: 'B', status: 'ACTIVE', account: {}, invoices: [], payments: [] },
       ]);
@@ -260,24 +262,24 @@ describe('StudentService', () => {
 
       expect(result).toHaveLength(2);
       // Student s1: invoiced 2000, paid 1500 → Partial
-      expect(result[0].amountPaid).toBe(1500);
-      expect(result[0].balanceRemaining).toBe(500);
-      expect(result[0].feesStatus).toBe('Partial');
+      expect(result[0]!.amountPaid).toBe(1500);
+      expect(result[0]!.balanceRemaining).toBe(500);
+      expect(result[0]!.feesStatus).toBe('Partial');
       // Student s2: no invoices, no payments → Unpaid
-      expect(result[1].amountPaid).toBe(0);
-      expect(result[1].feesStatus).toBe('Unpaid');
+      expect(result[1]!.amountPaid).toBe(0);
+      expect(result[1]!.feesStatus).toBe('Unpaid');
     });
 
     it('should mark as Paid when balance is 0 and payments exist', async () => {
-      repo.findWithFinancialData.mockResolvedValue([
+      (repo.findWithFinancialData as any).mockResolvedValue([
         { id: 's1', studentId: 'STU-1', studentName: 'A', status: 'ACTIVE', account: {}, invoices: [{ invoiceNo: 'INV-1', amount: '1000', createdAt: new Date() }], payments: [{ receiptNo: 'PAY-1', amount: '1000', paymentType: 'Cash', createdAt: new Date() }] },
       ]);
       (prisma.invoice.groupBy as any).mockResolvedValue([{ studentId: 's1', _sum: { amount: '1000' } }]);
       (prisma.payment.groupBy as any).mockResolvedValue([{ studentId: 's1', _sum: { amount: '1000' } }]);
 
       const result = await service.getFinancialMatrix();
-      expect(result[0].feesStatus).toBe('Paid');
-      expect(result[0].lastTransactionId).toBe('PAY-1');
+      expect(result[0]!.feesStatus).toBe('Paid');
+      expect(result[0]!.lastTransactionId).toBe('PAY-1');
     });
   });
 });

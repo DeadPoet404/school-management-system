@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- test mocks use any for flexibility */
 import { vi } from 'vitest';
 import type {
   IStudentRepository,
@@ -6,13 +7,10 @@ import type {
   IFinanceRepository,
   IGradesRepository,
   IAttendanceRepository,
+  ITimetableRepository,
   TransactionClient,
 } from '@/types/repositories';
 
-/**
- * Creates a mock IStudentRepository with all methods as vi.fn().
- * Pass overrides to replace specific methods with custom implementations.
- */
 export function createMockStudentRepo(overrides?: Partial<IStudentRepository>): IStudentRepository {
   return {
     findAll: vi.fn(),
@@ -30,9 +28,6 @@ export function createMockStudentRepo(overrides?: Partial<IStudentRepository>): 
   };
 }
 
-/**
- * Creates a mock ITeacherRepository with all methods as vi.fn().
- */
 export function createMockTeacherRepo(overrides?: Partial<ITeacherRepository>): ITeacherRepository {
   return {
     findAllActive: vi.fn(),
@@ -49,9 +44,6 @@ export function createMockTeacherRepo(overrides?: Partial<ITeacherRepository>): 
   };
 }
 
-/**
- * Creates a mock IStaffRepository with all methods as vi.fn().
- */
 export function createMockStaffRepo(overrides?: Partial<IStaffRepository>): IStaffRepository {
   return {
     findAllActive: vi.fn(),
@@ -68,35 +60,34 @@ export function createMockStaffRepo(overrides?: Partial<IStaffRepository>): ISta
   };
 }
 
-/**
- * Creates a mock IFinanceRepository with all methods as vi.fn().
- */
 export function createMockFinanceRepo(overrides?: Partial<IFinanceRepository>): IFinanceRepository {
   return {
-    // Fee structures
     findAllFeeConfigurations: vi.fn(),
     findFeeConfigBySection: vi.fn(),
     deleteFeeConfigBySection: vi.fn(),
     createFeeConfig: vi.fn(),
-    // Payment collections
     findCollectionsBySection: vi.fn(),
     findCollectionsBySectionPaginated: vi.fn(),
     countCollectionsBySection: vi.fn(),
     countCollections: vi.fn(),
+    findAllCollections: vi.fn(),
+    countAllCollections: vi.fn(),
     createCollection: vi.fn(),
-    // Student financials
     findStudentsBySection: vi.fn(),
     findStudentsMinimalBySection: vi.fn(),
     findExistingInvoice: vi.fn(),
+    findExistingInvoiceStudentIds: vi.fn().mockResolvedValue(new Set()),
     countInvoices: vi.fn(),
     createInvoice: vi.fn(),
     findOldestUnpaidInvoice: vi.fn(),
     markInvoicePaid: vi.fn(),
+    applyPaymentToInvoice: vi.fn(),
+    findAllInvoices: vi.fn(),
+    countAllInvoices: vi.fn(),
     decrementBillingLedger: vi.fn(),
     upsertBillingLedger: vi.fn(),
     countStudentPayments: vi.fn(),
     createStudentPayment: vi.fn(),
-    // General ledger & payroll
     findAllLedgerAccounts: vi.fn(),
     countLedgerAccounts: vi.fn(),
     createLedgerAccount: vi.fn(),
@@ -112,26 +103,29 @@ export function createMockFinanceRepo(overrides?: Partial<IFinanceRepository>): 
   };
 }
 
-/**
- * Creates a mock IGradesRepository with all methods as vi.fn().
- */
 export function createMockGradesRepo(overrides?: Partial<IGradesRepository>): IGradesRepository {
   return {
     upsertGradeRecord: vi.fn(),
     getAllStudentGrades: vi.fn(),
     updateStudentGpa: vi.fn(),
+    findTeacherAllocation: vi.fn().mockResolvedValue(true),
     ...overrides,
   };
 }
 
-/**
- * Creates a mock IAttendanceRepository with all methods as vi.fn().
- */
 export function createMockAttendanceRepo(overrides?: Partial<IAttendanceRepository>): IAttendanceRepository {
   return {
     recordBulkAttendance: vi.fn(),
     getStudentAttendanceCounts: vi.fn(),
     updateStudentAttendanceRate: vi.fn(),
+    ...overrides,
+  };
+}
+
+export function createMockTimetableRepo(overrides?: Partial<ITimetableRepository>): ITimetableRepository {
+  return {
+    findAllConfigurations: vi.fn(),
+    replaceSectionConfig: vi.fn(),
     ...overrides,
   };
 }

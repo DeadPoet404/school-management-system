@@ -248,14 +248,15 @@ export class StudentService {
     });
   }
 
-  async update(id: string, payload: any) {
+  async update(id: string, payload: Record<string, unknown>) {
     const student = await this.repo.findById(id);
     if (!student) throw new AppError(404, `Student not found with ID: ${id}`);
     if (student.status === 'DEPARTED') throw new AppError(409, 'Cannot update a departed student.');
 
-    const data: any = { ...payload };
-    if (data.demographics?.dateOfBirth) {
-      data.demographics.dateOfBirth = new Date(data.demographics.dateOfBirth);
+    const data: Record<string, unknown> = { ...payload };
+    const demo = data.demographics as Record<string, unknown> | undefined;
+    if (demo?.dateOfBirth && typeof demo.dateOfBirth === 'string') {
+      demo.dateOfBirth = new Date(demo.dateOfBirth);
     }
 
     return this.repo.update(id, data);

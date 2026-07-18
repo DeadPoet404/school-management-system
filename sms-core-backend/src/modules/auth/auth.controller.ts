@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { AppError } from '@/middleware/error.handler';
 import { AuthenticatedRequest } from '@/middleware/auth.middleware';
 import { AuthService } from './auth.service';
+import { blockToken } from '@/lib/token-blocklist';
 
 const loginSchema = z.object({
   email: z.string().email('A valid email address is required'),
@@ -32,7 +33,7 @@ export class AuthController {
     try {
       const parsed = loginSchema.safeParse(req.body);
       if (!parsed.success) {
-        throw new AppError(400, parsed.error.issues[0].message);
+        throw new AppError(400, parsed.error.issues[0]!.message);
       }
 
       const { email, password } = parsed.data;
@@ -96,6 +97,10 @@ export class AuthController {
     try {
       const refreshTokenValue = req.cookies?.refresh_token;
       await this.authService.logout(refreshTokenValue || '');
+
+      // Block the access token immediately so it cannot be reused
+      const accessToken = req.cookies?.access_token;
+      if (accessToken) blockToken(accessToken);
 
       const isProduction = process.env.NODE_ENV === 'production';
       const clearOpts = { httpOnly: true, secure: isProduction, sameSite: 'strict' as const, path: '/', maxAge: 0 };

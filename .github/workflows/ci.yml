@@ -8,7 +8,7 @@ on:
 
 jobs:
   backend-ci:
-    name: Backend (Lint + Build)
+    name: Backend (Lint + Build + Test)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -23,10 +23,13 @@ jobs:
       - run: npm ci
       - run: npx prisma generate
       - run: npm run lint
-      - run: npx prisma generate
-      - run: npm run lint
       - run: npm run build
       - run: npm run test
+      - run: npm run test:coverage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: sms-core-backend/coverage/
 
   frontend-ci:
     name: Frontend (Lint + Build)

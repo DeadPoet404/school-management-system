@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { AppError } from './error.handler';
 import { JwtPayload } from '@/types/auth.types';
+import { isTokenBlocked, isUserInvalidated } from '@/lib/token-blocklist';
 
 export interface AuthenticatedRequest extends Request {
   user?: JwtPayload;
@@ -26,6 +27,17 @@ export function authenticate(req: AuthenticatedRequest, res: Response, next: Nex
 
   try {
     const decoded = jwt.verify(token, secret, { algorithms: ['HS256'] }) as JwtPayload;
+
+    // Reject tokens that have been explicitly blocked (e.g., logout)
+    if (isTokenBlocked(token)) {
+      return next(new AppError(401, 'Token has been revoked.'));
+    }
+
+    // Reject tokens issued before a user-level invalidation (e.g., password change)
+    if (isUserInvalidated(decoded.sub, decoded.iat)) {
+      return next(new AppError(401, 'Session has been invalidated. Please log in again.'));
+    }
+
     req.user = decoded;
     next();
   } catch (err) {

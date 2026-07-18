@@ -4,4 +4,5 @@ export interface JwtPayload {
   role: string;                     // STUDENT | STAFF | FACULTY
   entityType: 'STUDENT' | 'STAFF' | 'TEACHER';  // Which account table was matched
   entityInternalId: string;         // Student.id or Staff.id for downstream queries
+  iat?: number;                     // Auto-injected by jwt.sign(), used for token invalidation
 }

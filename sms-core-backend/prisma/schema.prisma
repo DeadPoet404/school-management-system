@@ -219,6 +219,7 @@ model Invoice {
   updatedAt   DateTime  @updatedAt
 
   // ── ADD THESE TWO LINES ──
+  paidAmount Decimal @default(0) @db.Decimal(10, 2)
   status   InvoiceStatus @default(UNPAID)
   configId String?
 

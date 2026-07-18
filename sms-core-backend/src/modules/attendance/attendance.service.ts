@@ -41,15 +41,15 @@ export class AttendanceService {
       await this.attendanceRepo.getStudentAttendanceCounts(studentId);
 
     const metrics: Record<AttendanceStatus, number> = {
-      PRESENT: presentCount,
-      ABSENT: absentCount,
-      LATE: lateCount,
-      EXCUSED: excusedCount,
+      PRESENT: presentCount ?? 0,
+      ABSENT: absentCount ?? 0,
+      LATE: lateCount ?? 0,
+      EXCUSED: excusedCount ?? 0,
     };
 
     const rate =
       totalCount > 0
-        ? ((presentCount + lateCount) / totalCount) * 100
+        ? (((presentCount ?? 0) + (lateCount ?? 0)) / totalCount) * 100
         : 100.0;
 
     return {

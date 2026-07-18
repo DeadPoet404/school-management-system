@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import { prisma } from '@/lib/prisma';
 async function run() {
   const staff = await prisma.staffAccount.findMany({ select: { email: true }, take: 5 });

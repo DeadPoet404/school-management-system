@@ -15,7 +15,7 @@ const gradesController = new GradesController(gradesService);
 
 router.post(
   "/submit",
-  requireRole(ROLES.FACULTY),
+  requireRole(ROLES.FACULTY, ROLES.ADMIN),
   validate(submitMarkSchema),
   gradesController.submitMark
 );

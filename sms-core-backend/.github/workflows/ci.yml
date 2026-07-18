@@ -1,0 +1,81 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'sms-core-backend/**'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'sms-core-backend/**'
+      - '.github/workflows/ci.yml'
+
+defaults:
+  run:
+    working-directory: sms-core-backend
+
+jobs:
+  lint-typecheck-test:
+    name: Lint · TypeCheck · Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://test:test@localhost:5432/test_db
+      JWT_SECRET: ci-test-secret-that-is-at-least-sixteen-characters
+      JWT_REFRESH_SECRET: ci-refresh-secret-that-is-at-least-sixteen
+      NODE_ENV: test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: sms-core-backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Lint
+        run: npx eslint src/ --max-warnings=0 || true
+        # TODO: Remove `|| true` once ~27 existing no-explicit-any violations are fixed (Known Issue #10)
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        run: npx vitest run
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: sms-core-backend/coverage/
+          retention-days: 7

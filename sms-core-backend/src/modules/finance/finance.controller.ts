@@ -29,8 +29,8 @@ export class FinanceController {
     try {
       const { sectionId } = req.params;
       const { page, limit, skip } = parsePaginationQuery(req.query);
-      const history = await this.financeService.getInflowLedgerBySection(sectionId, skip, limit);
-      const total = await this.financeService.countCollectionsBySection(sectionId);
+      const history = await this.financeService.getInflowLedgerBySection(sectionId!, skip, limit);
+      const total = await this.financeService.countCollectionsBySection(sectionId!);
       return res.status(200).json(buildPaginationResponse(history, total, page, limit));
     } catch (error) { next(error); }
   };
@@ -45,7 +45,7 @@ export class FinanceController {
   getStudentsBySection = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { sectionId } = req.params;
-      const students = await this.financeService.getStudentsBySection(sectionId);
+      const students = await this.financeService.getStudentsBySection(sectionId!);
       return res.status(200).json({ success: true, data: students });
     } catch (error) { next(error); }
   };
@@ -56,6 +56,35 @@ export class FinanceController {
       if (!sectionId) return res.status(400).json({ success: false, message: "Missing sectionId payload." });
       const result = await this.financeService.generateInvoicesForSection(sectionId);
       return res.status(201).json({ success: true, message: result.message, totalAmount: result.totalAmount });
+    } catch (error) { next(error); }
+  };
+
+  getCollections = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { page, limit, skip } = parsePaginationQuery(req.query);
+      const { data, total } = await this.financeService.getPaginatedCollections(skip, limit);
+
+      if (req.query.format === "csv") {
+        const allData = await this.financeService.getAllCollections();
+        return respondCSV(res, toCSV(allData), "collections");
+      }
+
+      return res.status(200).json(buildPaginationResponse(data, total, page, limit));
+    } catch (error) { next(error); }
+  };
+
+
+  getInvoices = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { page, limit, skip } = parsePaginationQuery(req.query);
+      const { data, total } = await this.financeService.getPaginatedInvoices(skip, limit);
+
+      if (req.query.format === "csv") {
+        const allData = await this.financeService.getAllInvoices();
+        return respondCSV(res, toCSV(allData), "invoices");
+      }
+
+      return res.status(200).json(buildPaginationResponse(data, total, page, limit));
     } catch (error) { next(error); }
   };
 

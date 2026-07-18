@@ -80,8 +80,8 @@ export class StaffRepository implements IStaffRepository {
     });
   }
 
-  async update(id: string, data: any, tx = prisma) {
-    const updateData: any = {};
+    async update(id: string, data: Record<string, unknown>, tx = prisma) {
+    const updateData: Record<string, unknown> = {};
     if (data.staffName) updateData.staffName = data.staffName;
     if (data.demographics) updateData.demographics = { update: data.demographics };
     if (data.placement) updateData.placement = { update: data.placement };

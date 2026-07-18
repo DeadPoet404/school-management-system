@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- repository return types are intentionally loose -- typed at service layer */
 import { Prisma, EntityStatus, DepartureType, InvoiceStatus, PersonnelDepartureType, TreasuryClearanceStatus } from "@prisma/client";
 
 // ── Shared transaction client type ──
@@ -131,6 +132,7 @@ export interface IGradesRepository {
   upsertGradeRecord(data: GradeRecordUpsertData, tx?: TransactionClient): Promise<any>;
   getAllStudentGrades(studentInternalId: string, tx?: TransactionClient): Promise<any>;
   updateStudentGpa(studentInternalId: string, gpa: number, tx?: TransactionClient): Promise<any>;
+  findTeacherAllocation(teacherId: string, subjectName: string, sectionId: string, tx?: TransactionClient): Promise<boolean>;
 }
 
 export interface IFinanceRepository {
@@ -144,15 +146,21 @@ export interface IFinanceRepository {
   findCollectionsBySectionPaginated(sectionId: string, skip: number, take: number, tx?: TransactionClient): Promise<any>;
   countCollectionsBySection(sectionId: string, tx?: TransactionClient): Promise<any>;
   countCollections(tx?: TransactionClient): Promise<any>;
+  findAllCollections(skip?: number, take?: number, tx?: TransactionClient): Promise<any>;
+  countAllCollections(tx?: TransactionClient): Promise<number>;
   createCollection(data: CollectionCreateData, tx?: TransactionClient): Promise<any>;
   // Student financials
   findStudentsBySection(sectionId: string, tx?: TransactionClient): Promise<any>;
   findStudentsMinimalBySection(sectionId: string, tx?: TransactionClient): Promise<any>;
   findExistingInvoice(studentId: string, configId: string, tx?: TransactionClient): Promise<any>;
+  findExistingInvoiceStudentIds(studentIds: string[], configId: string, tx?: TransactionClient): Promise<Set<string>>;
   countInvoices(tx?: TransactionClient): Promise<any>;
   createInvoice(data: InvoiceCreateData, tx?: TransactionClient): Promise<any>;
   findOldestUnpaidInvoice(studentId: string, tx?: TransactionClient): Promise<any>;
   markInvoicePaid(invoiceId: string, tx?: TransactionClient): Promise<any>;
+  applyPaymentToInvoice(invoiceId: string, amount: number, tx?: TransactionClient): Promise<any>;
+  findAllInvoices(skip?: number, take?: number, tx?: TransactionClient): Promise<any>;
+  countAllInvoices(tx?: TransactionClient): Promise<number>;
   decrementBillingLedger(studentId: string, amount: number, tx?: TransactionClient): Promise<any>;
   upsertBillingLedger(studentId: string, feeTierId: string, amount: number, tx?: TransactionClient): Promise<any>;
   countStudentPayments(tx?: TransactionClient): Promise<any>;
@@ -175,4 +183,18 @@ export interface IAttendanceRepository {
   recordBulkAttendance(records: AttendanceRecordCreateData[], tx?: TransactionClient): Promise<any>;
   getStudentAttendanceCounts(studentInternalId: string, tx?: TransactionClient): Promise<any>;
   updateStudentAttendanceRate(studentInternalId: string, rate: number, tx?: TransactionClient): Promise<any>;
+}
+
+export interface ITimetableRepository {
+  findAllConfigurations(tx?: TransactionClient): Promise<any>;
+  replaceSectionConfig(
+    sectionId: string,
+    data: {
+      periodsCount: number;
+      periods: Array<{ startTime: string; endTime: string }>;
+      breaks: Array<{ name: string; startTime: string; endTime: string }>;
+      subjects: Array<{ subjectName: string; teacherId: string }>;
+    },
+    tx?: TransactionClient
+  ): Promise<any>;
 }

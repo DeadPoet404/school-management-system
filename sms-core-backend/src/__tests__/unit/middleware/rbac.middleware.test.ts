@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- test mocks use any for flexibility */
 import { describe, it, expect, vi } from 'vitest';
 import { requireRole, ROLES } from '@/middleware/rbac.middleware';
 import { AuthenticatedRequest } from '@/middleware/auth.middleware';
@@ -13,7 +14,7 @@ describe('requireRole middleware', () => {
     const next = vi.fn();
     middleware({} as AuthenticatedRequest, mockRes() as any, next);
     expect(next).toHaveBeenCalledWith(expect.any(AppError));
-    expect((next.mock.calls[0][0] as AppError).statusCode).toBe(401);
+    expect((next.mock.calls[0]![0]! as AppError).statusCode).toBe(401);
   });
 
   it('should return 403 if user role not allowed', () => {
@@ -21,7 +22,7 @@ describe('requireRole middleware', () => {
     const next = vi.fn();
     middleware({ user: { role: 'STUDENT' } } as AuthenticatedRequest, mockRes() as any, next);
     expect(next).toHaveBeenCalledWith(expect.any(AppError));
-    expect((next.mock.calls[0][0] as AppError).statusCode).toBe(403);
+    expect((next.mock.calls[0]![0]! as AppError).statusCode).toBe(403);
   });
 
   it('should call next() with no args if role is allowed', () => {
@@ -46,6 +47,6 @@ describe('requireRole middleware', () => {
     const next = vi.fn();
     middleware({ user: { role: 'ACCOUNTANT' } } as AuthenticatedRequest, mockRes() as any, next);
     expect(next).toHaveBeenCalledWith(expect.any(AppError));
-    expect((next.mock.calls[0][0] as AppError).statusCode).toBe(403);
+    expect((next.mock.calls[0]![0]! as AppError).statusCode).toBe(403);
   });
 });

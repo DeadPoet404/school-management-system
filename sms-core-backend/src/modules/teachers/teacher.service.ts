@@ -328,20 +328,21 @@ export class TeacherService {
     });
   }
 
-  // TODO: P1-4 — Phase 3 Task 3.2: Replace `any` types with proper interfaces
-  async update(id: string, payload: any) {
+  async update(id: string, payload: Record<string, unknown>) {
     const teacher = await this.repo.findById(id);
     if (!teacher) throw new AppError(404, `Teacher not found with ID: ${id}`);
     if (teacher.status === 'DEPARTED') throw new AppError(409, 'Cannot update a departed teacher.');
 
-    const data: any = { ...payload };
-    if (data.demographics?.dateOfBirth) {
-      data.demographics.dateOfBirth = new Date(data.demographics.dateOfBirth);
+    const data: Record<string, unknown> = { ...payload };
+    const demo = data.demographics as Record<string, unknown> | undefined;
+    if (demo?.dateOfBirth && typeof demo.dateOfBirth === 'string') {
+      demo.dateOfBirth = new Date(demo.dateOfBirth);
     }
     if (data.payroll) {
-      if (data.payroll.baseSalary !== undefined) data.payroll.baseSalary = parseFloat(String(data.payroll.baseSalary)) || 0;
-      if (data.payroll.deductions !== undefined) data.payroll.deductions = parseFloat(String(data.payroll.deductions)) || 0;
-      if (data.payroll.netPay !== undefined) data.payroll.netPay = parseFloat(String(data.payroll.netPay)) || 0;
+      const pay = data.payroll as Record<string, unknown>;
+      if (pay.baseSalary !== undefined) pay.baseSalary = parseFloat(String(pay.baseSalary)) || 0;
+      if (pay.deductions !== undefined) pay.deductions = parseFloat(String(pay.deductions)) || 0;
+      if (pay.netPay !== undefined) pay.netPay = parseFloat(String(pay.netPay)) || 0;
     }
 
     return this.repo.update(id, data);
