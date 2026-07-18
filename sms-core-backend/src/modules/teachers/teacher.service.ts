@@ -71,14 +71,90 @@ export class TeacherService {
   }
 
   async getPaginatedTeachers(skip: number, take: number) {
+    return this.getFilteredPaginated({}, skip, take);
+  }
+
+  async getAllFiltered(filters: {
+    search?: string;
+    status?: string;
+    department?: string;
+    subject?: string;
+    employmentType?: string;
+    gender?: string;
+  }) {
+    const where = this.buildWhereClause(filters);
+    const raw = await this.repo.findAllFiltered(where);
+    return (raw as TeacherWithRelations[]).map((t) => this.mapTeacher(t));
+  }
+
+    async getFilteredPaginated(filters: {
+    search?: string;
+    status?: string;
+    department?: string;
+    subject?: string;
+    employmentType?: string;
+    gender?: string;
+  }, skip: number, take: number) {
+    const where = this.buildWhereClause(filters);
     const [rawTeachers, total] = await Promise.all([
-      this.repo.findAllActive(skip, take),
-      this.repo.countActive(),
+      this.repo.findAllFiltered(where, skip, take),
+      this.repo.countFiltered(where),
     ]);
     return {
       data: (rawTeachers as TeacherWithRelations[]).map((t) => this.mapTeacher(t)),
       total,
     };
+  }
+
+  private buildWhereClause(filters: {
+    search?: string;
+    status?: string;
+    department?: string;
+    subject?: string;
+    employmentType?: string;
+    gender?: string;
+  }): Prisma.TeacherWhereInput {
+    const where: Prisma.TeacherWhereInput = {};
+
+    // Default: exclude DEPARTED unless explicitly requested
+    if (filters.status?.trim()) {
+      where.status = filters.status.trim() as EntityStatus;
+    } else {
+      where.status = { not: "DEPARTED" };
+    }
+
+    if (filters.search?.trim()) {
+      const term = filters.search.trim();
+      where.OR = [
+        { teacherName: { contains: term, mode: 'insensitive' } },
+        { teacherId: { contains: term, mode: 'insensitive' } },
+        { email: { contains: term, mode: 'insensitive' } },
+      ];
+    }
+
+    if (filters.department?.trim()) {
+      where.department = { contains: filters.department.trim(), mode: 'insensitive' };
+    }
+
+    if (filters.subject?.trim()) {
+      where.subject = { contains: filters.subject.trim(), mode: 'insensitive' };
+    }
+
+    if (filters.employmentType?.trim()) {
+      where.employmentType = filters.employmentType.trim();
+    }
+
+    if (filters.gender?.trim()) {
+      where.demographics = { gender: filters.gender.trim() };
+    }
+
+    return where;
+  }
+
+  async getById(id: string) {
+    const teacher = await this.repo.findById(id);
+    if (!teacher) throw new AppError(404, `Teacher not found with ID: ${id}`);
+    return this.mapTeacher(teacher as TeacherWithRelations);
   }
 
   async createTeacher(payload: {

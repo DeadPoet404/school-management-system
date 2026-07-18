@@ -47,7 +47,7 @@ export const studentEnrollmentSchema = z.object({
 
 // Teacher Enrollment Shape
 export const teacherEnrollmentSchema = z.object({
-  account: baseAccountSchema.extend({ role: z.literal("TEACHER") }),
+  account: baseAccountSchema,
   demographics: z.object({
     dateOfBirth: z.string().min(1),
     gender: z.string().min(1),
@@ -61,8 +61,7 @@ export const teacherEnrollmentSchema = z.object({
     departmentId: z.string().min(1, "Department assignment tag is required."),
     jobTitle: z.string().min(1, "Core academic designation title is required."),
     employmentType: z.string().min(1, "Employment type classification is mandatory."),
-    teachingSchedule: z.string().min(1),
-  }),
+  }).optional(),
   compliance: z.object({
     nationalId: z.string().min(1, "Statutory ID registration reference is required."),
     ssnitNumber: z.string().min(1, "SSNIT registration parameters are mandatory."),
@@ -70,13 +69,13 @@ export const teacherEnrollmentSchema = z.object({
       name: z.string().min(1),
       phone: z.string().min(1),
     }),
-  }),
+  }).optional(),
   payroll: z.object({
     clearanceTier: z.string().min(1),
     baseSalary: z.number().nonnegative(),
     bankName: z.string().min(1),
     bankAccount: z.string().min(1),
-  }),
+  }).optional(),
 });
 
 // Staff Enrollment Shape

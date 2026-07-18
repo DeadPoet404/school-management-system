@@ -22,6 +22,7 @@ router.get("/matrix", requireRole(ROLES.ADMIN, ROLES.ACCOUNTANT), staffControlle
 
 // ── CORE REGISTRY ENTRIES ──
 router.get("/", requireRole(ROLES.ADMIN, ROLES.ACCOUNTANT), staffController.getAllStaff);
+router.get("/:id", requireRole(ROLES.ADMIN, ROLES.ACCOUNTANT), staffController.getStaffById);
 router.post("/", requireRole(ROLES.STAFF, ROLES.ADMIN), validate(staffEnrollmentSchema), staffController.createStaff);
 
 // ── UPDATE ──

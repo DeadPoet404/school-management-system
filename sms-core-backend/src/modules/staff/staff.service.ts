@@ -66,14 +66,91 @@ export class StaffService {
   }
 
   async getPaginatedStaff(skip: number, take: number) {
+    return this.getFilteredPaginated({}, skip, take);
+  }
+
+  async getAllFiltered(filters: {
+    search?: string;
+    status?: string;
+    departmentId?: string;
+    jobTitle?: string;
+    employmentType?: string;
+    gender?: string;
+  }) {
+    const where = this.buildWhereClause(filters);
+    const raw = await this.repo.findAllFiltered(where);
+    return (raw as StaffWithRelations[]).map((s) => this.mapStaff(s));
+  }
+
+    async getFilteredPaginated(filters: {
+    search?: string;
+    status?: string;
+    departmentId?: string;
+    jobTitle?: string;
+    employmentType?: string;
+    gender?: string;
+  }, skip: number, take: number) {
+    const where = this.buildWhereClause(filters);
     const [rawStaff, total] = await Promise.all([
-      this.repo.findAllActive(skip, take),
-      this.repo.countActive(),
+      this.repo.findAllFiltered(where, skip, take),
+      this.repo.countFiltered(where),
     ]);
     return {
       data: (rawStaff as StaffWithRelations[]).map((s) => this.mapStaff(s)),
       total,
     };
+  }
+
+  private buildWhereClause(filters: {
+    search?: string;
+    status?: string;
+    departmentId?: string;
+    jobTitle?: string;
+    employmentType?: string;
+    gender?: string;
+  }): Prisma.StaffWhereInput {
+    const where: Prisma.StaffWhereInput = {};
+
+    // Default: exclude DEPARTED unless explicitly requested
+    if (filters.status?.trim()) {
+      where.status = filters.status.trim() as EntityStatus;
+    } else {
+      where.status = { not: "DEPARTED" };
+    }
+
+    if (filters.search?.trim()) {
+      const term = filters.search.trim();
+      where.OR = [
+        { staffName: { contains: term, mode: 'insensitive' } },
+        { staffId: { contains: term, mode: 'insensitive' } },
+      ];
+    }
+
+    const placementFilter: Prisma.StaffPlacementWhereInput = {};
+    if (filters.departmentId?.trim()) {
+      placementFilter.departmentId = filters.departmentId.trim();
+    }
+    if (filters.jobTitle?.trim()) {
+      placementFilter.jobTitle = { contains: filters.jobTitle.trim(), mode: 'insensitive' };
+    }
+    if (filters.employmentType?.trim()) {
+      placementFilter.employmentType = filters.employmentType.trim();
+    }
+    if (Object.keys(placementFilter).length > 0) {
+      where.placement = placementFilter;
+    }
+
+    if (filters.gender?.trim()) {
+      where.demographics = { gender: filters.gender.trim() };
+    }
+
+    return where;
+  }
+
+  async getById(id: string) {
+    const staff = await this.repo.findById(id);
+    if (!staff) throw new AppError(404, `Staff member not found with ID: ${id}`);
+    return this.mapStaff(staff as StaffWithRelations);
   }
 
   async getWorkforceMatrix() {

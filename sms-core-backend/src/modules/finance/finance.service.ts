@@ -92,7 +92,7 @@ export class FinanceService {
   }) {
     return await prisma.$transaction(async (tx) => {
       const count = await this.repo.countCollections(tx);
-      const uniqueSerial = generateSerial('REC-2026', count);
+      const uniqueSerial = generateSerial(`REC-${new Date().getFullYear()}`, count);
       
       const collectionRecord = await this.repo.createCollection({
         receiptNumber: uniqueSerial,
@@ -110,7 +110,7 @@ export class FinanceService {
         await this.repo.decrementBillingLedger(data.studentInternalId, numericAmount, tx);
 
         const paymentCount = await this.repo.countStudentPayments(tx);
-        const paymentReceiptNo = generateSerial('PAY-2026', paymentCount);
+        const paymentReceiptNo = generateSerial(`PAY-${new Date().getFullYear()}`, paymentCount);
 
         await this.repo.createStudentPayment({
           receiptNo: paymentReceiptNo,

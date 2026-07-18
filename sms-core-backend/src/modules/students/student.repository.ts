@@ -27,6 +27,31 @@ export class StudentRepository implements IStudentRepository {
     return tx.student.count();
   }
 
+  async findAllFiltered(where: Prisma.StudentWhereInput, skip?: number, take?: number, tx = prisma) {
+    return tx.student.findMany({
+      where,
+      skip: skip ?? undefined,
+      take: take ?? undefined,
+      include: {
+        account: { select: { id: true, studentId: true, portalEmail: true } },
+        demographics: true,
+        placement: true,
+        compliance: true,
+        guardians: true,
+        billing: true,
+        invoices: true,
+        payments: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+  }
+
+  async countFiltered(where: Prisma.StudentWhereInput, tx = prisma) {
+    return tx.student.count({ where });
+  }
+
   async findById(id: string, tx = prisma) {
     return tx.student.findUnique({
       where: { id },

@@ -1,9 +1,10 @@
 import { init } from "@paralleldrive/cuid2";
 
-// Generates a secure, highly optimized, non-colliding sequential fingerprint block
+// Generates a secure, highly optimized, non-colliding sequential fingerprint block.
+// Includes current year so the fingerprint rotates annually across deployments.
 const generateSecureCounter = init({
   length: 6,
-  fingerprint: "sms-backend-cluster-2026",
+  fingerprint: `sms-backend-cluster-${new Date().getFullYear()}`,
 });
 
 /**
@@ -22,7 +23,7 @@ export function formatInstitutionalId(prefix: string, deptCode: string): string 
  * Generates a sequential serial number string.
  * Combines timestamp entropy with a safe incremental counter to avoid collisions.
  *
- * Example: REC-2026-8941-0024
+ * Example: REC-2025-8941-0024  (year is dynamic)
  */
 export function generateSerial(
   prefix: string,

@@ -26,6 +26,27 @@ export class StaffRepository implements IStaffRepository {
     });
   }
 
+  async findAllFiltered(where: Prisma.StaffWhereInput, skip?: number, take?: number, tx = prisma) {
+    return tx.staff.findMany({
+      where,
+      skip: skip ?? undefined,
+      take: take ?? undefined,
+      include: {
+        account: { select: { email: true, role: true } },
+        demographics: true,
+        placement: true,
+        compliance: true,
+        payroll: true,
+        departures: true,
+      },
+      orderBy: { createdAt: "desc" }
+    });
+  }
+
+  async countFiltered(where: Prisma.StaffWhereInput, tx = prisma) {
+    return tx.staff.count({ where });
+  }
+
   async findByPublicId(staffId: string, tx = prisma) {
     return tx.staff.findUnique({ where: { staffId } });
   }

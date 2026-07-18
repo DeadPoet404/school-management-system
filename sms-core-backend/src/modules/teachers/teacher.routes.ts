@@ -19,6 +19,7 @@ router.post("/departure", requireRole(ROLES.STAFF, ROLES.ADMIN), validate(teache
 
 // ── CORE REGISTRY ENTRIES ──
 router.get("/", requireRole(ROLES.STAFF, ROLES.FACULTY, ROLES.ADMIN), teacherController.getAllTeachers);
+router.get("/:id", requireRole(ROLES.STAFF, ROLES.FACULTY, ROLES.ADMIN), teacherController.getTeacherById);
 router.post("/", requireRole(ROLES.STAFF, ROLES.ADMIN), validate(teacherEnrollmentSchema), teacherController.createTeacher);
 
 // ── UPDATE ──

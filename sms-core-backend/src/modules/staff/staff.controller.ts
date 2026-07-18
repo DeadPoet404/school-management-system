@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { StaffService } from "./staff.service";
 import { parsePaginationQuery, buildPaginationResponse } from "@/utils/pagination";
+import { toCSV, respondCSV } from "@/utils/export";
 
 export class StaffController {
   constructor(private staffService: StaffService) {}
@@ -8,8 +9,32 @@ export class StaffController {
   public getAllStaff = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
       const { page, limit, skip } = parsePaginationQuery(req.query);
-      const { data, total } = await this.staffService.getPaginatedStaff(skip, limit);
+      const filters = {
+        search: typeof req.query.search === 'string' ? req.query.search : undefined,
+        status: typeof req.query.status === 'string' ? req.query.status : undefined,
+        departmentId: typeof req.query.departmentId === 'string' ? req.query.departmentId : undefined,
+        jobTitle: typeof req.query.jobTitle === 'string' ? req.query.jobTitle : undefined,
+        employmentType: typeof req.query.employmentType === 'string' ? req.query.employmentType : undefined,
+        gender: typeof req.query.gender === 'string' ? req.query.gender : undefined,
+      };
+      const { data, total } = await this.staffService.getFilteredPaginated(filters, skip, limit);
+
+      if (req.query.format === "csv") {
+        const allData = await this.staffService.getAllFiltered(filters);
+        return respondCSV(res, toCSV(allData), "staff");
+      }
+
       return res.status(200).json(buildPaginationResponse(data, total, page, limit));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  public getStaffById = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+    try {
+      const { id } = req.params;
+      const staff = await this.staffService.getById(id);
+      return res.status(200).json({ success: true, data: staff });
     } catch (error) {
       next(error);
     }

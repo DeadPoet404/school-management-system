@@ -28,6 +28,27 @@ export class TeacherRepository implements ITeacherRepository {
     });
   }
 
+  async findAllFiltered(where: Prisma.TeacherWhereInput, skip?: number, take?: number, tx = prisma) {
+    return tx.teacher.findMany({
+      where,
+      skip: skip ?? undefined,
+      take: take ?? undefined,
+      include: {
+        demographics: true,
+        compliance: true,
+        payroll: true,
+        departures: true,
+      },
+      orderBy: {
+        createdAt: "desc"
+      },
+    });
+  }
+
+  async countFiltered(where: Prisma.TeacherWhereInput, tx = prisma) {
+    return tx.teacher.count({ where });
+  }
+
   async findByPublicId(teacherId: string, tx = prisma) {
     return tx.teacher.findUnique({
       where: { teacherId },

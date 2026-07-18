@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { FinanceService } from './finance.service';
 import { parsePaginationQuery, buildPaginationResponse } from '@/utils/pagination';
+import { toCSV, respondCSV } from '@/utils/export';
 
 export class FinanceController {
   constructor(private financeService: FinanceService) {}
@@ -62,6 +63,12 @@ export class FinanceController {
     try {
       const { page, limit, skip } = parsePaginationQuery(req.query);
       const { data, total } = await this.financeService.getPaginatedLedgers(skip, limit);
+
+      if (req.query.format === "csv") {
+        const allData = await this.financeService.getAllLedgers();
+        return respondCSV(res, toCSV(allData), "ledgers");
+      }
+
       return res.status(200).json(buildPaginationResponse(data, total, page, limit));
     } catch (error) { next(error); }
   };
@@ -77,6 +84,12 @@ export class FinanceController {
     try {
       const { page, limit, skip } = parsePaginationQuery(req.query);
       const { data, total } = await this.financeService.getPaginatedPayroll(skip, limit);
+
+      if (req.query.format === "csv") {
+        const allData = await this.financeService.getCombinedPayroll();
+        return respondCSV(res, toCSV(allData), "payroll");
+      }
+
       return res.status(200).json(buildPaginationResponse(data, total, page, limit));
     } catch (error) { next(error); }
   };

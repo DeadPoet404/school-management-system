@@ -17,6 +17,8 @@ const controller = new StudentController(studentService);
 // ── SPECIALIZED DOMAIN TARGETS ──
 router.get("/finance", requireRole(ROLES.STAFF, ROLES.ADMIN, ROLES.ACCOUNTANT), controller.getFinancialMatrix);
 
+router.get("/:id", requireRole(ROLES.STAFF, ROLES.FACULTY, ROLES.ADMIN, ROLES.ACCOUNTANT), controller.getStudentById);
+
 router.post(
   "/departure",
   requireRole(ROLES.STAFF, ROLES.ADMIN),

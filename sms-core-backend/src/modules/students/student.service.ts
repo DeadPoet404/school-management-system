@@ -1,6 +1,6 @@
 import { AppError } from '@/middleware/error.handler';
 import { prisma } from "@/lib/prisma";
-import { Prisma, DepartureType, TreasuryClearanceStatus } from "@prisma/client";
+import { Prisma, EntityStatus, DepartureType, TreasuryClearanceStatus } from "@prisma/client";
 import { IStudentRepository } from "@/types/repositories";
 import { StudentRepository } from "./student.repository";
 import { formatInstitutionalId } from "@/utils";
@@ -31,11 +31,82 @@ export class StudentService {
   }
 
   async getPaginated(skip: number, take: number) {
+    return this.getFilteredPaginated({}, skip, take);
+  }
+
+  async getAllFiltered(filters: {
+    search?: string;
+    status?: string;
+    classId?: string;
+    gender?: string;
+    boardingStatus?: string;
+  }) {
+    const where = this.buildWhereClause(filters);
+    return this.repo.findAllFiltered(where);
+  }
+
+    async getFilteredPaginated(filters: {
+    search?: string;
+    status?: string;
+    classId?: string;
+    gender?: string;
+    boardingStatus?: string;
+  }, skip: number, take: number) {
+    const where = this.buildWhereClause(filters);
     const [data, total] = await Promise.all([
-      this.repo.findAll(skip, take),
-      this.repo.count(),
+      this.repo.findAllFiltered(where, skip, take),
+      this.repo.countFiltered(where),
     ]);
     return { data, total };
+  }
+
+  private buildWhereClause(filters: {
+    search?: string;
+    status?: string;
+    classId?: string;
+    gender?: string;
+    boardingStatus?: string;
+  }): Prisma.StudentWhereInput {
+    const where: Prisma.StudentWhereInput = {};
+
+    if (filters.search?.trim()) {
+      const term = filters.search.trim();
+      where.OR = [
+        { studentName: { contains: term, mode: 'insensitive' } },
+        { studentId: { contains: term, mode: 'insensitive' } },
+      ];
+    }
+
+    if (filters.status?.trim()) {
+      where.status = filters.status.trim() as EntityStatus;
+    }
+
+    const placementFilter: Prisma.PlacementWhereInput = {};
+    if (filters.classId?.trim()) {
+      placementFilter.classId = filters.classId.trim();
+    }
+    if (filters.boardingStatus?.trim()) {
+      placementFilter.boardingStatus = filters.boardingStatus.trim();
+    }
+    if (Object.keys(placementFilter).length > 0) {
+      where.placement = placementFilter;
+    }
+
+    const demographicsFilter: Prisma.DemographicsWhereInput = {};
+    if (filters.gender?.trim()) {
+      demographicsFilter.gender = filters.gender.trim();
+    }
+    if (Object.keys(demographicsFilter).length > 0) {
+      where.demographics = demographicsFilter;
+    }
+
+    return where;
+  }
+
+  async getById(id: string) {
+    const student = await this.repo.findById(id);
+    if (!student) throw new AppError(404, `Student not found with ID: ${id}`);
+    return student;
   }
 
   async getFinancialMatrix() {
@@ -105,7 +176,7 @@ export class StudentService {
       throw new AppError(400, "Missing essential guardian contact relationships from structural payload.");
     }
 
-    const uniqueStudentId = formatInstitutionalId("STU", "2026");
+    const uniqueStudentId = formatInstitutionalId("STU", String(new Date().getFullYear()));
     const feeTier = await prisma.feeTier.findUnique({ where: { code: billing.feeTierId } });
     const baseTariff = feeTier ? Number(feeTier.amount) : 0;
     const computedBalance = Math.max(0, baseTariff - billing.initialDeposit);
