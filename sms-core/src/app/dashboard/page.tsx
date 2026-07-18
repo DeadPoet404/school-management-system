@@ -1,134 +1,139 @@
-"use client"
+ "use client"
+ import React, { useEffect, useState } from 'react'
+  import { UniversalBarChart, ChartDataPoint, MetricConfig } from '@/components/universal-bar-chart'
+  import { UniversalAreaMiniChart } from '@/components/universal-area-mini-chart'
+  import { UniversalLineMiniChart } from '@/components/universal-line-mini-chart'
+  import { UniversalBarMiniChart } from '@/components/universal-bar-mini-chart'
+  import { fetchWithAuth } from '@/lib/fetch-with-auth'
 
-import { useEffect, useState } from "react"
-import { GraduationCap, Users, UserCog, ArrowRight } from "lucide-react"
-import Link from "next/link"
-import { fetchWithAuth } from "@/lib/fetch-with-auth"
+  export default function DashboardPage() {
+    const [data, setData] = useState<ChartDataPoint[]>([])
+    const [isLoading, setIsLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
 
-export default function DashboardPage() {
-  const [kpis, setKpis] = useState({
-    students: null as number | null,
-    teachers: null as number | null,
-    staff: null as number | null,
-  })
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+    useEffect(() => {
+      async function loadMetrics() {
+        try {
+          setIsLoading(true)
+          setError(null)
 
-  useEffect(() => {
-    async function fetchKpis() {
-      try {
-        setIsLoading(true)
-        setError(null)
+          const [studentsRes, teachersRes, staffRes] = await Promise.all([
+            fetchWithAuth("/students?limit=1"),
+            fetchWithAuth("/teachers?limit=1"),
+            fetchWithAuth("/staff?limit=1"),
+          ])
 
-        const [studentsRes, teachersRes, staffRes] = await Promise.all([
-          fetchWithAuth("/students?limit=1"),
-          fetchWithAuth("/teachers?limit=1"),
-          fetchWithAuth("/staff?limit=1"),
-        ])
+          const [studentsData, teachersData, staffData] = await Promise.all([
+            studentsRes.json(),
+            teachersRes.json(),
+            staffRes.json(),
+          ])
 
-        const [studentsData, teachersData, staffData] = await Promise.all([
-          studentsRes.json(),
-          teachersRes.json(),
-          staffRes.json(),
-        ])
+          const studentTotal = studentsData.total ?? studentsData.pagination?.total ?? 0
+          const teacherTotal = teachersData.total ?? teachersData.pagination?.total ?? 0
+          const staffTotal = staffData.total ?? staffData.pagination?.total ?? 0
 
-        setKpis({
-          students: studentsData.total ?? studentsData.pagination?.total ?? null,
-          teachers: teachersData.total ?? teachersData.pagination?.total ?? null,
-          staff: staffData.total ?? staffData.pagination?.total ?? null,
-        })
-      } catch {
-        setError("Unable to load dashboard metrics.")
-      } finally {
-        setIsLoading(false)
+          setData([
+            { date: "Students", population: studentTotal, personnel: teacherTotal, support: staffTotal },
+            { date: "Teachers", population: studentTotal, personnel: teacherTotal, support: staffTotal },
+            { date: "Staff", population: studentTotal, personnel: teacherTotal, support: staffTotal },
+          ])
+        } catch {
+          setError("Unable to load dashboard metrics.")
+        } finally {
+          setIsLoading(false)
+        }
       }
+      loadMetrics()
+    }, [])
+
+    const metrics: MetricConfig[] = [
+      { key: "population", label: "Student Population", color: "#E85002" },
+      { key: "personnel", label: "Teaching Staff", color: "#18181b" },
+    ]
+
+    if (isLoading) {
+      return (
+        <div className="flex flex-col gap-4 p-2 md:p-1">
+          <div className="w-full bg-white rounded-xl border border-zinc-200 p-4 shadow-sm h-[320px] animate-pulse" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-[155px] bg-white rounded-xl border border-zinc-200 p-4 shadow-sm animate-pulse" />
+            ))}
+          </div>
+        </div>
+      )
     }
-    fetchKpis()
-  }, [])
 
-  const cards = [
-    {
-      label: "Total Students",
-      value: kpis.students,
-      icon: <GraduationCap className="h-5 w-5" />,
-      href: "/students",
-      color: "bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400",
-    },
-    {
-      label: "Total Teachers",
-      value: kpis.teachers,
-      icon: <Users className="h-5 w-5" />,
-      href: "/teachers",
-      color: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400",
-    },
-    {
-      label: "Total Staff",
-      value: kpis.staff,
-      icon: <UserCog className="h-5 w-5" />,
-      href: "/staff",
-      color: "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400",
-    },
-  ]
+    if (error) {
+      return (
+        <div className="flex flex-col items-center justify-center gap-3 p-8 h-[500px]">
+          <p className="text-sm text-destructive">{error}</p>
+          <button onClick={() => window.location.reload()} className="text-xs underline">Retry</button>
+        </div>
+      )
+    }
 
-  const quickActions = [
-    { label: "Attendance", href: "/operations/attendance" },
-    { label: "Gradebook", href: "/students/gradebook" },
-    { label: "Finance", href: "/finance" },
-    { label: "Timetable", href: "/operations" },
-  ]
+    return (
+      <div className="flex flex-col gap-4 p-2 md:p-1">
+      
+        {/* Universal Interactive Chart View Engine */}
+        <div className="w-full bg-white rounded-xl border border-zinc-200 p-4 shadow-sm">
+          <UniversalBarChart 
+            title="Overview"
+            description="Institutional population metrics across student, faculty, and staff divisions."
+            data={data}
+            metrics={metrics}
+            defaultMetricKey="population"
+          />
+        </div>
+        
+        {/* Visual Hierarchy Layout centered on the primary Orange accent */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          
+          {/* Slot 1: Stacked Layered Area Layout — Hero base orange overlapping with dark tracking text */}
+          <UniversalAreaMiniChart
+            title="Students vs Faculty"
+            subtitle="Population mapped against teaching staff"
+            data={data}
+            dataKey="population"
+            secondaryDataKey="personnel"
+            color="#E85002"
+            secondaryColor="#18181b"
+            height={135}
+          />
 
-  return (
-    <div className="flex flex-col gap-6 p-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">School management overview</p>
+          {/* Slot 2: Secondary metric as a crisp, structural dark neutral */}
+          <UniversalLineMiniChart
+            title="Teaching Staff"
+            subtitle="Total faculty headcount"
+            data={data}
+            dataKey="personnel"
+            color="#18181b"
+            height={135}
+          />
+          
+          {/* Slot 3: Mini Bar Chart uses the clean core accent color */}
+          <UniversalBarMiniChart
+            title="Student Body"
+            subtitle="Total enrolled student population"
+            data={data}
+            dataKey="population"
+            color="#E85002"
+            height={135}
+          />
+          
+          {/* Slot 4: Muted slate-zinc distribution component so it blends elegantly into the background */}
+          <UniversalBarMiniChart
+            title="Support Staff"
+            subtitle="Total administrative staff"
+            data={data}
+            dataKey="support"
+            color="#18181b"
+            height={135}
+          />
+        </div>
+
       </div>
-
-      {error && (
-        <div className="flex items-center gap-3 p-4 rounded-md border border-destructive/50 bg-destructive/5 text-sm text-destructive">
-          <p>{error}</p>
-          <button onClick={() => window.location.reload()} className="underline text-xs">Retry</button>
-        </div>
-      )}
-
-      {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-32 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 animate-pulse" />
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {cards.map((card) => (
-            <Link key={card.label} href={card.href} className="group rounded-xl border border-zinc-200 dark:border-zinc-800 p-6 hover:shadow-md transition-all">
-              <div className="flex items-center justify-between">
-                <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${card.color}`}>
-                  {card.icon}
-                </div>
-                <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-              <div className="mt-4">
-                <p className="text-3xl font-bold tracking-tight">
-                  {card.value !== null ? card.value.toLocaleString() : "\u2014"}
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">{card.label}</p>
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
-
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-6">
-        <h2 className="text-lg font-medium">Quick Actions</h2>
-        <p className="text-sm text-muted-foreground mt-1">Common tasks and navigation</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
-          {quickActions.map((link) => (
-            <Link key={link.label} href={link.href} className="flex items-center justify-center h-12 rounded-lg border border-zinc-200 dark:border-zinc-800 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors">
-              {link.label}
-            </Link>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
+    )
+  }
