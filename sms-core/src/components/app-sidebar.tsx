@@ -190,8 +190,8 @@ export function AppSidebar({ user, initials = "??", onLogout }: AppSidebarProps)
                   
                   {/* TEXT DETAILS LAYER */}
                   <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-                    <span className="font-medium text-black dark:text-white truncate">user?.email?.split("@")[0] || "User"</span>
-                    <span className="text-xs text-muted-foreground truncate">user?.email || "Not authenticated"</span>
+                    <span className="font-medium text-black dark:text-white truncate">{user?.email?.split("@")[0] || "User"}</span>
+                    <span className="text-xs text-muted-foreground truncate">{user?.email || "Not authenticated"}</span>
                   </div>
                   
                   <ChevronDown className="ml-auto h-4 w-4 shrink-0 opacity-50 group-data-[collapsible=icon]:hidden" />

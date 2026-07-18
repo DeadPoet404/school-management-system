@@ -3,7 +3,7 @@
 import { useState, FormEvent } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
-import { ApiClientError } from "@/lib/api-client"
+import { ApiClientError } from "@/lib/fetch-with-auth"
 
 export default function LoginPage() {
   const { login } = useAuth()

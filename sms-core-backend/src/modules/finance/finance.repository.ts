@@ -74,14 +74,45 @@ export class FinanceRepository implements IFinanceRepository {
     return tx.invoice.update({ where: { id: invoiceId }, data: { status: "PAID" } });
   }
 
+  // ── P0-5: Billing ledger floor constraint at zero ──
+  // Uses an atomic UPDATE...WHERE to prevent negative balances
+  // even under concurrent payment requests. The WHERE clause
+  // ensures currentBalance >= amount, so the decrement can
+  // never push the balance below zero. If zero rows are
+  // affected, we follow up with a SELECT only to determine
+  // which condition failed (missing ledger vs. insufficient
+  // balance) and return a precise error message.
   async decrementBillingLedger(studentId: string, amount: number, tx: TransactionClient = prisma) {
-    return tx.billingLedger.update({
-      where: { studentId },
-      data: { currentBalance: { decrement: amount } },
-    });
+    if (amount <= 0) {
+      throw new Error(`Invalid decrement amount: ${amount}. Must be a positive number.`);
+    }
+
+    // Cast to ::numeric to match PostgreSQL Decimal column type
+    const result = await tx.$executeRaw`
+      UPDATE "BillingLedger" 
+      SET "currentBalance" = "currentBalance" - ${amount}::numeric 
+      WHERE "studentId" = ${studentId} 
+      AND "currentBalance" >= ${amount}::numeric
+    `;
+
+    if (result === 0) {
+      const ledger = await tx.billingLedger.findUnique({ where: { studentId } });
+      if (!ledger) {
+        throw new Error(`Billing ledger not found for student: ${studentId}`);
+      }
+      throw new Error(
+        `Payment amount (${amount}) exceeds outstanding balance (${Number(ledger.currentBalance)}) for student ${studentId}. ` +
+        `Overpayments are not supported in the current billing model.`
+      );
+    }
+
+    return tx.billingLedger.findUnique({ where: { studentId } });
   }
 
   async upsertBillingLedger(studentId: string, feeTierId: string, amount: number, tx: TransactionClient = prisma) {
+    if (amount < 0) {
+      throw new Error(`Invalid fee amount: ${amount}. Cannot add negative fees to billing ledger.`);
+    }
     return tx.billingLedger.upsert({
       where: { studentId },
       update: { currentBalance: { increment: amount } },
@@ -141,15 +172,74 @@ export class FinanceRepository implements IFinanceRepository {
     return tx.staffPayroll.findUnique({ where: { id } });
   }
 
-  async disburseStaffPayroll(id: string, tx: TransactionClient = prisma) {
-    return tx.staffPayroll.update({ where: { id }, data: { salaryStatus: "DISBURSED" } });
-  }
-
   async findTeacherPayrollById(id: string, tx: TransactionClient = prisma) {
     return tx.teacherPayroll.findUnique({ where: { id } });
   }
 
+  // ── P0-3: Payroll disbursement with financial controls ──
+  // Uses an atomic UPDATE...WHERE to enforce three rules in a
+  // single database operation, preventing race conditions between
+  // concurrent disbursement requests:
+  //   1. Idempotency: salaryStatus must not already be DISBURSED
+  //   2. Amount validity: netPay must be greater than zero
+  //   3. Record existence: the payroll record must exist
+  // If zero rows are affected, a follow-up SELECT determines
+  // which condition failed and returns a precise error message.
+  async disburseStaffPayroll(id: string, tx: TransactionClient = prisma) {
+    const result = await tx.$executeRaw`
+      UPDATE "StaffPayroll" 
+      SET "salaryStatus" = 'DISBURSED' 
+      WHERE "id" = ${id} 
+      AND "salaryStatus" != 'DISBURSED' 
+      AND "netPay" > 0
+    `;
+
+    if (result === 0) {
+      const payroll = await tx.staffPayroll.findUnique({ where: { id } });
+      if (!payroll) {
+        throw new Error(`Staff payroll record not found: ${id}`);
+      }
+      if (payroll.salaryStatus === "DISBURSED") {
+        throw new Error(
+          `Double-disbursement prevented: Staff payroll ${id} was already marked as DISBURSED. ` +
+          `Request the full payroll and ledger audit trail for verification.`
+        );
+      }
+      throw new Error(
+        `Invalid disbursement blocked: Staff payroll ${id} has netPay of ${Number(payroll.netPay)}. ` +
+        `Cannot disburse zero or negative amounts.`
+      );
+    }
+
+    return tx.staffPayroll.findUnique({ where: { id } });
+  }
+
   async disburseTeacherPayroll(id: string, tx: TransactionClient = prisma) {
-    return tx.teacherPayroll.update({ where: { id }, data: { salaryStatus: "DISBURSED" } });
+    const result = await tx.$executeRaw`
+      UPDATE "TeacherPayroll" 
+      SET "salaryStatus" = 'DISBURSED' 
+      WHERE "id" = ${id} 
+      AND "salaryStatus" != 'DISBURSED' 
+      AND "netPay" > 0
+    `;
+
+    if (result === 0) {
+      const payroll = await tx.teacherPayroll.findUnique({ where: { id } });
+      if (!payroll) {
+        throw new Error(`Teacher payroll record not found: ${id}`);
+      }
+      if (payroll.salaryStatus === "DISBURSED") {
+        throw new Error(
+          `Double-disbursement prevented: Teacher payroll ${id} was already marked as DISBURSED. ` +
+          `Request the full payroll and ledger audit trail for verification.`
+        );
+      }
+      throw new Error(
+        `Invalid disbursement blocked: Teacher payroll ${id} has netPay of ${Number(payroll.netPay)}. ` +
+        `Cannot disburse zero or negative amounts.`
+      );
+    }
+
+    return tx.teacherPayroll.findUnique({ where: { id } });
   }
 }

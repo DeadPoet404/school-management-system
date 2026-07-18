@@ -29,7 +29,7 @@ export class TeacherService {
         departmentId: teacher.department,
         jobTitle: teacher.subject,
         employmentType: teacher.employmentType,
-        academicTrack: "General Arts",
+        academicTrack: teacher.subject || "Unassigned",
       },
       demographics: {
         phone: teacher.demographics?.phone ?? null,
@@ -91,8 +91,33 @@ export class TeacherService {
       jobTitle?: string;
       employmentType?: string;
     };
+    demographics: {
+      gender: string;
+      dateOfBirth: string;
+      phone: string;
+      residentialAddress: string;
+      bloodType?: string;
+      religion?: string;
+      formerSchool?: string;
+    };
   }) {
-    const { account, placement } = payload;
+    const { account, placement, demographics } = payload;
+
+    // ── P0-2 fix: refuse to fabricate PII ──
+    // All demographic fields must be provided by the caller.
+    // The validation schema should enforce this at the route level
+    // (Phase 3, Task 3.1), but we guard here as a safety net so
+    // no code path can ever inject fake data into the database.
+    const requiredDemographicFields = ['gender', 'dateOfBirth', 'phone', 'residentialAddress'] as const;
+    for (const field of requiredDemographicFields) {
+      if (!demographics || !demographics[field]) {
+        throw new Error(
+          `Missing required demographic field: ${field}. ` +
+          `Teacher creation requires complete demographic information — ` +
+          `fabricated PII is not permitted.`
+        );
+      }
+    }
 
     const deptPrefix = placement?.departmentId
       ? placement.departmentId.replace("dept-", "").toUpperCase()
@@ -100,9 +125,13 @@ export class TeacherService {
 
     const uniqueTeacherId = formatInstitutionalId("TCH", deptPrefix);
 
+    // Generate a temporary password if not provided by the caller.
+    // Returned in the response so the admin can communicate it to
+    // the teacher. A proper email delivery flow is planned for
+    // Phase 4 (Task 4.1).
     const rawPassword = account.password || crypto.randomBytes(16).toString('base64url');
 
-    return await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const hashedPassword = await hashPassword(rawPassword);
 
       const completeDbPayload: Prisma.TeacherCreateInput = {
@@ -117,10 +146,13 @@ export class TeacherService {
 
         demographics: {
           create: {
-            gender: "UNSPECIFIED",
-            residentialAddress: "Not Provided",
-            dateOfBirth: new Date("2000-01-01"),
-            phone: "+233000000000",
+            gender: demographics.gender,
+            residentialAddress: demographics.residentialAddress,
+            dateOfBirth: new Date(demographics.dateOfBirth),
+            phone: demographics.phone,
+            bloodType: demographics.bloodType || null,
+            religion: demographics.religion || null,
+            formerSchool: demographics.formerSchool || null,
           },
         },
 
@@ -157,6 +189,16 @@ export class TeacherService {
 
       return newTeacher;
     });
+
+    // Return the teacher record with the temporary password attached.
+    // Underscore prefix signals internal fields to API consumers.
+    // The controller should pass these through to the admin response.
+    // Phase 4 will replace this with email-based password delivery.
+    return {
+      ...result,
+      _temporaryPassword: rawPassword,
+      _warning: "Communicate this password to the teacher immediately. Email delivery not yet implemented.",
+    };
   }
 
   async processDeparture(payload: {
@@ -209,6 +251,7 @@ export class TeacherService {
     });
   }
 
+  // TODO: P1-4 — Phase 3 Task 3.2: Replace `any` types with proper interfaces
   async update(id: string, payload: any) {
     const teacher = await this.repo.findById(id);
     if (!teacher) throw new Error(`Teacher not found with ID: ${id}`);

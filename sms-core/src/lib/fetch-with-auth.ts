@@ -1,5 +1,18 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
+// ── Error class (migrated from legacy api-client.ts) ──
+export class ApiClientError extends Error {
+  statusCode: number;
+  data: unknown;
+
+  constructor(statusCode: number, message: string, data?: unknown) {
+    super(message);
+    this.name = 'ApiClientError';
+    this.statusCode = statusCode;
+    this.data = data;
+  }
+}
+
 // ── Refresh promise lock: prevents concurrent refresh attempts ──
 let refreshPromise: Promise<boolean> | null = null;
 
@@ -26,8 +39,8 @@ async function attemptRefresh(): Promise<boolean> {
 /**
  * Authenticated fetch wrapper.
  *
- * P1: Reads access_token from httpOnly cookie (sent via credentials: 'include').
- * No more localStorage reads or Authorization headers.
+ * Reads access_token from httpOnly cookie (sent via credentials: 'include').
+ * No localStorage reads or Authorization headers.
  *
  * Auto-refresh: On 401, attempts to refresh the access token via the
  * refresh_token cookie. If successful, retries the original request.

@@ -46,7 +46,7 @@ export class StudentController {
 
   public executeDeparture = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
-      const { studentId, departureType, effectiveDate, clearance, remarks } = req.body;
+      const { studentId, departureType, effectiveDate, disposition, remarks } = req.body;
 
       if (!studentId || !departureType || !effectiveDate) {
         return res.status(400).json({ success: false, message: "Missing core institutional student departure details." });
@@ -54,7 +54,7 @@ export class StudentController {
 
       const result = await this.studentService.processDeparture({
         studentId, departureType, effectiveDate,
-        disposition: { destinationInstitution: clearance?.destinationInstitution || "None Provided", treasuryClearanceStatus: clearance?.treasury || "APPROVED", academicRecordsArchived: clearance?.academicRecordsArchived ?? true },
+        disposition,
         remarks: remarks || "Standard Student Separation Sequence Finalized",
       });
 
