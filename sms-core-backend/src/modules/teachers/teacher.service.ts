@@ -1,3 +1,4 @@
+import { AppError } from '@/middleware/error.handler';
 import crypto from 'crypto';
 import { prisma } from "@/lib/prisma";
 import { EntityStatus, ClearanceStatus, PersonnelDepartureType, Prisma } from "@prisma/client";
@@ -111,7 +112,7 @@ export class TeacherService {
     const requiredDemographicFields = ['gender', 'dateOfBirth', 'phone', 'residentialAddress'] as const;
     for (const field of requiredDemographicFields) {
       if (!demographics || !demographics[field]) {
-        throw new Error(
+        throw new AppError(400,
           `Missing required demographic field: ${field}. ` +
           `Teacher creation requires complete demographic information — ` +
           `fabricated PII is not permitted.`
@@ -218,13 +219,13 @@ export class TeacherService {
       const teacherRecord = await this.repo.findByPublicId(teacherId, tx);
 
       if (!teacherRecord) {
-        throw new Error(
+        throw new AppError(404,
           `Target faculty lookup failed. No active record found for ID: ${teacherId}`
         );
       }
 
       if (teacherRecord.status === EntityStatus.DEPARTED) {
-        throw new Error(
+        throw new AppError(409,
           `System conflict: Teacher ${teacherId} already departed.`
         );
       }
@@ -254,8 +255,8 @@ export class TeacherService {
   // TODO: P1-4 — Phase 3 Task 3.2: Replace `any` types with proper interfaces
   async update(id: string, payload: any) {
     const teacher = await this.repo.findById(id);
-    if (!teacher) throw new Error(`Teacher not found with ID: ${id}`);
-    if (teacher.status === 'DEPARTED') throw new Error('Cannot update a departed teacher.');
+    if (!teacher) throw new AppError(404, `Teacher not found with ID: ${id}`);
+    if (teacher.status === 'DEPARTED') throw new AppError(409, 'Cannot update a departed teacher.');
 
     const data: any = { ...payload };
     if (data.demographics?.dateOfBirth) {

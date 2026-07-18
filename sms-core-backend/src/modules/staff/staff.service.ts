@@ -1,3 +1,4 @@
+import { AppError } from '@/middleware/error.handler';
 import { prisma } from "@/lib/prisma";
 import { PersonnelDepartureType, EntityStatus, ClearanceStatus, Prisma } from "@prisma/client";
 import { IStaffRepository } from "@/types/repositories";
@@ -220,11 +221,11 @@ export class StaffService {
       const staffRecord = await this.repo.findByPublicId(staffId, tx);
 
       if (!staffRecord) {
-        throw new Error(`Target staff lookup failed. No active record found for ID: ${staffId}`);
+        throw new AppError(404, `Target staff lookup failed. No active record found for ID: ${staffId}`);
       }
 
       if (staffRecord.status === EntityStatus.DEPARTED) {
-        throw new Error(`System conflict: Staff member ${staffId} has already been processed for departure.`);
+        throw new AppError(409, `System conflict: Staff member ${staffId} has already been processed for departure.`);
       }
 
       const departureLog = await this.repo.createDepartureLog({
@@ -245,8 +246,8 @@ export class StaffService {
 
   async update(id: string, payload: any) {
     const staff = await this.repo.findById(id);
-    if (!staff) throw new Error(`Staff member not found with ID: ${id}`);
-    if (staff.status === 'DEPARTED') throw new Error('Cannot update a departed staff member.');
+    if (!staff) throw new AppError(404, `Staff member not found with ID: ${id}`);
+    if (staff.status === 'DEPARTED') throw new AppError(409, 'Cannot update a departed staff member.');
 
     const data: any = { ...payload };
     if (data.demographics?.dateOfBirth) {

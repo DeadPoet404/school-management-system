@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { AttendanceStatus } from "@prisma/client";
 import { AttendanceRepository } from "./attendance.repository";
 
@@ -8,9 +9,6 @@ interface AttendanceSubmission {
 }
 
 export class AttendanceService {
-  // P2-6: Service now uses repository instead of direct prisma calls,
-  // maintaining the Controller-Service-Repository architecture consistently
-  // across all modules.
   constructor(private attendanceRepo: AttendanceRepository = new AttendanceRepository()) {}
 
   /**
@@ -32,16 +30,21 @@ export class AttendanceService {
 
   /**
    * Compiles historical attendance rates for a student.
-   * Delegates count queries to the repository.
+   *
+   * FIXED: EXCUSED records are now correctly counted instead of being
+   * silently misclassified as ABSENT. The repository now returns
+   * excusedCount via a single GROUP BY query (previously 3 separate
+   * COUNT queries with no EXCUSED support).
    */
   async getStudentAttendanceMetrics(studentId: string) {
-    const { presentCount, lateCount, totalCount } = await this.attendanceRepo.getStudentAttendanceCounts(studentId);
+    const { presentCount, absentCount, lateCount, excusedCount, totalCount } =
+      await this.attendanceRepo.getStudentAttendanceCounts(studentId);
 
     const metrics: Record<AttendanceStatus, number> = {
       PRESENT: presentCount,
-      ABSENT: totalCount - presentCount - lateCount,
+      ABSENT: absentCount,
       LATE: lateCount,
-      EXCUSED: 0,
+      EXCUSED: excusedCount,
     };
 
     const rate =
@@ -52,19 +55,30 @@ export class AttendanceService {
     return {
       totalRecords: totalCount,
       breakdown: metrics,
-      rate,
+      rate: Math.round(rate * 100) / 100,
     };
   }
 
   /**
    * Processes a full section attendance submission in a single batch operation.
+   *
+   * TODO (Phase 3): classId is received but not yet validated against the
+   * submitted studentIds. A teacher could submit attendance for students
+   * not in the specified class. Fix requires querying Placement records
+   * to verify each studentId belongs to the given classId before
+   * calling recordBulkAttendance.
    */
   async processSectionAttendance(payload: {
     date: string;
     classId: string;
     records: AttendanceSubmission[];
   }) {
-    const { date, records } = payload;
+    const { date, classId, records } = payload;
+
+    logger.info(
+      { classId, recordCount: records.length, date },
+      '[Attendance] Processing section attendance submission'
+    );
 
     await this.recordBulkAttendance(date, records);
 

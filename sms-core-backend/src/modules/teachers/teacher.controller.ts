@@ -50,10 +50,6 @@ export class TeacherController {
         message: "Faculty profile saved to database successfully.",
       };
 
-      if ('_temporaryPassword' in newTeacher) {
-        response._temporaryPassword = (newTeacher as Record<string, unknown>)._temporaryPassword;
-        response._warning = (newTeacher as Record<string, unknown>)._warning;
-      }
 
       return res.status(201).json(response);
     } catch (error) {

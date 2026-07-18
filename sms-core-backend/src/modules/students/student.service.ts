@@ -1,3 +1,4 @@
+import { AppError } from '@/middleware/error.handler';
 import { prisma } from "@/lib/prisma";
 import { Prisma, DepartureType, TreasuryClearanceStatus } from "@prisma/client";
 import { IStudentRepository } from "@/types/repositories";
@@ -101,7 +102,7 @@ export class StudentService {
     const resolvedGuardian = guardian || parent;
 
     if (!resolvedGuardian) {
-      throw new Error("Missing essential guardian contact relationships from structural payload.");
+      throw new AppError(400, "Missing essential guardian contact relationships from structural payload.");
     }
 
     const uniqueStudentId = formatInstitutionalId("STU", "2026");
@@ -152,10 +153,10 @@ export class StudentService {
     const studentRecord = await this.repo.findByPublicId(studentId);
 
     if (!studentRecord) {
-      throw new Error(`Target student registry lookup failed. No active record found for ID: ${studentId}`);
+      throw new AppError(404, `Target student registry lookup failed. No active record found for ID: ${studentId}`);
     }
     if (studentRecord.status === "DEPARTED") {
-      throw new Error(`System conflict: Student ${studentId} has already been processed for departure.`);
+      throw new AppError(409, `System conflict: Student ${studentId} has already been processed for departure.`);
     }
 
     return await prisma.$transaction(async (tx) => {
@@ -178,8 +179,8 @@ export class StudentService {
 
   async update(id: string, payload: any) {
     const student = await this.repo.findById(id);
-    if (!student) throw new Error(`Student not found with ID: ${id}`);
-    if (student.status === 'DEPARTED') throw new Error('Cannot update a departed student.');
+    if (!student) throw new AppError(404, `Student not found with ID: ${id}`);
+    if (student.status === 'DEPARTED') throw new AppError(409, 'Cannot update a departed student.');
 
     const data: any = { ...payload };
     if (data.demographics?.dateOfBirth) {

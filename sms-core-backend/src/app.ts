@@ -11,6 +11,7 @@ import rateLimit from 'express-rate-limit';
 import pinoHttp from 'pino-http';
 import { createId } from '@paralleldrive/cuid2';
 import cookieParser from 'cookie-parser';
+import compression from 'compression';
 
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './lib/swagger';
@@ -40,8 +41,17 @@ import { globalErrorHandler } from './middleware/error.handler';
 const app = express();
 const port = process.env.PORT || 5000;
 
+// ── TRUST PROXY: Behind Next.js rewrite proxy (or Nginx/LB),
+// req.ip would be the proxy's IP. Setting trust proxy to 1 tells
+// Express to read X-Forwarded-For for the real client IP.
+// This fixes rate limiting, audit logging, and geo-IP lookups.
+app.set('trust proxy', 1);
+
 // ── SECURITY: HTTP security headers ──
 app.use(helmet());
+
+// ── COMPRESSION: Reduce JSON response payload sizes by 60-80%
+app.use(compression());
 
 // ── OBSERVABILITY: Structured request logging + Request ID ──
 app.use(pinoHttp({
@@ -126,7 +136,9 @@ app.get('/api/health', async (_req, res) => {
 });
 
 // API Documentation
-app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+if (process.env.NODE_ENV === 'development') {
+  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+}
 
 // Auth — login, refresh, logout, me (login has its own stricter rate limiter)
 app.use('/api/auth', authRoutes);
@@ -151,8 +163,29 @@ app.use((_req, res) => {
 // ── GLOBAL ERROR HANDLER (Must ALWAYS be the very last middleware) ──
 app.use(globalErrorHandler);
 
-app.listen(port, () => {
+
+// ── GRACEFUL SHUTDOWN: Drain connections on SIGTERM/SIGINT ──
+// Prevents connection leaks when container orchestrators send shutdown signals
+const server = app.listen(port, () => {
   logger.info({ port }, '[SMS-Core-Backend] Pipeline online.');
 });
+
+async function gracefulShutdown(signal: string) {
+  logger.info({ signal }, '[SMS-Core-Backend] Received shutdown signal. Draining connections...');
+  server.close(() => {
+    logger.info('[SMS-Core-Backend] HTTP server closed. No longer accepting connections.');
+  });
+  try {
+    const { prisma } = await import('./lib/prisma');
+    await prisma.$disconnect();
+    logger.info('[SMS-Core-Backend] Prisma connection pool drained.');
+  } catch (err) {
+    logger.error({ err }, '[SMS-Core-Backend] Error during Prisma disconnect.');
+  }
+  process.exit(0);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 export default app;

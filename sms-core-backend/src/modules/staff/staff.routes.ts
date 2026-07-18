@@ -18,10 +18,10 @@ const staffController = new StaffController(staffService);
 router.post("/departure", requireRole(ROLES.STAFF, ROLES.ADMIN), validate(staffDepartureSchema), staffController.executeDeparture);
 
 // ── HIGH-DENSITY WORKFORCE ANALYTICS ──
-router.get("/matrix", requireRole(ROLES.STAFF, ROLES.ADMIN), staffController.getWorkforceMatrix);
+router.get("/matrix", requireRole(ROLES.ADMIN, ROLES.ACCOUNTANT), staffController.getWorkforceMatrix);
 
 // ── CORE REGISTRY ENTRIES ──
-router.get("/", requireRole(ROLES.STAFF, ROLES.ADMIN), staffController.getAllStaff);
+router.get("/", requireRole(ROLES.ADMIN, ROLES.ACCOUNTANT), staffController.getAllStaff);
 router.post("/", requireRole(ROLES.STAFF, ROLES.ADMIN), validate(staffEnrollmentSchema), staffController.createStaff);
 
 // ── UPDATE ──

@@ -14,10 +14,11 @@ const envSchema = z.object({
   // ── OPTIONAL — have safe defaults ──
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(5000),
-  JWT_EXPIRES_IN: z.string().default('8h'),
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
   COOKIE_DOMAIN: z.string().optional(),
+  COOKIE_SECURE: z.coerce.string().transform(v => v === 'true').default(false),
+  COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).default('lax'),
   CORS_ORIGINS: z.string().default('http://localhost:3000,http://localhost:3001'),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(60000),
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().min(1).default(100),
@@ -49,12 +50,13 @@ function validateEnv() {
   const env = result.data;
   process.env.NODE_ENV = env.NODE_ENV;
   process.env.PORT = String(env.PORT);
-  process.env.JWT_EXPIRES_IN = env.JWT_EXPIRES_IN;
   process.env.JWT_ACCESS_EXPIRES_IN = env.JWT_ACCESS_EXPIRES_IN;
   process.env.JWT_REFRESH_EXPIRES_IN = env.JWT_REFRESH_EXPIRES_IN;
   // P1-9: No conditional — JWT_REFRESH_SECRET is now always present
   process.env.JWT_REFRESH_SECRET = env.JWT_REFRESH_SECRET;
   if (env.COOKIE_DOMAIN) process.env.COOKIE_DOMAIN = env.COOKIE_DOMAIN;
+  process.env.COOKIE_SECURE = String(env.COOKIE_SECURE);
+  process.env.COOKIE_SAME_SITE = env.COOKIE_SAME_SITE;
   process.env.CORS_ORIGINS = env.CORS_ORIGINS;
   process.env.RATE_LIMIT_WINDOW_MS = String(env.RATE_LIMIT_WINDOW_MS);
   process.env.RATE_LIMIT_MAX_REQUESTS = String(env.RATE_LIMIT_MAX_REQUESTS);

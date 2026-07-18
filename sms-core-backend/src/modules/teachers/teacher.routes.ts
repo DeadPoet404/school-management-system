@@ -17,9 +17,6 @@ const teacherController = new TeacherController(teacherService);
 // ── SPECIALIZED DOMAIN TARGETS ──
 router.post("/departure", requireRole(ROLES.STAFF, ROLES.ADMIN), validate(teacherDepartureSchema), teacherController.executeDeparture);
 
-// ── HIGH-DENSITY ACADEMIC FACULTY ANALYTICS ──
-router.get("/matrix", requireRole(ROLES.STAFF, ROLES.FACULTY, ROLES.ADMIN), teacherController.getAllTeachers);
-
 // ── CORE REGISTRY ENTRIES ──
 router.get("/", requireRole(ROLES.STAFF, ROLES.FACULTY, ROLES.ADMIN), teacherController.getAllTeachers);
 router.post("/", requireRole(ROLES.STAFF, ROLES.ADMIN), validate(teacherEnrollmentSchema), teacherController.createTeacher);

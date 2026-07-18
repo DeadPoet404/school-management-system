@@ -11,7 +11,7 @@ const router = Router();
 const timetableService = new TimetableService();
 const controller = new TimetableController(timetableService);
 
-router.get("/matrix", controller.getMatrix);
+router.get("/matrix", requireRole(ROLES.ADMIN), controller.getMatrix);
 // ── P0 FIX: POST /matrix was previously accessible to any authenticated user
 //    (including STUDENT). It replaces the entire global timetable.
 router.post("/matrix", requireRole(ROLES.ADMIN), validate(saveMatrixSchema), controller.saveMatrix);

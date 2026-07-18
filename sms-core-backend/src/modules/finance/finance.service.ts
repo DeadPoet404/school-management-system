@@ -1,3 +1,4 @@
+import { AppError } from '@/middleware/error.handler';
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { parseDecimal, generateSerial } from "@/utils";
@@ -135,10 +136,10 @@ export class FinanceService {
 
   async generateInvoicesForSection(sectionId: string) {
     const config = await this.repo.findFeeConfigBySection(sectionId);
-    if (!config) throw new Error(`No fee configuration found for section: ${sectionId}`);
+    if (!config) throw new AppError(404, `No fee configuration found for section: ${sectionId}`);
 
     const students = await this.repo.findStudentsMinimalBySection(sectionId);
-    if (students.length === 0) throw new Error(`No active students found in section: ${sectionId}`);
+    if (students.length === 0) throw new AppError(400, `No active students found in section: ${sectionId}`);
 
     const configTyped = config as FeeConfigRow;
     const totalFeeAmount = configTyped.components.reduce((sum, comp) => sum + parseDecimal(String(comp.amount)), 0);
@@ -267,7 +268,7 @@ export class FinanceService {
         return { success: true, type: "TEACHER" };
       }
 
-      throw new Error("Payroll record not found for disbursement.");
+      throw new AppError(404, "Payroll record not found for disbursement.");
     });
   }
 }
