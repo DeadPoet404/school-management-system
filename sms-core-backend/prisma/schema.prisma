@@ -57,6 +57,12 @@ enum ClearanceStatus {
   EXEMPT
 }
 
+enum ExpenseStatus {
+  CLEARED
+  PENDING_APPROVAL
+  REJECTED
+}
+
 // ═══════════════════════════════════════════════════════════
 // ── REFERENCE DATA TABLES ──
 // ═══════════════════════════════════════════════════════════
@@ -541,6 +547,25 @@ model LedgerAccount {
   updatedAt   DateTime  @updatedAt
 
   @@map("ledger_accounts")
+}
+
+model Expense {
+  id            String        @id @default(uuid())
+  deletedAt     DateTime?
+  expenseNo     String        @unique
+  vendorName    String
+  category      String
+  description   String        @db.Text
+  amount        Decimal       @db.Decimal(10, 2)
+  paymentMethod String
+  status        ExpenseStatus @default(PENDING_APPROVAL)
+  expenseDate   DateTime      @default(now())
+  processedBy   String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([status])
+  @@index([expenseDate])
 }
 
 /// ==========================================

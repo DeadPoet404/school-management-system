@@ -99,6 +99,9 @@ export function createMockFinanceRepo(overrides?: Partial<IFinanceRepository>): 
     disburseStaffPayroll: vi.fn(),
     findTeacherPayrollById: vi.fn(),
     disburseTeacherPayroll: vi.fn(),
+    findAllExpenses: vi.fn(),
+    countAllExpenses: vi.fn(),
+    createExpense: vi.fn(),
     ...overrides,
   };
 }

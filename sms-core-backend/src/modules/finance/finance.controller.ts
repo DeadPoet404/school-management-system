@@ -88,6 +88,27 @@ export class FinanceController {
     } catch (error) { next(error); }
   };
 
+  createExpense = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const data = await this.financeService.createExpense(req.body);
+      return res.status(201).json({ success: true, data });
+    } catch (error) { next(error); }
+  };
+
+  getExpenses = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { page, limit, skip } = parsePaginationQuery(req.query);
+      const { data, total } = await this.financeService.getPaginatedExpenses(skip, limit);
+
+      if (req.query.format === "csv") {
+        const allData = await this.financeService.getAllExpenses();
+        return respondCSV(res, toCSV(allData), "expenses");
+      }
+
+      return res.status(200).json(buildPaginationResponse(data, total, page, limit));
+    } catch (error) { next(error); }
+  };
+
   getLedgers = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { page, limit, skip } = parsePaginationQuery(req.query);

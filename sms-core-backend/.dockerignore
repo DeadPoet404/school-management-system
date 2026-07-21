@@ -34,7 +34,6 @@ LICENSE
 # Docker
 Dockerfile
 docker-compose.yml
-docker-entrypoint.sh
 
 # Misc
 npm-debug.log*

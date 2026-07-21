@@ -1,5 +1,5 @@
-import { prisma } from "@/lib/prisma";
-import { IFinanceRepository, TransactionClient, FeeConfigCreateData, CollectionCreateData, InvoiceCreateData, StudentPaymentCreateData, LedgerAccountCreateData } from "@/types/repositories";
+import { prisma } from '@/lib/prisma';
+import { IFinanceRepository, TransactionClient, FeeConfigCreateData, CollectionCreateData, InvoiceCreateData, StudentPaymentCreateData, LedgerAccountCreateData } from '@/types/repositories';
 
 export class FinanceRepository implements IFinanceRepository {
   async findAllFeeConfigurations(tx: TransactionClient = prisma) {
@@ -28,18 +28,14 @@ export class FinanceRepository implements IFinanceRepository {
     });
   }
 
-  // P2-13: Paginated variant for section ledger -- prevents unbounded
-  // result sets as payment history grows over time.
   async findCollectionsBySectionPaginated(sectionId: string, skip: number, take: number, tx: TransactionClient = prisma) {
     return tx.paymentCollection.findMany({
       where: { sectionId },
       orderBy: { dateProcessed: 'desc' },
-      skip,
-      take,
+      skip, take,
     });
   }
 
-  // P2-13: Count collections for a specific section (for pagination total)
   async countCollectionsBySection(sectionId: string, tx: TransactionClient = prisma) {
     return tx.paymentCollection.count({ where: { sectionId } });
   }
@@ -54,7 +50,7 @@ export class FinanceRepository implements IFinanceRepository {
 
   async findStudentsBySection(sectionId: string, tx: TransactionClient = prisma) {
     return tx.student.findMany({
-      where: { placement: { classId: sectionId }, status: { not: "DEPARTED" } },
+      where: { placement: { classId: sectionId }, status: { not: 'DEPARTED' } },
       select: { id: true, studentId: true, studentName: true, billing: { select: { currentBalance: true } } },
       orderBy: { studentName: 'asc' },
     });
@@ -62,7 +58,7 @@ export class FinanceRepository implements IFinanceRepository {
 
   async findStudentsMinimalBySection(sectionId: string, tx: TransactionClient = prisma) {
     return tx.student.findMany({
-      where: { placement: { classId: sectionId }, status: { not: "DEPARTED" } },
+      where: { placement: { classId: sectionId }, status: { not: 'DEPARTED' } },
       select: { id: true, studentId: true },
     });
   }
@@ -90,13 +86,13 @@ export class FinanceRepository implements IFinanceRepository {
 
   async findOldestUnpaidInvoice(studentId: string, tx: TransactionClient = prisma) {
     return tx.invoice.findFirst({
-      where: { studentId, status: { in: ["UNPAID", "PARTIAL"] } },
+      where: { studentId, status: { in: ['UNPAID', 'PARTIAL'] } },
       orderBy: { createdAt: 'asc' },
     });
   }
 
   async markInvoicePaid(invoiceId: string, tx: TransactionClient = prisma) {
-    return tx.invoice.update({ where: { id: invoiceId }, data: { status: "PAID" } });
+    return tx.invoice.update({ where: { id: invoiceId }, data: { status: 'PAID' } });
   }
 
   async applyPaymentToInvoice(invoiceId: string, amount: number, tx: TransactionClient = prisma) {
@@ -104,9 +100,9 @@ export class FinanceRepository implements IFinanceRepository {
     if (!invoice) return null;
     const newPaid = parseFloat(invoice.paidAmount.toString()) + amount;
     const total = parseFloat(invoice.amount.toString());
-    let status: "UNPAID" | "PARTIAL" | "PAID" = "PARTIAL";
-    if (newPaid >= total) status = "PAID";
-    if (newPaid <= 0) status = "UNPAID";
+    let status: 'UNPAID' | 'PARTIAL' | 'PAID' = 'PARTIAL';
+    if (newPaid >= total) status = 'PAID';
+    if (newPaid <= 0) status = 'UNPAID';
     return tx.invoice.update({
       where: { id: invoiceId },
       data: { paidAmount: newPaid, status },
@@ -115,12 +111,9 @@ export class FinanceRepository implements IFinanceRepository {
 
   async findAllInvoices(skip?: number, take?: number, tx: TransactionClient = prisma) {
     return tx.invoice.findMany({
-      skip: skip ?? undefined,
-      take: take ?? undefined,
-      orderBy: { createdAt: "desc" },
-      include: {
-        student: { select: { studentId: true, studentName: true } },
-      },
+      skip: skip ?? undefined, take: take ?? undefined,
+      orderBy: { createdAt: 'desc' },
+      include: { student: { select: { studentId: true, studentName: true } } },
     });
   }
 
@@ -153,8 +146,7 @@ export class FinanceRepository implements IFinanceRepository {
 
   async findAllLedgerAccounts(skip?: number, take?: number, tx: TransactionClient = prisma) {
     return tx.ledgerAccount.findMany({
-      skip: skip ?? undefined,
-      take: take ?? undefined,
+      skip: skip ?? undefined, take: take ?? undefined,
       orderBy: { code: 'asc' },
     });
   }
@@ -169,53 +161,48 @@ export class FinanceRepository implements IFinanceRepository {
 
   async getAllStaffPayroll(skip?: number, take?: number, tx: TransactionClient = prisma) {
     return tx.staffPayroll.findMany({
-      skip: skip ?? undefined,
-      take: take ?? undefined,
+      skip: skip ?? undefined, take: take ?? undefined,
       include: { staff: { select: { staffName: true, account: { select: { role: true } } } } },
     });
   }
 
   async getAllTeacherPayroll(skip?: number, take?: number, tx: TransactionClient = prisma) {
     return tx.teacherPayroll.findMany({
-      skip: skip ?? undefined,
-      take: take ?? undefined,
+      skip: skip ?? undefined, take: take ?? undefined,
       include: { teacher: { select: { teacherName: true, subject: true } } },
     });
   }
 
-  async countStaffPayroll(tx: TransactionClient = prisma) {
-    return tx.staffPayroll.count();
-  }
-
-  async countTeacherPayroll(tx: TransactionClient = prisma) {
-    return tx.teacherPayroll.count();
-  }
-
-  async findStaffPayrollById(id: string, tx: TransactionClient = prisma) {
-    return tx.staffPayroll.findUnique({ where: { id } });
-  }
-
-  async disburseStaffPayroll(id: string, tx: TransactionClient = prisma) {
-    return tx.staffPayroll.update({ where: { id }, data: { salaryStatus: "DISBURSED" } });
-  }
-
-  async findTeacherPayrollById(id: string, tx: TransactionClient = prisma) {
-    return tx.teacherPayroll.findUnique({ where: { id } });
-  }
-
-  async disburseTeacherPayroll(id: string, tx: TransactionClient = prisma) {
-    return tx.teacherPayroll.update({ where: { id }, data: { salaryStatus: "DISBURSED" } });
-  }
+  async countStaffPayroll(tx: TransactionClient = prisma) { return tx.staffPayroll.count(); }
+  async countTeacherPayroll(tx: TransactionClient = prisma) { return tx.teacherPayroll.count(); }
+  async findStaffPayrollById(id: string, tx: TransactionClient = prisma) { return tx.staffPayroll.findUnique({ where: { id } }); }
+  async disburseStaffPayroll(id: string, tx: TransactionClient = prisma) { return tx.staffPayroll.update({ where: { id }, data: { salaryStatus: 'DISBURSED' } }); }
+  async findTeacherPayrollById(id: string, tx: TransactionClient = prisma) { return tx.teacherPayroll.findUnique({ where: { id } }); }
+  async disburseTeacherPayroll(id: string, tx: TransactionClient = prisma) { return tx.teacherPayroll.update({ where: { id }, data: { salaryStatus: 'DISBURSED' } }); }
 
   async findAllCollections(skip?: number, take?: number, tx: TransactionClient = prisma) {
     return tx.paymentCollection.findMany({
-      skip: skip ?? undefined,
-      take: take ?? undefined,
+      skip: skip ?? undefined, take: take ?? undefined,
       orderBy: { dateProcessed: 'desc' },
     });
   }
 
   async countAllCollections(tx: TransactionClient = prisma) {
     return tx.paymentCollection.count();
+  }
+
+  async findAllExpenses(skip?: number, take?: number, tx: TransactionClient = prisma) {
+    return tx.expense.findMany({
+      skip: skip ?? undefined, take: take ?? undefined,
+      orderBy: { expenseDate: 'desc' },
+    });
+  }
+
+  async countAllExpenses(tx: TransactionClient = prisma) {
+    return tx.expense.count();
+  }
+
+  async createExpense(data: Record<string, unknown>, tx: TransactionClient = prisma) {
+    return tx.expense.create({ data: data as never });
   }
 }

@@ -322,6 +322,44 @@ export class FinanceService {
     return { data: mapped, total };
   }
 
+  async getPaginatedExpenses(skip: number, take: number) {
+    const [data, total] = await Promise.all([
+      this.repo.findAllExpenses(skip, take),
+      this.repo.countAllExpenses(),
+    ]);
+    const mapped = data.map((e: { expenseNo: string; vendorName: string; category: string; description: string; amount: { toString: () => string }; paymentMethod: string; status: string; expenseDate: Date }) => ({
+      id: e.expenseNo,
+      vendorName: e.vendorName,
+      category: e.category,
+      description: e.description,
+      amount: parseFloat(e.amount.toString()),
+      paymentMethod: e.paymentMethod,
+      status: e.status === "CLEARED" ? "Cleared" : e.status === "REJECTED" ? "Rejected" : "Pending_Approval",
+      expenseDate: e.expenseDate.toISOString(),
+    }));
+    return { data: mapped, total };
+  }
+
+  async getAllExpenses() {
+    const data = await this.repo.findAllExpenses();
+    return data.map((e: { expenseNo: string; vendorName: string; category: string; description: string; amount: { toString: () => string }; paymentMethod: string; status: string; expenseDate: Date }) => ({
+      id: e.expenseNo,
+      vendorName: e.vendorName,
+      category: e.category,
+      description: e.description,
+      amount: parseFloat(e.amount.toString()),
+      paymentMethod: e.paymentMethod,
+      status: e.status === "CLEARED" ? "Cleared" : e.status === "REJECTED" ? "Rejected" : "Pending_Approval",
+      expenseDate: e.expenseDate.toISOString(),
+    }));
+  }
+
+  async createExpense(data: Record<string, unknown>) {
+    const count = await this.repo.countAllExpenses();
+    const expenseNo = `EXP-${new Date().getFullYear()}-${String(count + 1).padStart(3, "0")}`;
+    return this.repo.createExpense({ ...data, expenseNo });
+  }
+
   async getAllInvoices() {
     const data = await this.repo.findAllInvoices();
     return data.map((inv: InvoiceRow) => ({

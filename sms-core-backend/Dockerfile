@@ -9,13 +9,13 @@ COPY src ./src/
 RUN npx tsc
 
 FROM node:20-alpine
+RUN apk add --no-cache openssl
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci
+COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
 COPY --from=builder --chown=appuser:appgroup /app/prisma ./prisma
 COPY --from=builder --chown=appuser:appgroup /app/dist ./dist
-COPY docker-entrypoint.sh ./docker-entrypoint.sh
+COPY --chown=appuser:appgroup docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x docker-entrypoint.sh
 USER appuser
 EXPOSE 5000

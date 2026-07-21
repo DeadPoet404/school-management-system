@@ -177,6 +177,10 @@ export interface IFinanceRepository {
   disburseStaffPayroll(id: string, tx?: TransactionClient): Promise<any>;
   findTeacherPayrollById(id: string, tx?: TransactionClient): Promise<any>;
   disburseTeacherPayroll(id: string, tx?: TransactionClient): Promise<any>;
+  // Expenses
+  findAllExpenses(skip?: number, take?: number, tx?: TransactionClient): Promise<any>;
+  countAllExpenses(tx?: TransactionClient): Promise<number>;
+  createExpense(data: Record<string, unknown>, tx?: TransactionClient): Promise<any>;
 }
 
 export interface IAttendanceRepository {

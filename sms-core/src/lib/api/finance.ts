@@ -101,3 +101,17 @@ export function useInvoices(page: number = 1, limit: number = 20) {
     placeholderData: (prev) => prev,
   });
 }
+
+export function useExpenses(page: number = 1, limit: number = 20) {
+  return useQuery({
+    queryKey: ["finance", "expenses", page, limit],
+    queryFn: async () => {
+      const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+      const res = await fetchWithAuth("/api/finance/expenses?" + params);
+      if (!res.ok) throw new Error("Failed to fetch expenses");
+      const json = await res.json();
+      return { data: json.data, pagination: json.pagination };
+    },
+    placeholderData: (prev) => prev,
+  });
+}
