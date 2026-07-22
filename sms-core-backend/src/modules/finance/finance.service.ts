@@ -21,8 +21,200 @@ interface MatrixSectionData {
   billingConfig: { issueDate?: string | Date; dueDate?: string | Date; allowInstallments?: boolean; lateFeeRate?: string | number };
 }
 
+interface FinanceDashboardTrendPoint {
+  date: string;
+  invoiced: number;
+  collected: number;
+  expenses: number;
+  payroll: number;
+  outflows: number;
+  netCashflow: number;
+  outstanding: number;
+}
+
 export class FinanceService {
   constructor(private repo: IFinanceRepository = new FinanceRepository()) {}
+
+  private toDashboardDateKey(date: Date) {
+    return date.toISOString().slice(0, 10);
+  }
+
+  private createDashboardTrendPoint(date: string): FinanceDashboardTrendPoint {
+    return {
+      date,
+      invoiced: 0,
+      collected: 0,
+      expenses: 0,
+      payroll: 0,
+      outflows: 0,
+      netCashflow: 0,
+      outstanding: 0,
+    };
+  }
+
+  async getDashboardSummary(days: number = 90) {
+    const safeDays = Math.min(Math.max(Math.trunc(days) || 90, 1), 365);
+    const startDate = new Date();
+    startDate.setUTCHours(0, 0, 0, 0);
+    startDate.setUTCDate(startDate.getUTCDate() - safeDays + 1);
+
+    const [
+      invoiceTotals,
+      collectionTotals,
+      expenseTotals,
+      staffPayrollTotals,
+      teacherPayrollTotals,
+      invoiceStatusCounts,
+      staffPayrollStatusCounts,
+      teacherPayrollStatusCounts,
+      trendInvoices,
+      trendCollections,
+      trendExpenses,
+    ] = await Promise.all([
+      prisma.invoice.aggregate({
+        _count: { _all: true },
+        _sum: { amount: true, paidAmount: true },
+      }),
+      prisma.paymentCollection.aggregate({
+        _count: { _all: true },
+        _sum: { amountPaid: true },
+      }),
+      prisma.expense.aggregate({
+        _count: { _all: true },
+        _sum: { amount: true },
+      }),
+      prisma.staffPayroll.aggregate({
+        _count: { _all: true },
+        _sum: { baseSalary: true, deductions: true },
+      }),
+      prisma.teacherPayroll.aggregate({
+        _count: { _all: true },
+        _sum: { baseSalary: true, deductions: true },
+      }),
+      prisma.invoice.groupBy({
+        by: ['status'],
+        _count: { _all: true },
+      }),
+      prisma.staffPayroll.groupBy({
+        by: ['salaryStatus'],
+        _count: { _all: true },
+      }),
+      prisma.teacherPayroll.groupBy({
+        by: ['salaryStatus'],
+        _count: { _all: true },
+      }),
+      prisma.invoice.findMany({
+        where: { createdAt: { gte: startDate } },
+        select: { amount: true, paidAmount: true, createdAt: true },
+      }),
+      prisma.paymentCollection.findMany({
+        where: { dateProcessed: { gte: startDate } },
+        select: { amountPaid: true, dateProcessed: true },
+      }),
+      prisma.expense.findMany({
+        where: { expenseDate: { gte: startDate } },
+        select: { amount: true, expenseDate: true },
+      }),
+    ]);
+
+    const totalInvoiced = parseDecimal(invoiceTotals._sum.amount);
+    const totalInvoicePayments = parseDecimal(invoiceTotals._sum.paidAmount);
+    const totalCollected = parseDecimal(collectionTotals._sum.amountPaid);
+    const totalExpenses = parseDecimal(expenseTotals._sum.amount);
+    const staffPayroll = parseDecimal(staffPayrollTotals._sum.baseSalary) - parseDecimal(staffPayrollTotals._sum.deductions);
+    const teacherPayroll = parseDecimal(teacherPayrollTotals._sum.baseSalary) - parseDecimal(teacherPayrollTotals._sum.deductions);
+    const totalPayroll = staffPayroll + teacherPayroll;
+    const totalOutflows = totalExpenses + totalPayroll;
+
+    let paidInvoices = 0;
+    let partialInvoices = 0;
+    let unpaidInvoices = 0;
+
+    invoiceStatusCounts.forEach((row) => {
+      if (row.status === 'PAID') paidInvoices += row._count._all;
+      else if (row.status === 'PARTIAL') partialInvoices += row._count._all;
+      else unpaidInvoices += row._count._all;
+    });
+
+    const pendingPayroll = [...staffPayrollStatusCounts, ...teacherPayrollStatusCounts]
+      .filter((row) => row.salaryStatus === 'PENDING')
+      .reduce((sum, row) => sum + row._count._all, 0);
+
+    const trendByDate = new Map<string, FinanceDashboardTrendPoint>();
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    for (const cursor = new Date(startDate); cursor <= today; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+      const dateKey = this.toDashboardDateKey(cursor);
+      trendByDate.set(dateKey, this.createDashboardTrendPoint(dateKey));
+    }
+
+    const getTrendPoint = (date: Date) => {
+      const dateKey = this.toDashboardDateKey(date);
+      const existing = trendByDate.get(dateKey);
+      if (existing) return existing;
+
+      const point = this.createDashboardTrendPoint(dateKey);
+      trendByDate.set(dateKey, point);
+      return point;
+    };
+
+    trendInvoices.forEach((invoice) => {
+      const point = getTrendPoint(invoice.createdAt);
+      const amount = parseDecimal(invoice.amount);
+      const paidAmount = parseDecimal(invoice.paidAmount);
+
+      point.invoiced += amount;
+      point.outstanding += Math.max(amount - paidAmount, 0);
+    });
+
+    trendCollections.forEach((collection) => {
+      const point = getTrendPoint(collection.dateProcessed);
+      point.collected += parseDecimal(collection.amountPaid);
+    });
+
+    trendExpenses.forEach((expense) => {
+      const point = getTrendPoint(expense.expenseDate);
+      point.expenses += parseDecimal(expense.amount);
+    });
+
+    // Payroll records currently have no timestamp fields. Until payroll
+    // history is modeled, represent the current payroll obligation on today.
+    getTrendPoint(new Date()).payroll += totalPayroll;
+
+    const trend = Array.from(trendByDate.values())
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((point) => ({
+        ...point,
+        outflows: point.expenses + point.payroll,
+        netCashflow: point.collected - (point.expenses + point.payroll),
+      }));
+
+    return {
+      windowDays: safeDays,
+      totals: {
+        invoiced: totalInvoiced,
+        collected: totalCollected,
+        invoicePayments: totalInvoicePayments,
+        outstanding: Math.max(totalInvoiced - totalInvoicePayments, 0),
+        expenses: totalExpenses,
+        payroll: totalPayroll,
+        outflows: totalOutflows,
+        netCashflow: totalCollected - totalOutflows,
+      },
+      counts: {
+        invoices: invoiceTotals._count._all,
+        collections: collectionTotals._count._all,
+        expenses: expenseTotals._count._all,
+        payroll: staffPayrollTotals._count._all + teacherPayrollTotals._count._all,
+        paidInvoices,
+        partialInvoices,
+        openInvoices: unpaidInvoices + partialInvoices,
+        pendingPayroll,
+      },
+      trend,
+    };
+  }
 
   async getGlobalMatrix(): Promise<Record<string, FeeMatrixSection>> {
     const records = (await this.repo.findAllFeeConfigurations()) as FeeConfigRow[];

@@ -14,6 +14,7 @@ const financeService = new FinanceService(financeRepo);
 const controller = new FinanceController(financeService);
 const financeAccess = requireRole(ROLES.ADMIN, ROLES.ACCOUNTANT);
 
+router.get('/dashboard', financeAccess, controller.getDashboard);
 router.get('/fee-structures', financeAccess, controller.getGlobalFeeMatrix);
 router.post('/fee-structures', financeAccess, validate(saveFeeMatrixSchema), controller.saveFeeMatrix);
 
@@ -27,6 +28,7 @@ router.post('/generate-invoices', financeAccess, validate(generateInvoicesSchema
 router.get('/invoices', financeAccess, controller.getInvoices);
 
 router.get('/expenses', financeAccess, controller.getExpenses);
+router.post('/expenses', financeAccess, validate(createExpenseSchema), controller.createExpense);
 
 router.get('/ledgers', financeAccess, controller.getLedgers);
 router.post('/ledgers', financeAccess, validate(createLedgerSchema), controller.createLedger);

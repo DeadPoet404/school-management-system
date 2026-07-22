@@ -1,11 +1,31 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- test mocks use any for flexibility */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { AppError } from '@/middleware/error.handler';
 import type { IFinanceRepository } from '@/types/repositories';
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    paymentCollection: { findMany: vi.fn(), count: vi.fn() },
+    invoice: {
+      aggregate: vi.fn(),
+      groupBy: vi.fn(),
+      findMany: vi.fn(),
+    },
+    paymentCollection: {
+      aggregate: vi.fn(),
+      findMany: vi.fn(),
+      count: vi.fn(),
+    },
+    expense: {
+      aggregate: vi.fn(),
+      findMany: vi.fn(),
+    },
+    staffPayroll: {
+      aggregate: vi.fn(),
+      groupBy: vi.fn(),
+    },
+    teacherPayroll: {
+      aggregate: vi.fn(),
+      groupBy: vi.fn(),
+    },
     $transaction: vi.fn(),
   },
 }));
@@ -28,6 +48,80 @@ describe('FinanceService', () => {
     service = new FinanceService(repo);
     vi.clearAllMocks();
     (prisma.$transaction as any).mockImplementation(async (fn: any) => fn({}));
+  });
+
+  // ── getDashboardSummary ──
+  describe('getDashboardSummary', () => {
+    it('should aggregate finance dashboard totals, counts, and trend data', async () => {
+      const now = new Date();
+
+      (prisma.invoice.aggregate as any).mockResolvedValueOnce({
+        _count: { _all: 3 },
+        _sum: { amount: '3000', paidAmount: '1200' },
+      });
+      (prisma.paymentCollection.aggregate as any).mockResolvedValueOnce({
+        _count: { _all: 2 },
+        _sum: { amountPaid: '1300' },
+      });
+      (prisma.expense.aggregate as any).mockResolvedValueOnce({
+        _count: { _all: 1 },
+        _sum: { amount: '400' },
+      });
+      (prisma.staffPayroll.aggregate as any).mockResolvedValueOnce({
+        _count: { _all: 1 },
+        _sum: { baseSalary: '1000', deductions: '100' },
+      });
+      (prisma.teacherPayroll.aggregate as any).mockResolvedValueOnce({
+        _count: { _all: 1 },
+        _sum: { baseSalary: '2000', deductions: '200' },
+      });
+      (prisma.invoice.groupBy as any).mockResolvedValueOnce([
+        { status: 'PAID', _count: { _all: 1 } },
+        { status: 'PARTIAL', _count: { _all: 1 } },
+        { status: 'UNPAID', _count: { _all: 1 } },
+      ]);
+      (prisma.staffPayroll.groupBy as any).mockResolvedValueOnce([
+        { salaryStatus: 'PENDING', _count: { _all: 1 } },
+      ]);
+      (prisma.teacherPayroll.groupBy as any).mockResolvedValueOnce([
+        { salaryStatus: 'DISBURSED', _count: { _all: 1 } },
+      ]);
+      (prisma.invoice.findMany as any).mockResolvedValueOnce([
+        { amount: '1000', paidAmount: '200', createdAt: now },
+      ]);
+      (prisma.paymentCollection.findMany as any).mockResolvedValueOnce([
+        { amountPaid: '500', dateProcessed: now },
+      ]);
+      (prisma.expense.findMany as any).mockResolvedValueOnce([
+        { amount: '100', expenseDate: now },
+      ]);
+
+      const result = await service.getDashboardSummary(7);
+
+      expect(result.windowDays).toBe(7);
+      expect(result.totals.invoiced).toBe(3000);
+      expect(result.totals.collected).toBe(1300);
+      expect(result.totals.outstanding).toBe(1800);
+      expect(result.totals.payroll).toBe(2700);
+      expect(result.totals.outflows).toBe(3100);
+      expect(result.totals.netCashflow).toBe(-1800);
+
+      expect(result.counts.invoices).toBe(3);
+      expect(result.counts.collections).toBe(2);
+      expect(result.counts.expenses).toBe(1);
+      expect(result.counts.payroll).toBe(2);
+      expect(result.counts.paidInvoices).toBe(1);
+      expect(result.counts.partialInvoices).toBe(1);
+      expect(result.counts.openInvoices).toBe(2);
+      expect(result.counts.pendingPayroll).toBe(1);
+
+      expect(result.trend).toHaveLength(7);
+      const todayPoint = result.trend.find((point) => point.date === now.toISOString().slice(0, 10));
+      expect(todayPoint).toBeDefined();
+      expect(todayPoint!.collected).toBe(500);
+      expect(todayPoint!.expenses).toBe(100);
+      expect(todayPoint!.payroll).toBe(2700);
+    });
   });
 
   // ── getGlobalMatrix ──

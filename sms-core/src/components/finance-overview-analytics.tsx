@@ -1,129 +1,186 @@
-import React from 'react'
-import { UniversalBarChart, ChartDataPoint, MetricConfig } from '@/components/universal-bar-chart'
-import { UniversalAreaMiniChart } from '@/components/universal-area-mini-chart'
-import { UniversalLineMiniChart } from '@/components/universal-line-mini-chart'
-import { UniversalBarMiniChart } from '@/components/universal-bar-mini-chart'
+"use client"
 
+import { AlertCircle } from "lucide-react"
+import { UniversalBarChart, type MetricConfig } from "@/components/universal-bar-chart"
+import { UniversalAreaMiniChart } from "@/components/universal-area-mini-chart"
+import { UniversalLineMiniChart } from "@/components/universal-line-mini-chart"
+import { UniversalBarMiniChart } from "@/components/universal-bar-mini-chart"
+import { useFinanceDashboard, type FinanceDashboardTotals } from "@/lib/api/finance"
 
-// Deep time-series mock dataset containing 47 sequential tracking dates
-const platformData: ChartDataPoint[] = [
-  { date: "2026-05-01", platformFee: 220, transactions: 150 },
-  { date: "2026-05-02", platformFee: 197, transactions: 180 },
-  { date: "2026-05-03", platformFee: 267, transactions: 120 },
-  { date: "2026-05-04", platformFee: 342, transactions: 260 },
-  { date: "2026-05-05", platformFee: 473, transactions: 290 },
-  { date: "2026-05-06", platformFee: 401, transactions: 340 },
-  { date: "2026-05-07", platformFee: 345, transactions: 180 },
-  { date: "2026-05-08", platformFee: 509, transactions: 320 },
-  { date: "2026-05-09", platformFee: 159, transactions: 110 },
-  { date: "2026-05-10", platformFee: 361, transactions: 190 },
-  { date: "2026-05-11", platformFee: 427, transactions: 350 },
-  { date: "2026-05-12", platformFee: 392, transactions: 210 },
-  { date: "2026-05-13", platformFee: 442, transactions: 380 },
-  { date: "2026-05-14", platformFee: 237, transactions: 220 },
-  { date: "2026-05-15", platformFee: 220, transactions: 170 },
-  { date: "2026-05-16", platformFee: 238, transactions: 190 },
-  { date: "2026-05-17", platformFee: 546, transactions: 360 },
-  { date: "2026-05-18", platformFee: 464, transactions: 410 },
-  { date: "2026-05-19", platformFee: 343, transactions: 180 },
-  { date: "2026-05-20", platformFee: 277, transactions: 230 },
-  { date: "2026-05-21", platformFee: 182, transactions: 140 },
-  { date: "2026-05-22", platformFee: 181, transactions: 120 },
-  { date: "2026-05-23", platformFee: 352, transactions: 290 },
-  { date: "2026-05-24", platformFee: 487, transactions: 290 },
-  { date: "2026-05-25", platformFee: 315, transactions: 250 },
-  { date: "2026-05-26", platformFee: 175, transactions: 130 },
-  { date: "2026-05-27", platformFee: 483, transactions: 420 },
-  { date: "2026-05-28", platformFee: 222, transactions: 180 },
-  { date: "2026-05-29", platformFee: 415, transactions: 240 },
-  { date: "2026-05-30", platformFee: 554, transactions: 380 },
-  { date: "2026-05-31", platformFee: 265, transactions: 220 },
-  { date: "2026-06-01", platformFee: 420, transactions: 210 },
-  { date: "2026-06-02", platformFee: 380, transactions: 190 },
-  { date: "2026-06-03", platformFee: 510, transactions: 320 },
-  { date: "2026-06-04", platformFee: 490, transactions: 280 },
-  { date: "2026-06-05", platformFee: 620, transactions: 410 },
-  { date: "2026-06-06", platformFee: 580, transactions: 390 },
-  { date: "2026-06-07", platformFee: 690, transactions: 510 },
-  { date: "2026-06-08", platformFee: 440, transactions: 310 },
-  { date: "2026-06-09", platformFee: 495, transactions: 360 },
-  { date: "2026-06-10", platformFee: 520, transactions: 440 },
-  { date: "2026-06-11", platformFee: 610, transactions: 490 },
-  { date: "2026-06-12", platformFee: 575, transactions: 420 },
-  { date: "2026-06-13", platformFee: 410, transactions: 290 },
-  { date: "2026-06-14", platformFee: 430, transactions: 330 },
-  { date: "2026-06-15", platformFee: 550, transactions: 410 },
-  { date: "2026-06-16", platformFee: 680, transactions: 520 },
+const financeMetrics: MetricConfig[] = [
+  { key: "collected", label: "Collections", color: "#E85002" },
+  { key: "invoiced", label: "Invoiced", color: "#18181b" },
+  { key: "outflows", label: "Outflows", color: "#71717a" },
+  { key: "netCashflow", label: "Net Cashflow", color: "#16a34a" },
 ]
 
-// Standardized Core Colors: 
-// Hero Orange: #E85002 | Dark Zinc Neutral: #18181b | Muted Zinc: #71717a
-const platformMetrics: MetricConfig[] = [
-  { key: "platformFee", label: "Platform Revenue", color: "#E85002" },
-  { key: "transactions", label: "Volume Metrics", color: "#18181b" },
-]
+const currencyFormatter = new Intl.NumberFormat("en-GH", {
+  style: "currency",
+  currency: "GHS",
+  maximumFractionDigits: 0,
+})
 
-export default function FinanceOverviewAnalytics() {
+function formatCurrency(amount: number) {
+  return currencyFormatter.format(amount)
+}
+
+function FinanceDashboardSkeleton() {
   return (
     <div className="flex flex-col gap-4 p-2 md:p-1">
-    
-      {/* Universal Interactive Chart View Engine */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div key={index} className="h-[112px] bg-white rounded-xl border border-zinc-200 p-4 shadow-sm animate-pulse" />
+        ))}
+      </div>
+      <div className="w-full bg-white rounded-xl border border-zinc-200 p-4 shadow-sm h-[430px] animate-pulse" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div key={index} className="h-[220px] bg-white rounded-xl border border-zinc-200 p-4 shadow-sm animate-pulse" />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function FinanceDashboardError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="flex min-h-[420px] flex-col items-center justify-center gap-3 p-8 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600">
+        <AlertCircle className="h-5 w-5" />
+      </div>
+      <div className="space-y-1">
+        <h2 className="text-sm font-semibold text-zinc-900">Unable to load finance dashboard</h2>
+        <p className="max-w-md text-xs text-zinc-500">
+          The finance dashboard is now wired to the live finance API. Check that the backend is running and that your account has finance access.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
+      >
+        Retry
+      </button>
+    </div>
+  )
+}
+
+function KpiCard({
+  label,
+  value,
+  helper,
+  tone = "neutral",
+}: {
+  label: string
+  value: string
+  helper: string
+  tone?: "orange" | "green" | "red" | "neutral"
+}) {
+  const toneClass = {
+    orange: "text-[#E85002]",
+    green: "text-emerald-600",
+    red: "text-rose-600",
+    neutral: "text-zinc-900",
+  }[tone]
+
+  return (
+    <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+      <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">{label}</p>
+      <p className={`mt-2 text-2xl font-semibold tracking-tight ${toneClass}`}>{value}</p>
+      <p className="mt-1 text-[11px] text-zinc-400">{helper}</p>
+    </div>
+  )
+}
+
+function FinanceKpiGrid({ totals }: { totals: FinanceDashboardTotals }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <KpiCard
+        label="Cash Collected"
+        value={formatCurrency(totals.collected)}
+        helper="Verified collections posted to treasury"
+        tone="orange"
+      />
+      <KpiCard
+        label="Outstanding Receivables"
+        value={formatCurrency(totals.outstanding)}
+        helper="Invoice balances not yet cleared"
+        tone={totals.outstanding > 0 ? "red" : "green"}
+      />
+      <KpiCard
+        label="Operating Outflows"
+        value={formatCurrency(totals.outflows)}
+        helper="Expenses plus current payroll obligation"
+      />
+      <KpiCard
+        label="Net Cashflow"
+        value={formatCurrency(totals.netCashflow)}
+        helper="Collections less expenses and payroll"
+        tone={totals.netCashflow >= 0 ? "green" : "red"}
+      />
+    </div>
+  )
+}
+
+export default function FinanceOverviewAnalytics() {
+  const { data, isLoading, isError, refetch, isFetching } = useFinanceDashboard(90)
+
+  if (isLoading) return <FinanceDashboardSkeleton />
+  if (isError || !data) return <FinanceDashboardError onRetry={() => void refetch()} />
+
+  return (
+    <div className="flex flex-col gap-4 p-2 md:p-1">
+      <FinanceKpiGrid totals={data.totals} />
+
       <div className="w-full bg-white rounded-xl border border-zinc-200 p-4 shadow-sm">
-        <UniversalBarChart 
-          title="Overview"
-          description="Operational metrics and volume analytics across the instance lifecycle."
-          data={platformData}
-          metrics={platformMetrics}
-          defaultMetricKey="platformFee"
+        <UniversalBarChart
+          title="Finance Overview"
+          description={`Live collections, invoices, outflows, and net cashflow across the last ${data.windowDays} days.${isFetching ? " Refreshing..." : ""}`}
+          data={data.trend}
+          metrics={financeMetrics}
+          defaultMetricKey="collected"
         />
       </div>
-      
-      {/* Visual Hierarchy Layout centered on the primary Orange accent */}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        
-        {/* Slot 1: Stacked Layered Area Layout — Hero base orange overlapping with dark tracking text */}
         <UniversalAreaMiniChart
-          title="Yield vs Volume"
-          subtitle="Revenue mapped directly against runs"
-          data={platformData}
-          dataKey="platformFee"
-          secondaryDataKey="transactions"
+          title="Collections vs Outflows"
+          subtitle={`${data.counts.collections.toLocaleString()} receipts against ${data.counts.expenses.toLocaleString()} expense logs`}
+          data={data.trend}
+          dataKey="collected"
+          secondaryDataKey="outflows"
           color="#E85002"
           secondaryColor="#18181b"
           height={135}
         />
 
-        {/* Slot 2: Secondary metric as a crisp, structural dark neutral */}
         <UniversalLineMiniChart
-          title="Transaction Runs"
-          subtitle="Total volume operations processed"
-          data={platformData}
-          dataKey="transactions"
+          title="Outstanding Balances"
+          subtitle={`${data.counts.openInvoices.toLocaleString()} open invoice records`}
+          data={data.trend}
+          dataKey="outstanding"
           color="#18181b"
           height={135}
         />
-        
-        {/* Slot 3: Mini Bar Chart uses the clean core accent color */}
+
         <UniversalBarMiniChart
-          title="Average Yield"
-          subtitle="Relative profit margins across windows"
-          data={platformData}
-          dataKey="platformFee"
+          title="Payroll Burn"
+          subtitle={`${data.counts.pendingPayroll.toLocaleString()} payroll allocations pending`}
+          data={data.trend}
+          dataKey="payroll"
           color="#E85002"
           height={135}
         />
-        
-        {/* Slot 4: Muted slate-zinc distribution component so it blends elegantly into the background */}
-         <UniversalBarMiniChart
-          title="Average Yield"
-          subtitle="Relative profit margins across windows"
-          data={platformData}
-          dataKey="platformFee"
+
+        <UniversalBarMiniChart
+          title="Expense Outflows"
+          subtitle={`${data.counts.expenses.toLocaleString()} operational expense records`}
+          data={data.trend}
+          dataKey="expenses"
           color="#18181b"
           height={135}
         />
       </div>
-
     </div>
   )
 }

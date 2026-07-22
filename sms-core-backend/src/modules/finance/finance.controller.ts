@@ -6,6 +6,16 @@ import { toCSV, respondCSV } from '@/utils/export';
 export class FinanceController {
   constructor(private financeService: FinanceService) {}
 
+  getDashboard = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const requestedDays = Number(req.query.days ?? 90);
+      const dashboard = await this.financeService.getDashboardSummary(
+        Number.isFinite(requestedDays) ? requestedDays : 90
+      );
+      return res.status(200).json({ success: true, data: dashboard });
+    } catch (error) { next(error); }
+  };
+
   getGlobalFeeMatrix = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = await this.financeService.getGlobalMatrix();
