@@ -31,7 +31,7 @@ function isProtectedPath(pathname: string): boolean {
   )
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Skip non-protected paths

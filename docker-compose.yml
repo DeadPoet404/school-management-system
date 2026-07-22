@@ -1,12 +1,15 @@
 services:
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
+    networks: [sms-net]
     environment:
       POSTGRES_USER: sms_user
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: sms_db
-    ports:
-      - "5432:5432"
+    # Postgres is intentionally NOT exposed to the host.
+    # Backend reaches it privately over the Docker network using:
+    #   postgres:5432
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -17,8 +20,10 @@ services:
 
   backend:
     build: ./sms-core-backend
+    restart: unless-stopped
+    networks: [sms-net]
     ports:
-      - "5000:5000"
+      - "127.0.0.1:5000:5000"
     environment:
       DATABASE_URL: postgresql://sms_user:${POSTGRES_PASSWORD}@postgres:5432/sms_db?schema=public
       NODE_ENV: production
@@ -26,29 +31,57 @@ services:
       LOG_LEVEL: info
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
-      JWT_EXPIRES_IN: 15m
+      JWT_ACCESS_EXPIRES_IN: 15m
       JWT_REFRESH_EXPIRES_IN: 7d
       COOKIE_SECRET: ${COOKIE_SECRET}
-      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-localhost}
-      COOKIE_SECURE: "false"
-      COOKIE_SAME_SITE: lax
+      # Empty string = no Domain attribute on cookie.
+      # DO NOT set this to "localhost" — browsers reject Domain=localhost
+      # per RFC 6265. Leave blank for local dev. Set to your real domain
+      # (e.g. sms.school.edu.gh) only in production with HTTPS.
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
+      # Set to "false" when running on plain HTTP (local Docker, staging).
+      # Set to "true" only when serving over HTTPS.
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-lax}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       RATE_LIMIT_WINDOW_MS: "60000"
       RATE_LIMIT_MAX_REQUESTS: "100"
       AUTH_RATE_LIMIT_MAX_REQUESTS: "5"
+      # Set RUN_SEED=true to populate the database with demo data on first boot.
+      # Only takes effect when the _prisma_migrations table shows a fresh DB.
+      RUN_SEED: ${RUN_SEED:-false}
     depends_on:
       postgres:
         condition: service_healthy
 
   frontend:
-    build: ./sms-core
+    build:
+      context: ./sms-core
+      args:
+        # Bake /api into the browser bundle at build time.
+        NEXT_PUBLIC_API_URL: /api
+        # Bake the Docker-internal backend URL into Next.js rewrites at build time.
+        # Without this, rewrites default to http://localhost:5000, which points
+        # back to the frontend container and causes ECONNREFUSED.
+        BACKEND_URL: http://backend:5000
+    restart: unless-stopped
+    networks: [sms-net]
     ports:
       - "3000:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:5000/api
+      # BACKEND_URL is read by next.config.ts at SERVER RUNTIME (rewrites).
+      # This is NOT exposed to the browser — it is a server-side variable only.
       BACKEND_URL: http://backend:5000
+      # Repeat here so Next.js standalone server.js can read it at runtime
+      # even though the bundle already has /api baked in from the build arg.
+      NEXT_PUBLIC_API_URL: /api
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+
+networks:
+  sms-net:
+    driver: bridge
 
 volumes:
   postgres_data:

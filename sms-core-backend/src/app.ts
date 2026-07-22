@@ -94,7 +94,7 @@ app.use(cors({
 app.use(express.json());
 
 // ── P1: Cookie parser — required to read httpOnly cookies set by auth controller ──
-app.use(cookieParser());
+app.use(cookieParser(process.env.COOKIE_SECRET));
 
 // ── XSS SANITIZATION: Strip HTML from all string inputs ──
 app.use(sanitizeInput);

@@ -10,14 +10,37 @@ const loginSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 });
 
+/**
+ * Builds cookie options from environment variables.
+ *
+ * COOKIE_SECURE and COOKIE_SAME_SITE are validated and normalised by
+ * env.ts before this function is ever called, so process.env values
+ * here are guaranteed to be well-formed strings.
+ *
+ * Why not use NODE_ENV directly?
+ * NODE_ENV=production is required for Next.js, Express optimisations,
+ * and many libraries — but it does NOT mean the transport is HTTPS.
+ * In Docker on localhost the transport is plain HTTP even in
+ * "production" mode, so we need an explicit COOKIE_SECURE flag that
+ * the operator controls independently of NODE_ENV.
+ */
 function getCookieOptions() {
-  const isProduction = process.env.NODE_ENV === 'production';
+  // env.ts has already written "true" or "false" back to process.env
+  const secure = process.env.COOKIE_SECURE === 'true';
+
+  // env.ts has already validated this is one of lax | strict | none
+  const sameSite = (process.env.COOKIE_SAME_SITE as 'lax' | 'strict' | 'none') ?? 'lax';
+
+  // COOKIE_DOMAIN must be empty / undefined for localhost.
+  // Setting Domain=localhost violates RFC 6265 and browsers reject it.
+  const domain = process.env.COOKIE_DOMAIN || undefined;
+
   return {
     httpOnly: true,
-    secure: isProduction,
-    sameSite: 'strict' as const,
+    secure,
+    sameSite,
     path: '/',
-    domain: process.env.COOKIE_DOMAIN || undefined,
+    domain,
   };
 }
 
@@ -92,6 +115,9 @@ export class AuthController {
   /**
    * POST /api/auth/logout
    * Revokes the refresh token in DB and clears both cookies.
+   * Uses getCookieOptions() so secure/sameSite flags match exactly
+   * what was used to set the cookies — mismatched flags cause
+   * browsers to ignore the clear instruction.
    */
   async logout(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
@@ -102,8 +128,13 @@ export class AuthController {
       const accessToken = req.cookies?.access_token;
       if (accessToken) blockToken(accessToken);
 
-      const isProduction = process.env.NODE_ENV === 'production';
-      const clearOpts = { httpOnly: true, secure: isProduction, sameSite: 'strict' as const, path: '/', maxAge: 0 };
+      // Use the same options that were used to SET the cookies.
+      // If the flags differ (e.g. Secure mismatch) browsers treat
+      // them as different cookies and the clear has no effect.
+      const clearOpts = {
+        ...getCookieOptions(),
+        maxAge: 0,
+      };
 
       res.cookie('access_token', '', clearOpts);
       res.cookie('refresh_token', '', clearOpts);

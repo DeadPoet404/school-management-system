@@ -1,5 +1,5 @@
 import { PrismaClient, EntityStatus, PayrollStatus, DepartureType, PersonnelDepartureType, TreasuryClearanceStatus } from "@prisma/client";
-import { hashPassword } from "../src/utils/hash"; // Adjust this path if necessary to resolve your utility engine
+import { hashPassword } from "@/utils/hash"; // Adjust this path if necessary to resolve your utility engine
 
 const prisma = new PrismaClient();
 

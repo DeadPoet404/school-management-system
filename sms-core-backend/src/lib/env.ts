@@ -11,6 +11,7 @@ const envSchema = z.object({
   // If an access token was compromised, an attacker could forge refresh tokens.
   // Generate a separate secret and add it to your .env file.
   JWT_REFRESH_SECRET: z.string().min(16, 'JWT_REFRESH_SECRET must be at least 16 characters and MUST differ from JWT_SECRET.'),
+  COOKIE_SECRET: z.string().min(16).optional(),
 
   // ── OPTIONAL — have safe defaults ──
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -55,6 +56,7 @@ function validateEnv() {
   process.env.JWT_REFRESH_EXPIRES_IN = env.JWT_REFRESH_EXPIRES_IN;
   // P1-9: No conditional — JWT_REFRESH_SECRET is now always present
   process.env.JWT_REFRESH_SECRET = env.JWT_REFRESH_SECRET;
+  if (env.COOKIE_SECRET) process.env.COOKIE_SECRET = env.COOKIE_SECRET;
   if (env.COOKIE_DOMAIN) process.env.COOKIE_DOMAIN = env.COOKIE_DOMAIN;
   process.env.COOKIE_SECURE = String(env.COOKIE_SECURE);
   process.env.COOKIE_SAME_SITE = env.COOKIE_SAME_SITE;
