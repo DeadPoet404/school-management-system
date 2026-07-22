@@ -38,7 +38,7 @@ export function WorkspaceLayout({ children }: { children: React.ReactNode }) {
                 </Suspense>
               </div>
 
-              <main className="w-full flex-1 min-h-0 overflow-hidden flex flex-col">
+              <main className="w-full flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar flex flex-col">
                 {children}
               </main>
             </div>
