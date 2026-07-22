@@ -1,36 +1,89 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# sms-core (Frontend)
 
-## Getting Started
+Next.js 16 (App Router) frontend for the School Management System.
+Built with React 19, TypeScript, Tailwind CSS v4, and TanStack Query.
 
-First, run the development server:
+## Tech stack
+  - Framework      : Next.js 16 (App Router)
+  - UI library     : React 19
+  - Language       : TypeScript 5
+  - Styling        : Tailwind CSS v4 (PostCSS plugin)
+  - Components     : shadcn/ui style primitives under src/components/ui,
+                     built on Radix UI / Base UI
+  - Data fetching  : TanStack React Query v5
+  - Charts         : Recharts
+  - Toasts         : sonner
+  - Icons          : lucide-react
+  - Auth           : httpOnly cookie JWTs (see lib/auth-context and
+                       lib/fetch-with-auth)
+  - Package mgr    : npm 10+ (package-lock.json committed)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Running locally
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+  cd ~/sms-monorepo/sms-core
+  npm install
+  NEXT_PUBLIC_API_URL="http://localhost:5000/api" \
+    BACKEND_URL="http://localhost:5000" \
+    npm run dev
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+  # open localhost on port 3000
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+For production builds:
+  npm run build
+  npm run start
 
-## Learn More
+For Docker builds see the Dockerfile at the repo root and the
+docker-compose.yml in the parent directory.
 
-To learn more about Next.js, take a look at the following resources:
+## Environment variables
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+  NEXT_PUBLIC_API_URL   Public URL the browser uses to call the API.
+                       Baked into the client bundle at build time.
+                       Behind Docker Compose rewrites use "/api". For
+                        local dev use "http://localhost:5000/api".
+  BACKEND_URL          Server-side only, used by Next.js rewrites in
+                        next.config.ts to proxy /api/* to the backend.
+                       The browser never sees this.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Folder layout
 
-## Deploy on Vercel
+  src/
+    app/                Next.js App Router pages
+      layout.tsx       Root layout (Poppins font, providers)
+      page.tsx         Redirects to /login
+      login/  Login page
+      dashboard/        Authenticated dashboard with KPI charts
+      students/        Student registry (list, add, departure, gradebook)
+      teachers/        Faculty registry (list, add, departure)
+      staff/           Staff registry (list, add, departure)
+      finance/         Finance module (fees, invoices, payments, payroll)
+      operations/      Operations hub and attendance capture
+    components/
+      ui/               Reusable primitives (button, card, table, dialog)
+      *.tsx            Domain-specific views (tables, forms, filters)
+    lib/
+      auth-context.txx React Context for session state
+      fetch-with-auth.ts  Auth fetcher with automatic 401 refresh
+      api/              React Query hooks grouped by domain
+      query-client.ts  TanStack Query client
+      utils.ts         cn() class merger (clsx + tailwind-merge)
+    hooks/             Custom React hoks (use-mobile)
+    proxy.ts          Edge middleware: cookie-existence route guard
+    providers.tsx     Root providers (QueryClient, AuthProvider, Toaster)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Authentication model
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+  - Login posts to /api/auth/login;"backend sets httpOnly cookies
+    access_token (15 min) and refresh_token (7 day rotating).
+    Nothing is stored in localStorage.
+  - fetch-with-auth sends credentials:"include" automatically; on 401 it
+    calls /api/auth/refresh (single-flight lock) and replays the request.
+  - Edge middleware (src/proxy.ts) checks the access_token cookie before
+    serving protected routes; redirects to /login if absent. The backend
+    still verifies JWT validity so stolen cookies cannot access the API.
+  - Client-side ProtectedRoute revalidates on mount via /api/auth/me.
+
+## Lint / build
+
+  npm run lint
+  npm run build     # next build; fails on TypeScript errors

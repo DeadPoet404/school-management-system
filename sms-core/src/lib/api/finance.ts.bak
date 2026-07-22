@@ -3,8 +3,6 @@ import { fetchWithAuth } from "@/lib/fetch-with-auth";
 
 const FINANCE_BASE_PATH = "/finance";
 
-// ── Wire / pagination types ────────────────────────────────────────────
-
 interface ApiPaginationMeta {
   page?: number;
   limit?: number;
@@ -36,8 +34,6 @@ export interface PaginatedResult<T> {
   data: T[];
   pagination: PaginationMeta;
 }
-
-// ── Raw API row shapes (string | number for safety) ────────────────────
 
 interface PayrollApiRow {
   id: string;
@@ -87,15 +83,12 @@ interface ExpenseApiRow {
   expenseDate: string;
 }
 
-// ── Normalized domain types used by the UI ─────────────────────────────
-
 export interface PayrollRecord {
   id: string;
   staffName: string;
   baseSalary: number;
   allowances: number;
   deductions: number;
-  netPay: number;
   payPeriod: string;
   status: "Paid" | "Processing" | "On_Hold";
 }
@@ -173,8 +166,6 @@ export interface FinanceDashboardData {
   trend: FinanceDashboardTrendPoint[];
 }
 
-// ── Empty fallbacks (used while loading / on partial data) ─────────────
-
 const emptyDashboardTotals: FinanceDashboardTotals = {
   invoiced: 0,
   collected: 0,
@@ -196,8 +187,6 @@ const emptyDashboardCounts: FinanceDashboardCounts = {
   openInvoices: 0,
   pendingPayroll: 0,
 };
-
-// ── Helpers ────────────────────────────────────────────────────────────
 
 function toNumber(value: unknown): number {
   const numeric = typeof value === "number" ? value : Number(value ?? 0);
@@ -221,19 +210,12 @@ function normalizePagination(
   };
 }
 
-async function fetchFinancePage<T>(
-  resource: string,
-  page: number,
-  limit: number,
-): Promise<PaginatedResult<T>> {
+async function fetchFinancePage<T>(resource: string, page: number, limit: number): Promise<PaginatedResult<T>> {
   const params = new URLSearchParams({
     page: String(page),
     limit: String(limit),
   });
 
-  // NOTE: fetchWithAuth(url: string) — plain function call with a template
-  // literal argument (NOT a tagged template). It prepends API_URL (/api),
-  // so FINANCE_BASE_PATH="/finance" → final URL "/api/finance/<resource>".
   const res = await fetchWithAuth(`${FINANCE_BASE_PATH}/${resource}?${params}`);
   if (!res.ok) throw new Error(`Failed to fetch finance ${resource}`);
 
@@ -246,33 +228,25 @@ async function fetchFinancePage<T>(
   };
 }
 
-function normalizeInvoiceStatus(
-  status: InvoiceApiRow["status"],
-): InvoiceRecord["status"] {
+function normalizeInvoiceStatus(status: InvoiceApiRow["status"]): InvoiceRecord["status"] {
   if (status === "Paid" || status === "PAID") return "Paid";
   if (status === "Partial" || status === "PARTIAL") return "Partial";
   return "Overdue";
 }
 
-function normalizeExpenseStatus(
-  status: ExpenseApiRow["status"],
-): ExpenseRecord["status"] {
+function normalizeExpenseStatus(status: ExpenseApiRow["status"]): ExpenseRecord["status"] {
   if (status === "Cleared" || status === "CLEARED") return "Cleared";
   if (status === "Rejected" || status === "REJECTED") return "Rejected";
   return "Pending_Approval";
 }
 
 function mapPayrollRecord(row: PayrollApiRow): PayrollRecord {
-  const base = toNumber(row.baseSalary);
-  const allow = toNumber(row.allowances);
-  const ded = toNumber(row.deductions);
   return {
     id: row.id,
     staffName: row.name,
-    baseSalary: base,
-    allowances: allow,
-    deductions: ded,
-    netPay: base + allow - ded,
+    baseSalary: toNumber(row.baseSalary),
+    allowances: toNumber(row.allowances),
+    deductions: toNumber(row.deductions),
     payPeriod: "Current Period",
     status: row.status === "Disbursed" ? "Paid" : "Processing",
   };
@@ -317,9 +291,7 @@ function mapExpenseRecord(row: ExpenseApiRow): ExpenseRecord {
   };
 }
 
-function normalizeTrendPoint(
-  point: Partial<FinanceDashboardTrendPoint>,
-): FinanceDashboardTrendPoint {
+function normalizeTrendPoint(point: Partial<FinanceDashboardTrendPoint>): FinanceDashboardTrendPoint {
   return {
     date: point.date || new Date().toISOString().slice(0, 10),
     invoiced: toNumber(point.invoiced),
@@ -332,13 +304,8 @@ function normalizeTrendPoint(
   };
 }
 
-function normalizeDashboardData(
-  data: Partial<FinanceDashboardData> | undefined,
-  days: number,
-): FinanceDashboardData {
-  const trend = Array.isArray(data?.trend)
-    ? data!.trend.map(normalizeTrendPoint)
-    : [];
+function normalizeDashboardData(data: Partial<FinanceDashboardData> | undefined, days: number): FinanceDashboardData {
+  const trend = Array.isArray(data?.trend) ? data.trend.map(normalizeTrendPoint) : [];
 
   return {
     windowDays: toNumber(data?.windowDays) || days,
@@ -348,33 +315,26 @@ function normalizeDashboardData(
   };
 }
 
-// ── React Query hooks ──────────────────────────────────────────────────
-
 export function useFinanceDashboard(days: number = 90) {
-  return useQuery<FinanceDashboardData>({
+  return useQuery({
     queryKey: ["finance", "dashboard", days],
     queryFn: async () => {
       const params = new URLSearchParams({ days: String(days) });
-      // Backend dashboard endpoint lands in Phase 1; degrade gracefully
-      // to empty data on 404 so the page doesn't crash on Phase-0 builds.
       const res = await fetchWithAuth(`${FINANCE_BASE_PATH}/dashboard?${params}`);
-      if (res.status === 404) {
-        return normalizeDashboardData(undefined, days);
-      }
       if (!res.ok) throw new Error("Failed to fetch finance dashboard");
 
       const json = (await res.json()) as ApiEnvelope<FinanceDashboardData>;
       return normalizeDashboardData(json.data, days);
     },
-    placeholderData: (prev) => prev,
   });
 }
 
 export function usePayroll(page: number = 1, limit: number = 20) {
-  return useQuery<PaginatedResult<PayrollRecord>>({
+  return useQuery({
     queryKey: ["finance", "payroll", page, limit],
     queryFn: async () => {
       const result = await fetchFinancePage<PayrollApiRow>("payroll", page, limit);
+
       return {
         data: result.data.map(mapPayrollRecord),
         pagination: result.pagination,
@@ -385,14 +345,11 @@ export function usePayroll(page: number = 1, limit: number = 20) {
 }
 
 export function useCollections(page: number = 1, limit: number = 20) {
-  return useQuery<PaginatedResult<CollectionRecord>>({
+  return useQuery({
     queryKey: ["finance", "collections", page, limit],
     queryFn: async () => {
-      const result = await fetchFinancePage<CollectionApiRow>(
-        "collections",
-        page,
-        limit,
-      );
+      const result = await fetchFinancePage<CollectionApiRow>("collections", page, limit);
+
       return {
         data: result.data.map(mapCollectionRecord),
         pagination: result.pagination,
@@ -403,14 +360,11 @@ export function useCollections(page: number = 1, limit: number = 20) {
 }
 
 export function useInvoices(page: number = 1, limit: number = 20) {
-  return useQuery<PaginatedResult<InvoiceRecord>>({
+  return useQuery({
     queryKey: ["finance", "invoices", page, limit],
     queryFn: async () => {
-      const result = await fetchFinancePage<InvoiceApiRow>(
-        "invoices",
-        page,
-        limit,
-      );
+      const result = await fetchFinancePage<InvoiceApiRow>("invoices", page, limit);
+
       return {
         data: result.data.map(mapInvoiceRecord),
         pagination: result.pagination,
@@ -421,14 +375,11 @@ export function useInvoices(page: number = 1, limit: number = 20) {
 }
 
 export function useExpenses(page: number = 1, limit: number = 20) {
-  return useQuery<PaginatedResult<ExpenseRecord>>({
+  return useQuery({
     queryKey: ["finance", "expenses", page, limit],
     queryFn: async () => {
-      const result = await fetchFinancePage<ExpenseApiRow>(
-        "expenses",
-        page,
-        limit,
-      );
+      const result = await fetchFinancePage<ExpenseApiRow>("expenses", page, limit);
+
       return {
         data: result.data.map(mapExpenseRecord),
         pagination: result.pagination,
