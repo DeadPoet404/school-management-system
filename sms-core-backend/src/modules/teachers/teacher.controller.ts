@@ -42,7 +42,7 @@ export class TeacherController {
 
   public createTeacher = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
-      const { account, placement, demographics } = req.body;
+      const { account, placement, demographics, compliance, payroll } = req.body;
 
       if (!account?.fullName || !account?.email) {
         return res.status(400).json({ success: false, message: "Missing core identity payloads (fullName and email are required)." });
@@ -63,6 +63,8 @@ export class TeacherController {
         account: { fullName: account.fullName, email: account.email, password: account.password },
         placement: placement ? { departmentId: placement.departmentId, jobTitle: placement.jobTitle, employmentType: placement.employmentType } : undefined,
         demographics,
+        compliance,
+        payroll,
       });
 
       // TODO: Phase 4 Task 4.1 — Replace password-in-response with
@@ -75,6 +77,12 @@ export class TeacherController {
         message: "Faculty profile saved to database successfully.",
       };
 
+      // Surface auto-generated temporary password to the enrolling admin
+      // so they can deliver it to the new teacher out-of-band.
+      if ((newTeacher as any)._temporaryPassword) {
+        response.temporaryPassword = (newTeacher as any)._temporaryPassword;
+        response.warning = (newTeacher as any)._warning ?? "Communicate this password to the teacher immediately.";
+      }
 
       return res.status(201).json(response);
     } catch (error) {

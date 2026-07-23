@@ -264,6 +264,8 @@ export class StaffService {
           create: {
             clearanceTier: payroll.clearanceTier,
             baseSalary: payroll.baseSalary ? parseFloat(payroll.baseSalary as string) : 0,
+            deductions: 0,
+            netPay: payroll.baseSalary ? parseFloat(payroll.baseSalary as string) : 0,
             bankName: payroll.bankName || null,
             bankAccount: payroll.bankAccount || null,
             salaryStatus: "PENDING",
@@ -335,7 +337,9 @@ export class StaffService {
       const pay = data.payroll as Record<string, unknown>;
       if (pay.baseSalary !== undefined) pay.baseSalary = parseFloat(String(pay.baseSalary)) || 0;
       if (pay.deductions !== undefined) pay.deductions = parseFloat(String(pay.deductions)) || 0;
-      if (pay.netPay !== undefined) pay.netPay = parseFloat(String(pay.netPay)) || 0;
+      const base = typeof pay.baseSalary === "number" ? pay.baseSalary : 0;
+      const ded = typeof pay.deductions === "number" ? pay.deductions : 0;
+      pay.netPay = Math.max(0, base - ded);
     }
 
     return this.repo.update(id, data);

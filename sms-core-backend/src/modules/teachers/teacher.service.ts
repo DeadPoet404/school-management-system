@@ -177,8 +177,23 @@ export class TeacherService {
       religion?: string;
       formerSchool?: string;
     };
+    compliance?: {
+      nationalId?: string | null;
+      ssnitNumber?: string | null;
+      emergencyContact?: {
+        name?: string | null;
+        phone?: string | null;
+      } | null;
+    } | null;
+    payroll?: {
+      clearanceTier?: string | null;
+      baseSalary?: string | number | null;
+      bankName?: string | null;
+      bankAccount?: string | null;
+      paymentRoute?: string | null;
+    } | null;
   }) {
-    const { account, placement, demographics } = payload;
+    const { account, placement, demographics, compliance, payroll } = payload;
 
     // ── P0-2 fix: refuse to fabricate PII ──
     // All demographic fields must be provided by the caller.
@@ -233,18 +248,26 @@ export class TeacherService {
           },
         },
 
-        compliance: {
-          create: {},
-        },
+        compliance: compliance
+          ? {
+              create: {
+                nationalId: compliance.nationalId ?? null,
+                ssnitNumber: compliance.ssnitNumber ?? null,
+                emergencyName: compliance.emergencyContact?.name ?? null,
+                emergencyPhone: compliance.emergencyContact?.phone ?? null,
+              },
+            }
+          : { create: {} },
 
         payroll: {
           create: {
-            clearanceTier: "Level 1: Standard Faculty Access",
-            baseSalary: 0.0,
+            clearanceTier: payroll?.clearanceTier || "Level 1: Standard Faculty Access",
+            baseSalary: payroll?.baseSalary ? parseFloat(String(payroll.baseSalary)) : 0.0,
             deductions: 0.0,
-            netPay: 0.0,
-            bankName: "Unconfigured Bank",
-            bankAccount: "—",
+            netPay: (payroll?.baseSalary ? parseFloat(String(payroll.baseSalary)) : 0.0) - 0.0,
+            paymentRoute: payroll?.paymentRoute || "BANK_TRANSFER",
+            bankName: payroll?.bankName || "Unconfigured Bank",
+            bankAccount: payroll?.bankAccount || "—",
             salaryStatus: "PENDING",
           },
         },
@@ -342,7 +365,10 @@ export class TeacherService {
       const pay = data.payroll as Record<string, unknown>;
       if (pay.baseSalary !== undefined) pay.baseSalary = parseFloat(String(pay.baseSalary)) || 0;
       if (pay.deductions !== undefined) pay.deductions = parseFloat(String(pay.deductions)) || 0;
-      if (pay.netPay !== undefined) pay.netPay = parseFloat(String(pay.netPay)) || 0;
+      // Always recompute netPay server-side so denormalised field can't drift from inputs.
+      const base = typeof pay.baseSalary === "number" ? pay.baseSalary : 0;
+      const ded = typeof pay.deductions === "number" ? pay.deductions : 0;
+      pay.netPay = Math.max(0, base - ded);
     }
 
     return this.repo.update(id, data);

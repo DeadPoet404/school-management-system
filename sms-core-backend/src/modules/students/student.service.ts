@@ -177,8 +177,12 @@ export class StudentService {
     }
 
     const uniqueStudentId = formatInstitutionalId("STU", String(new Date().getFullYear()));
-    const feeTier = await prisma.feeTier.findUnique({ where: { code: billing.feeTierId } });
+    // Frontend may send either the fee tier's UUID (id) or its code (code); try both.
+    const feeTier =
+      (await prisma.feeTier.findUnique({ where: { id: billing.feeTierId } })) ??
+      (await prisma.feeTier.findUnique({ where: { code: billing.feeTierId } }));
     const baseTariff = feeTier ? Number(feeTier.amount) : 0;
+    const resolvedTierId = feeTier?.id ?? null;
     const computedBalance = Math.max(0, baseTariff - billing.initialDeposit);
 
     return await prisma.$transaction(async (tx) => {
@@ -205,7 +209,7 @@ export class StudentService {
         },
         placement: { create: { classId: placement.classId, academicTrack: placement.academicTrack, boardingStatus: placement.boardingStatus } },
         guardians: { create: { name: resolvedGuardian.name, relationship: resolvedGuardian.relationship, phone: resolvedGuardian.phone, email: resolvedGuardian.email ?? null } },
-        billing: { create: { feeTierId: billing.feeTierId, initialDeposit: billing.initialDeposit, currentBalance: computedBalance } },
+        billing: { create: { feeTierId: resolvedTierId, initialDeposit: billing.initialDeposit, currentBalance: computedBalance } },
         compliance: { create: { nationalId: compliance?.nationalId ?? null, emergencyName: compliance?.emergencyContact?.name ?? null, emergencyPhone: compliance?.emergencyContact?.phone ?? null, emergencyRelation: compliance?.emergencyContact?.relationship ?? null } },
       };
 

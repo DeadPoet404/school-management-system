@@ -101,6 +101,8 @@ export function createMockFinanceRepo(overrides?: Partial<IFinanceRepository>): 
     disburseTeacherPayroll: vi.fn(),
     findAllExpenses: vi.fn(),
     countAllExpenses: vi.fn(),
+    findExpenseById: vi.fn().mockResolvedValue(null),
+    updateExpenseStatus: vi.fn().mockResolvedValue({}),
     createExpense: vi.fn(),
     ...overrides,
   };

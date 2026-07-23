@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { AuthenticatedRequest } from '@/middleware/auth.middleware';
 import { FinanceService } from './finance.service';
 import { parsePaginationQuery, buildPaginationResponse } from '@/utils/pagination';
 import { toCSV, respondCSV } from '@/utils/export';
@@ -98,9 +99,10 @@ export class FinanceController {
     } catch (error) { next(error); }
   };
 
-  createExpense = async (req: Request, res: Response, next: NextFunction) => {
+  createExpense = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const data = await this.financeService.createExpense(req.body);
+      const processedBy = req.user?.email;
+      const data = await this.financeService.createExpense(req.body, processedBy);
       return res.status(201).json({ success: true, data });
     } catch (error) { next(error); }
   };
@@ -154,9 +156,10 @@ export class FinanceController {
     } catch (error) { next(error); }
   };
 
-  disbursePayroll = async (req: Request, res: Response, next: NextFunction) => {
+  disbursePayroll = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const { id } = req.body;
+      const actorEmail = req.user?.email;
       if (!id) return res.status(400).json({ success: false, message: "Missing payroll record ID." });
       await this.financeService.disbursePayroll(id);
       const data = await this.financeService.getCombinedPayroll();

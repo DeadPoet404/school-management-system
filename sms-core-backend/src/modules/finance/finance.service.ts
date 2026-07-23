@@ -39,6 +39,16 @@ export class FinanceService {
     return date.toISOString().slice(0, 10);
   }
 
+
+  private deriveInvoiceStatus(rawStatus: string, dueDate: Date): "Paid" | "Partial" | "Unpaid" | "Overdue" {
+    if (rawStatus === "PAID") return "Paid";
+    if (rawStatus === "PARTIAL") {
+      return dueDate.getTime() < Date.now() ? "Overdue" : "Partial";
+    }
+    // UNPAID
+    return dueDate.getTime() < Date.now() ? "Overdue" : "Unpaid";
+  }
+
   private createDashboardTrendPoint(date: string): FinanceDashboardTrendPoint {
     return {
       date,
@@ -319,9 +329,14 @@ export class FinanceService {
           paymentType: data.paymentMethod,
         }, tx);
 
-        const unpaidInvoice = await this.repo.findOldestUnpaidInvoice(data.studentInternalId, tx);
-        if (unpaidInvoice) {
-          await this.repo.applyPaymentToInvoice(unpaidInvoice.id, numericAmount, tx);
+        // Apply payment across oldest-outstanding invoices until amount is exhausted
+        let remaining = numericAmount;
+        while (remaining > 0) {
+          const unpaidInvoice = await this.repo.findOldestUnpaidInvoice(data.studentInternalId, tx);
+          if (!unpaidInvoice) break;
+          const result = await this.repo.applyPaymentToInvoice(unpaidInvoice.id, remaining, tx);
+          if (!result || !result.invoice) break;
+          remaining = result.overage;
         }
       }
 
@@ -368,7 +383,7 @@ export class FinanceService {
           configId: config.id,
         }, tx);
 
-        await this.repo.upsertBillingLedger(student.id, sectionId, totalFeeAmount, tx);
+        await this.repo.upsertBillingLedger(student.id, null, totalFeeAmount, tx);
         generatedCount++;
       }
 
@@ -507,7 +522,7 @@ export class FinanceService {
       feeCategory: inv.description,
       totalAmount: parseFloat(inv.amount.toString()),
       paidAmount: parseFloat(inv.paidAmount.toString()),
-      status: inv.status === "PAID" ? "Paid" : inv.status === "PARTIAL" ? "Partial" : "Overdue",
+      status: this.deriveInvoiceStatus(inv.status, inv.dueDate),
       issueDate: inv.createdAt.toISOString(),
       dueDate: inv.dueDate.toISOString(),
     }));
@@ -546,10 +561,16 @@ export class FinanceService {
     }));
   }
 
-  async createExpense(data: Record<string, unknown>) {
+
+  async updateExpenseStatus(id: string, status: "PENDING_APPROVAL" | "CLEARED" | "REJECTED", processedBy?: string) {
+    const existing = await this.repo.findExpenseById(id);
+    if (!existing) throw new AppError(404, `Expense not found: ${id}`);
+    return this.repo.updateExpenseStatus(id, status);
+  }
+  async createExpense(data: Record<string, unknown>, processedBy?: string) {
     const count = await this.repo.countAllExpenses();
     const expenseNo = `EXP-${new Date().getFullYear()}-${String(count + 1).padStart(3, "0")}`;
-    return this.repo.createExpense({ ...data, expenseNo });
+    return this.repo.createExpense({ ...data, expenseNo, processedBy: processedBy ?? null });
   }
 
   async getAllInvoices() {
@@ -560,7 +581,7 @@ export class FinanceService {
       feeCategory: inv.description,
       totalAmount: parseFloat(inv.amount.toString()),
       paidAmount: parseFloat(inv.paidAmount.toString()),
-      status: inv.status === "PAID" ? "Paid" : inv.status === "PARTIAL" ? "Partial" : "Overdue",
+      status: this.deriveInvoiceStatus(inv.status, inv.dueDate),
       issueDate: inv.createdAt.toISOString(),
       dueDate: inv.dueDate.toISOString(),
     }));

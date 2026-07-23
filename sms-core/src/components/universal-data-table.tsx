@@ -1,8 +1,6 @@
 "use client"
 
-import { useState } from "react"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Button } from "@/components/ui/button"
+import * as React from "react"
 import {
   Table,
   TableBody,
@@ -12,29 +10,66 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { ChevronLeft, ChevronRight } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 export interface DataTableColumn<T = any> {
+  /** Column identifier used as React key; also used to look up a raw row value when `cell` is not provided. */
   key: string
+  /** Column header label. */
   header: string
-  className?: string     // For layout & structural classes (width, text alignment)
-  cellClassName?: string // For cell typography/color specifics (font-mono, text-muted)
+  /** Optional className applied to the <th>. */
+  className?: string
+  /** Optional className applied to every <td> in this column (when no custom renderer). */
+  cellClassName?: string
+  /** Optional custom cell renderer; receives the full row. */
   cell?: (row: T) => React.ReactNode
+  /** Column alignment (convenience). */
+  align?: "left" | "center" | "right"
 }
 
-interface PaginationData {
-  page: number
-  totalPages: number
-  total: number
+export interface PaginationState {
+  page?: number
+  limit?: number
+  totalItems?: number
+  total?: number
+  totalPages?: number
 }
 
-interface UniversalDataTableProps<T = any> {
+export interface UniversalDataTableProps<T> {
   data: T[]
   columns: DataTableColumn<T>[]
+  /** Returns a stable row key (e.g. row => row.id). */
   rowId: (row: T) => string
+  /** Message shown when `data` is empty. */
   emptyMessage?: string
-  selectable?: boolean
-  pagination?: PaginationData
+  /** Optional className applied to the root wrapper. */
+  className?: string
+  /** Optional max height for scrollable body. */
+  maxHeight?: string
+  /** Pagination metadata from the backend envelope. */
+  pagination?: PaginationState
+  /** Called when user clicks a page number. If omitted, no pagination footer is rendered. */
   onPageChange?: (page: number) => void
+  /** Compact rows (dense). */
+  compact?: boolean
+  /** Reserved for future row-selection support. Accepted for prop compatibility; currently a no-op. */
+  selectable?: boolean
+}
+
+function renderCellValue(value: unknown): React.ReactNode {
+  if (value === null || value === undefined) return "—"
+  if (typeof value === "boolean") return value ? "Yes" : "No"
+  if (typeof value === "number" || typeof value === "string") return value
+  if (value instanceof Date) return value.toLocaleDateString()
+  // For objects/arrays, stringify safely (prevents [object Object])
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value)
+    } catch {
+      return String(value)
+    }
+  }
+  return String(value)
 }
 
 export function UniversalDataTable<T>({
@@ -42,131 +77,107 @@ export function UniversalDataTable<T>({
   columns,
   rowId,
   emptyMessage = "No records found.",
-  selectable = true,
+  className,
+  maxHeight,
   pagination,
   onPageChange,
+  compact = false,
 }: UniversalDataTableProps<T>) {
-  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
+  const currentPage = Math.max(1, pagination?.page ?? 1)
+  const totalItems = pagination?.totalItems ?? pagination?.total ?? data.length
+  const limit = pagination?.limit ?? data.length
+  const totalPages =
+    pagination?.totalPages ?? (limit > 0 ? Math.ceil(totalItems / limit) : 1)
 
-  const totalRows = data.length
-  const selectAll = totalRows > 0 && selectedRows.size === totalRows
-
-  const handleSelectAll = (checked: boolean) => {
-    setSelectedRows(
-      checked ? new Set(data.map((row) => rowId(row))) : new Set()
-    )
-  }
-
-  const handleSelectRow = (id: string, checked: boolean) => {
-    const next = new Set(selectedRows)
-    if (checked) next.add(id)
-    else next.delete(id)
-    setSelectedRows(next)
-  }
+  const canPrev = currentPage > 1
+  const canNext = currentPage < totalPages
 
   return (
-    <div className=" space-y-3">
-      <div className="rounded-md border border-zinc-200 bg-card overflow-hidden  dark:border-zinc-800">
+    <div className={`w-full ${className ?? ""}`}>
+      <div
+        className="w-full overflow-auto rounded-md border border-zinc-200 dark:border-zinc-800"
+        style={maxHeight ? { maxHeight } : undefined}
+      >
         <Table>
-          <TableHeader className="bg-zinc-50 dark:bg-zinc-900/60 border-b border-zinc-200 dark:border-zinc-800">
-            <TableRow className="hover:bg-transparent border-b-0 whitespace-nowrap">
-              {selectable && (
-                <TableHead className="py-2.5 px-3 h-10 w-10 text-center border-r border-zinc-200 dark:border-zinc-800">
-                  <div className="flex items-center justify-center">
-                    <Checkbox
-                      checked={selectAll}
-                      onCheckedChange={handleSelectAll}
-                      aria-label="Select all rows"
-                    />
-                  </div>
-                </TableHead>
-              )}
-
-              {columns.map((column) => (
+          <TableHeader className="bg-zinc-50/80 dark:bg-zinc-900/50">
+            <TableRow className="hover:bg-transparent">
+              {columns.map((col) => (
                 <TableHead
-                  key={column.key}
-                  className={`py-2.5 px-3 h-10 text-xs font-semibold text-zinc-600 dark:text-zinc-400 border-r border-zinc-200 last:border-r-0 dark:border-zinc-800 ${column.className || ""}`}
+                  key={col.key}
+                  className={`text-xs font-semibold uppercase tracking-tight text-zinc-600 dark:text-zinc-400 ${col.className ?? ""}`}
+                  align={col.align}
                 >
-                  {column.header}
+                  {col.header}
                 </TableHead>
               ))}
             </TableRow>
           </TableHeader>
-
           <TableBody>
-            {totalRows === 0 ? (
+            {data.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={columns.length + (selectable ? 1 : 0)}
-                  className="text-center py-10 text-xs font-mono text-muted-foreground"
+                  colSpan={columns.length}
+                  className="h-24 text-center text-sm text-zinc-500 dark:text-zinc-400"
                 >
                   {emptyMessage}
                 </TableCell>
               </TableRow>
             ) : (
-              data.map((row) => {
-                const id = rowId(row)
-
-                return (
-                  <TableRow
-                    key={id}
-                    data-state={selectedRows.has(id) ? "selected" : undefined}
-                    className="hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60 border-b border-zinc-200 last:border-b-0 dark:border-zinc-800 whitespace-nowrap transition-colors duration-150 ease-in-out"
-                  >
-                    {selectable && (
-                      <TableCell className="py-2 px-3 text-center border-r border-zinc-200 dark:border-zinc-800">
-                        <div className="flex items-center justify-center">
-                          <Checkbox
-                            checked={selectedRows.has(id)}
-                            onCheckedChange={(checked) =>
-                              handleSelectRow(id, checked === true)
-                            }
-                          />
-                        </div>
-                      </TableCell>
-                    )}
-
-                    {columns.map((column) => (
+              data.map((row) => (
+                <TableRow
+                  key={rowId(row)}
+                  className={`hover:bg-zinc-50/60 dark:hover:bg-zinc-900/40 ${
+                    compact ? "h-9" : ""
+                  }`}
+                >
+                  {columns.map((col) => {
+                    const raw = (row as Record<string, unknown>)[col.key]
+                    const content = col.cell ? (col.cell as (r: T) => React.ReactNode)(row) : renderCellValue(raw)
+                    return (
                       <TableCell
-                        key={column.key}
-                        className={`py-2 px-3 border-r border-zinc-200 last:border-r-0 dark:border-zinc-800 text-sm ${column.className || ""} ${column.cellClassName || ""}`}
+                        key={col.key}
+                        className={`text-sm ${col.cellClassName ?? ""}`}
+                        align={col.align}
                       >
-                        {column.cell ? column.cell(row) : (row as any)[column.key]}
+                        {content}
                       </TableCell>
-                    ))}
-                  </TableRow>
-                )
-              })
+                    )
+                  })}
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>
       </div>
 
-      {pagination && pagination.totalPages > 1 && onPageChange && (
-        <div className="flex items-center justify-between px-1">
-          <p className="text-xs text-muted-foreground font-mono">
-            Page {pagination.page} of {pagination.totalPages} — {pagination.total} records
+      {onPageChange && totalPages > 1 && (
+        <div className="flex items-center justify-between px-1 py-2">
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Page {currentPage} of {totalPages} · {totalItems} record
+            {totalItems === 1 ? "" : "s"}
           </p>
-
           <div className="flex items-center gap-1">
             <Button
+              type="button"
               variant="outline"
               size="sm"
-              className="h-7 px-2 text-xs"
-              disabled={pagination.page <= 1}
-              onClick={() => onPageChange(pagination.page - 1)}
+              onClick={() => onPageChange(currentPage - 1)}
+              disabled={!canPrev}
+              className="h-7 w-7 p-0"
+              aria-label="Previous page"
             >
-              <ChevronLeft className="h-3.5 w-3.5" />
+              <ChevronLeft className="h-4 w-4" />
             </Button>
-
             <Button
+              type="button"
               variant="outline"
               size="sm"
-              className="h-7 px-2 text-xs"
-              disabled={pagination.page >= pagination.totalPages}
-              onClick={() => onPageChange(pagination.page + 1)}
+              onClick={() => onPageChange(currentPage + 1)}
+              disabled={!canNext}
+              className="h-7 w-7 p-0"
+              aria-label="Next page"
             >
-              <ChevronRight className="h-3.5 w-3.5" />
+              <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -174,3 +185,5 @@ export function UniversalDataTable<T>({
     </div>
   )
 }
+
+export default UniversalDataTable

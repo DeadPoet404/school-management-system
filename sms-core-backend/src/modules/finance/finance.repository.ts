@@ -3,7 +3,10 @@ import { IFinanceRepository, TransactionClient, FeeConfigCreateData, CollectionC
 
 export class FinanceRepository implements IFinanceRepository {
   async findAllFeeConfigurations(tx: TransactionClient = prisma) {
-    return tx.feeStructureConfiguration.findMany({ include: { components: true } });
+    return tx.feeStructureConfiguration.findMany({
+      where: { deletedAt: null },
+      include: { components: true },
+    });
   }
 
   async findFeeConfigBySection(sectionId: string, tx: TransactionClient = prisma) {
@@ -23,21 +26,21 @@ export class FinanceRepository implements IFinanceRepository {
 
   async findCollectionsBySection(sectionId: string, tx: TransactionClient = prisma) {
     return tx.paymentCollection.findMany({
-      where: { sectionId },
+      where: { sectionId, deletedAt: null },
       orderBy: { dateProcessed: 'desc' },
     });
   }
 
   async findCollectionsBySectionPaginated(sectionId: string, skip: number, take: number, tx: TransactionClient = prisma) {
     return tx.paymentCollection.findMany({
-      where: { sectionId },
+      where: { sectionId, deletedAt: null },
       orderBy: { dateProcessed: 'desc' },
       skip, take,
     });
   }
 
   async countCollectionsBySection(sectionId: string, tx: TransactionClient = prisma) {
-    return tx.paymentCollection.count({ where: { sectionId } });
+    return tx.paymentCollection.count({ where: { sectionId, deletedAt: null } });
   }
 
   async countCollections(tx: TransactionClient = prisma) {
@@ -97,16 +100,21 @@ export class FinanceRepository implements IFinanceRepository {
 
   async applyPaymentToInvoice(invoiceId: string, amount: number, tx: TransactionClient = prisma) {
     const invoice = await tx.invoice.findUnique({ where: { id: invoiceId } });
-    if (!invoice) return null;
-    const newPaid = parseFloat(invoice.paidAmount.toString()) + amount;
+    if (!invoice) return { applied: 0, overage: 0, invoice: null };
+    const alreadyPaid = parseFloat(invoice.paidAmount.toString());
     const total = parseFloat(invoice.amount.toString());
+    const outstanding = Math.max(total - alreadyPaid, 0);
+    const applied = Math.min(amount, outstanding);
+    const overage = Math.max(amount - applied, 0);
+    const newPaid = alreadyPaid + applied;
     let status: 'UNPAID' | 'PARTIAL' | 'PAID' = 'PARTIAL';
-    if (newPaid >= total) status = 'PAID';
+    if (newPaid >= total - 0.005) status = 'PAID';
     if (newPaid <= 0) status = 'UNPAID';
-    return tx.invoice.update({
+    const updated = await tx.invoice.update({
       where: { id: invoiceId },
       data: { paidAmount: newPaid, status },
     });
+    return { applied, overage, invoice: updated };
   }
 
   async findAllInvoices(skip?: number, take?: number, tx: TransactionClient = prisma) {
@@ -118,21 +126,26 @@ export class FinanceRepository implements IFinanceRepository {
   }
 
   async countAllInvoices(tx: TransactionClient = prisma) {
-    return tx.invoice.count();
+    return tx.invoice.count({ where: { deletedAt: null } });
   }
 
   async decrementBillingLedger(studentId: string, amount: number, tx: TransactionClient = prisma) {
+    // Clamp balance at 0 — a payment should never produce a negative balance.
+    const ledger = await tx.billingLedger.findUnique({ where: { studentId } });
+    if (!ledger) return null;
+    const current = parseFloat(ledger.currentBalance.toString());
+    const newBalance = Math.max(current - amount, 0);
     return tx.billingLedger.update({
       where: { studentId },
-      data: { currentBalance: { decrement: amount } },
+      data: { currentBalance: newBalance },
     });
   }
 
-  async upsertBillingLedger(studentId: string, feeTierId: string, amount: number, tx: TransactionClient = prisma) {
+  async upsertBillingLedger(studentId: string, feeTierId: string | null, amount: number, tx: TransactionClient = prisma) {
     return tx.billingLedger.upsert({
       where: { studentId },
       update: { currentBalance: { increment: amount } },
-      create: { studentId, feeTierId, initialDeposit: 0, currentBalance: amount },
+      create: { studentId, feeTierId: feeTierId ?? undefined, initialDeposit: 0, currentBalance: amount },
     });
   }
 
@@ -152,7 +165,7 @@ export class FinanceRepository implements IFinanceRepository {
   }
 
   async countLedgerAccounts(tx: TransactionClient = prisma) {
-    return tx.ledgerAccount.count();
+    return tx.ledgerAccount.count({ where: { deletedAt: null } });
   }
 
   async createLedgerAccount(data: LedgerAccountCreateData, tx: TransactionClient = prisma) {
@@ -188,7 +201,7 @@ export class FinanceRepository implements IFinanceRepository {
   }
 
   async countAllCollections(tx: TransactionClient = prisma) {
-    return tx.paymentCollection.count();
+    return tx.paymentCollection.count({ where: { deletedAt: null } });
   }
 
   async findAllExpenses(skip?: number, take?: number, tx: TransactionClient = prisma) {
@@ -199,7 +212,19 @@ export class FinanceRepository implements IFinanceRepository {
   }
 
   async countAllExpenses(tx: TransactionClient = prisma) {
-    return tx.expense.count();
+    return tx.expense.count({ where: { deletedAt: null } });
+  }
+
+
+  async findExpenseById(id: string, tx: TransactionClient = prisma) {
+    return tx.expense.findUnique({ where: { id, deletedAt: null } });
+  }
+
+  async updateExpenseStatus(id: string, status: "PENDING_APPROVAL" | "CLEARED" | "REJECTED", tx: TransactionClient = prisma) {
+    return tx.expense.update({
+      where: { id },
+      data: { status },
+    });
   }
 
   async createExpense(data: Record<string, unknown>, tx: TransactionClient = prisma) {

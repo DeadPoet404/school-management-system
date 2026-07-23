@@ -162,7 +162,7 @@ export interface IFinanceRepository {
   findAllInvoices(skip?: number, take?: number, tx?: TransactionClient): Promise<any>;
   countAllInvoices(tx?: TransactionClient): Promise<number>;
   decrementBillingLedger(studentId: string, amount: number, tx?: TransactionClient): Promise<any>;
-  upsertBillingLedger(studentId: string, feeTierId: string, amount: number, tx?: TransactionClient): Promise<any>;
+  upsertBillingLedger(studentId: string, feeTierId: string | null, amount: number, tx?: TransactionClient): Promise<any>;
   countStudentPayments(tx?: TransactionClient): Promise<any>;
   createStudentPayment(data: StudentPaymentCreateData, tx?: TransactionClient): Promise<any>;
   // General ledger & payroll (with pagination support)
@@ -180,6 +180,8 @@ export interface IFinanceRepository {
   // Expenses
   findAllExpenses(skip?: number, take?: number, tx?: TransactionClient): Promise<any>;
   countAllExpenses(tx?: TransactionClient): Promise<number>;
+  findExpenseById(id: string, tx?: TransactionClient): Promise<any>;
+  updateExpenseStatus(id: string, status: "PENDING_APPROVAL" | "CLEARED" | "REJECTED", tx?: TransactionClient): Promise<any>;
   createExpense(data: Record<string, unknown>, tx?: TransactionClient): Promise<any>;
 }
 
