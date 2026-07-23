@@ -1,26 +1,24 @@
 "use client"
 
 import * as React from "react"
-import { useEffect, useRef, useMemo, useCallback, useState } from "react"
+import {
+  BookOpen,
+  Clock,
+  Coffee,
+  GraduationCap,
+  Layers,
+  Loader2,
+  Plus,
+  Trash2,
+} from "lucide-react"
+import { toast } from "sonner"
+
 import { fetchWithAuth } from "@/lib/fetch-with-auth"
-import { Clock, Coffee, Plus, Trash2, Layers, BookOpen, GraduationCap, Loader2 } from "lucide-react"
-import { TimepickerUI } from "timepicker-ui"
 import { cn } from "@/lib/utils"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { toast } from "sonner"
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-} from "@/components/ui/combobox"
 
-// --- TYPES & SCHEMAS (API ALIGNED CONTRACTS) ---
 export interface BreakSlot {
   id: string
   name: string
@@ -46,22 +44,21 @@ export interface SectionTimeMatrix {
   subjects: SubjectAssignment[]
 }
 
-// Constant Layout Configurations
 const ACADEMIC_SECTIONS = [
-  { id: "pre-school", label: "Pre-School" },
-  { id: "nursery-1", label: "Nursery 1" },
-  { id: "nursery-2", label: "Nursery 2" },
-  { id: "kindergarten-1", label: "KG 1" },
-  { id: "kindergarten-2", label: "KG 2" },
-  { id: "grade-1", label: "Grade 1" },
-  { id: "grade-2", label: "Grade 2" },
-  { id: "grade-3", label: "Grade 3" },
-  { id: "grade-4", label: "Grade 4" },
-  { id: "grade-5", label: "Grade 5" },
-  { id: "grade-6", label: "Grade 6" },
-  { id: "jhs-1", label: "JHS 1" },
-  { id: "jhs-2", label: "JHS 2" },
-  { id: "jhs-3", label: "JHS 3" },
+  { id: "pre-school", label: "Pre-School", periods: 4 },
+  { id: "nursery-1", label: "Nursery 1", periods: 4 },
+  { id: "nursery-2", label: "Nursery 2", periods: 4 },
+  { id: "kindergarten-1", label: "KG 1", periods: 5 },
+  { id: "kindergarten-2", label: "KG 2", periods: 5 },
+  { id: "grade-1", label: "Grade 1", periods: 6 },
+  { id: "grade-2", label: "Grade 2", periods: 6 },
+  { id: "grade-3", label: "Grade 3", periods: 6 },
+  { id: "grade-4", label: "Grade 4", periods: 6 },
+  { id: "grade-5", label: "Grade 5", periods: 6 },
+  { id: "grade-6", label: "Grade 6", periods: 6 },
+  { id: "jhs-1", label: "JHS 1", periods: 8 },
+  { id: "jhs-2", label: "JHS 2", periods: 8 },
+  { id: "jhs-3", label: "JHS 3", periods: 8 },
 ] as const
 
 const AVAILABLE_TEACHERS = [
@@ -72,242 +69,246 @@ const AVAILABLE_TEACHERS = [
   "Mr. Joseph Donkor",
   "Mad. Elizabeth Arthur",
   "Mr. Kojo Appiah",
-] as const
+]
 
-const INITIAL_TIMETABLE_MATRIX: Record<string, SectionTimeMatrix> = {
-  "pre-school": { periodsCount: 4, periods: Array(4).fill({ startTime: "", endTime: "" }), breaks: [{ id: "ps-b1", name: "Nap & Snack", startTime: "10:00 AM", endTime: "10:40 AM" }], subjects: [] },
-  "nursery-1": { periodsCount: 4, periods: Array(4).fill({ startTime: "", endTime: "" }), breaks: [{ id: "n1-b1", name: "Recess Break", startTime: "10:00 AM", endTime: "10:40 AM" }], subjects: [] },
-  "nursery-2": { periodsCount: 4, periods: Array(4).fill({ startTime: "", endTime: "" }), breaks: [{ id: "n2-b1", name: "Recess Break", startTime: "10:00 AM", endTime: "10:40 AM" }], subjects: [] },
-  "kindergarten-1": { periodsCount: 5, periods: Array(5).fill({ startTime: "", endTime: "" }), breaks: [{ id: "kg1-b1", name: "Mid-Morning Break", startTime: "10:00 AM", endTime: "10:30 AM" }], subjects: [] },
-  "kindergarten-2": { periodsCount: 5, periods: Array(5).fill({ startTime: "", endTime: "" }), breaks: [{ id: "kg2-b1", name: "Mid-Morning Break", startTime: "10:00 AM", endTime: "10:30 AM" }], subjects: [] },
-  "grade-1": { periodsCount: 6, periods: Array(6).fill({ startTime: "", endTime: "" }), breaks: [{ id: "g1-b1", name: "First Break", startTime: "10:00 AM", endTime: "10:20 AM" }, { id: "g1-b2", name: "Lunch Break", startTime: "12:00 PM", endTime: "12:40 PM" }], subjects: [{ id: "g1-s1", subjectName: "Mathematics", teacherName: "Mr. Emmanuel Mensah" }] },
-  "grade-2": { periodsCount: 6, periods: Array(6).fill({ startTime: "", endTime: "" }), breaks: [{ id: "g2-b1", name: "First Break", startTime: "10:00 AM", endTime: "10:20 AM" }, { id: "g2-b2", name: "Lunch Break", startTime: "12:00 PM", endTime: "12:40 PM" }], subjects: [] },
-  "grade-3": { periodsCount: 6, periods: Array(6).fill({ startTime: "", endTime: "" }), breaks: [{ id: "g3-b1", name: "First Break", startTime: "10:00 AM", endTime: "10:20 AM" }, { id: "g3-b2", name: "Lunch Break", startTime: "12:00 PM", endTime: "12:40 PM" }], subjects: [] },
-  "grade-4": { periodsCount: 6, periods: Array(6).fill({ startTime: "", endTime: "" }), breaks: [{ id: "g4-b1", name: "First Break", startTime: "10:00 AM", endTime: "10:20 AM" }, { id: "g4-b2", name: "Lunch Break", startTime: "12:00 PM", endTime: "12:40 PM" }], subjects: [] },
-  "grade-5": { periodsCount: 6, periods: Array(6).fill({ startTime: "", endTime: "" }), breaks: [{ id: "g5-b1", name: "First Break", startTime: "10:00 AM", endTime: "10:20 AM" }, { id: "g5-b2", name: "Lunch Break", startTime: "12:00 PM", endTime: "12:40 PM" }], subjects: [] },
-  "grade-6": { periodsCount: 6, periods: Array(6).fill({ startTime: "", endTime: "" }), breaks: [{ id: "g6-b1", name: "First Break", startTime: "10:00 AM", endTime: "10:20 AM" }, { id: "g6-b2", name: "Lunch Break", startTime: "12:00 PM", endTime: "12:40 PM" }], subjects: [] },
-  "jhs-1": { periodsCount: 8, periods: Array(8).fill({ startTime: "", endTime: "" }), breaks: [{ id: "j1-b1", name: "Morning Intermission", startTime: "10:20 AM", endTime: "10:45 AM" }, { id: "j1-b2", name: "Main Lunch Break", startTime: "01:00 PM", endTime: "01:45 PM" }], subjects: [] },
-  "jhs-2": { periodsCount: 8, periods: Array(8).fill({ startTime: "", endTime: "" }), breaks: [{ id: "j2-b1", name: "Morning Intermission", startTime: "10:20 AM", endTime: "10:45 AM" }, { id: "j2-b2", name: "Main Lunch Break", startTime: "01:00 PM", endTime: "01:45 PM" }], subjects: [] },
-  "jhs-3": { periodsCount: 8, periods: Array(8).fill({ startTime: "", endTime: "" }), breaks: [{ id: "j3-b1", name: "Morning Intermission", startTime: "10:20 AM", endTime: "10:45 AM" }, { id: "j3-b2", name: "Main Lunch Break", startTime: "01:00 PM", endTime: "01:45 PM" }], subjects: [] },
+function createPeriods(count: number): PeriodSlot[] {
+  return Array.from({ length: count }, () => ({
+    startTime: "",
+    endTime: "",
+  }))
 }
 
-// --- STANDALONE TIME PICKER COMPONENT ---
-interface TimePickerInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "onChange"> {
-  value?: string
-  onChange?: (value: string) => void
-}
-
-function TimePickerInput({ value, onChange, className, ...props }: TimePickerInputProps) {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const pickerRef = useRef<TimepickerUI | null>(null)
-
-  const options = useMemo(() => ({
-    ui: { theme: 'basic' as const },
-    clock: { type: '12h' as const }
-  }), [])
-
-  useEffect(() => {
-    if (!inputRef.current) return
-
-    pickerRef.current = new TimepickerUI(inputRef.current, options)
-    pickerRef.current.create()
-
-    const currentInput = inputRef.current
-    const handleTimeAccept = () => {
-      if (onChange) onChange(currentInput.value)
-    }
-
-    currentInput.addEventListener("accept", handleTimeAccept)
-
-    return () => {
-      currentInput.removeEventListener("accept", handleTimeAccept)
-      pickerRef.current?.destroy()
-    }
-  }, [options, onChange])
-
-  return (
-    <input
-      ref={inputRef}
-      type="text"
-      value={value}
-      onChange={(e) => onChange?.(e.target.value)}
-      className={cn(
-        "h-8 w-full text-xs rounded border border-stone-200 bg-background px-3 tracking-tight outline-none cursor-pointer focus:border-stone-400 transition-colors",
-        className
-      )}
-      {...props}
-    />
+function createInitialMatrix(): Record<string, SectionTimeMatrix> {
+  return Object.fromEntries(
+    ACADEMIC_SECTIONS.map((section) => [
+      section.id,
+      {
+        periodsCount: section.periods,
+        periods: createPeriods(section.periods),
+        breaks: [
+          {
+            id: `${section.id}-morning-break`,
+            name: "Morning Break",
+            startTime: "10:20",
+            endTime: "10:45",
+          },
+        ],
+        subjects: [],
+      },
+    ])
   )
 }
 
-// --- MAIN SETUP UTILITY VIEWER ---
-export function TimetableStructureSetup() {
-  const [activeSection, setActiveSection] = useState<string>("pre-school")
-  const [matrixState, setMatrixState] = useState<Record<string, SectionTimeMatrix>>(INITIAL_TIMETABLE_MATRIX)
-  const [isLoading, setIsLoading] = useState<boolean>(true)
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
+function createId(prefix: string) {
+  return `${prefix}-${Math.random().toString(36).slice(2, 10)}`
+}
 
-  // Sync Data on Component Mount
-  useEffect(() => {
-    const fetchMatrixRegistry = async () => {
+export function TimetableStructureSetup() {
+  const [activeSection, setActiveSection] = React.useState("pre-school")
+  const [matrixState, setMatrixState] =
+    React.useState<Record<string, SectionTimeMatrix>>(createInitialMatrix)
+
+  const [isLoading, setIsLoading] = React.useState(false)
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
+
+  const currentMatrix = matrixState[activeSection] ?? {
+    periodsCount: 0,
+    periods: [],
+    breaks: [],
+    subjects: [],
+  }
+
+  const activeSectionLabel =
+    ACADEMIC_SECTIONS.find((section) => section.id === activeSection)?.label ??
+    ""
+
+  const lowerAcademicTier = ACADEMIC_SECTIONS.slice(0, 7)
+  const upperAcademicTier = ACADEMIC_SECTIONS.slice(7)
+
+  React.useEffect(() => {
+    const loadTimetable = async () => {
       try {
         setIsLoading(true)
+
         const response = await fetchWithAuth("/timetable/matrix")
-        const payload = await response.json()
-        
-        if (payload.success && payload.data && Object.keys(payload.data).length > 0) {
-          setMatrixState(prev => ({ ...prev, ...payload.data }))
+
+        if (!response.ok) {
+          return
         }
-      } catch (error) {
-        console.error("[Timetable Matrix Fetch Error]:", error)
-        toast.error("Failed to recover matrix data configurations.")
+
+        const payload = await response.json()
+
+        if (
+          payload?.success &&
+          payload?.data &&
+          typeof payload.data === "object" &&
+          Object.keys(payload.data).length > 0
+        ) {
+          setMatrixState((previous) => ({
+            ...previous,
+            ...payload.data,
+          }))
+        }
+      } catch {
+        // Keep local editable defaults if the timetable API has no saved matrix.
       } finally {
         setIsLoading(false)
       }
     }
 
-    fetchMatrixRegistry()
+    void loadTimetable()
   }, [])
 
-  // Memoized Grid Metrics
-  const currentMatrix = useMemo(() => {
-    return matrixState[activeSection] || { periodsCount: 0, periods: [], breaks: [], subjects: [] }
-  }, [matrixState, activeSection])
-
-  const lowerAcademicTier = useMemo(() => ACADEMIC_SECTIONS.slice(0, 7), [])
-  const upperAcademicTier = useMemo(() => ACADEMIC_SECTIONS.slice(7), [])
-  const activeSectionLabel = useMemo(() => ACADEMIC_SECTIONS.find(s => s.id === activeSection)?.label || "", [activeSection])
-
-  // Multi-State Immutable Target Mutators
-  const handlePeriodsCountChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = parseInt(e.target.value, 10)
-    const sanitizedVal = !isNaN(val) && val >= 0 ? Math.min(val, 12) : 0
-
-    setMatrixState(prev => {
-      const current = prev[activeSection]
-      const updatedPeriods = [...current.periods]
-
-      if (sanitizedVal > current.periods.length) {
-        while (updatedPeriods.length < sanitizedVal) {
-          updatedPeriods.push({ startTime: "", endTime: "" })
+  const updateCurrentMatrix = (
+    updater: (matrix: SectionTimeMatrix) => SectionTimeMatrix
+  ) => {
+    setMatrixState((previous) => ({
+      ...previous,
+      [activeSection]: updater(
+        previous[activeSection] ?? {
+          periodsCount: 0,
+          periods: [],
+          breaks: [],
+          subjects: [],
         }
-      } else {
-        updatedPeriods.splice(sanitizedVal)
+      ),
+    }))
+  }
+
+  const handlePeriodsCountChange = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const parsed = Number.parseInt(event.target.value, 10)
+    const periodsCount = Number.isFinite(parsed)
+      ? Math.min(Math.max(parsed, 0), 12)
+      : 0
+
+    updateCurrentMatrix((current) => {
+      const periods = [...current.periods]
+
+      while (periods.length < periodsCount) {
+        periods.push({ startTime: "", endTime: "" })
       }
 
       return {
-        ...prev,
-        [activeSection]: { ...current, periodsCount: sanitizedVal, periods: updatedPeriods }
+        ...current,
+        periodsCount,
+        periods: periods.slice(0, periodsCount),
       }
     })
-  }, [activeSection])
+  }
 
-  const updatePeriodTime = useCallback((index: number, field: keyof PeriodSlot, timeValue: string) => {
-    setMatrixState(prev => {
-      const current = prev[activeSection]
-      const updatedPeriods = current.periods.map((p, i) => 
-        i === index ? { ...p, [field]: timeValue } : p
-      )
-      return { ...prev, [activeSection]: { ...current, periods: updatedPeriods } }
-    })
-  }, [activeSection])
+  const updatePeriod = (
+    index: number,
+    field: keyof PeriodSlot,
+    value: string
+  ) => {
+    updateCurrentMatrix((current) => ({
+      ...current,
+      periods: current.periods.map((period, periodIndex) =>
+        periodIndex === index ? { ...period, [field]: value } : period
+      ),
+    }))
+  }
 
-  const addBreak = useCallback(() => {
-    const newId = `tmp_${Math.random().toString(36).substring(2, 9)}`
-    setMatrixState(prev => {
-      const current = prev[activeSection]
-      return {
-        ...prev,
-        [activeSection]: {
-          ...current,
-          breaks: [...current.breaks, { id: newId, name: "New Intermission", startTime: "12:00 PM", endTime: "12:30 PM" }]
-        }
-      }
-    })
-  }, [activeSection])
+  const addBreak = () => {
+    updateCurrentMatrix((current) => ({
+      ...current,
+      breaks: [
+        ...current.breaks,
+        {
+          id: createId("break"),
+          name: "New Break",
+          startTime: "12:00",
+          endTime: "12:30",
+        },
+      ],
+    }))
+  }
 
-  const removeBreak = useCallback((id: string) => {
-    setMatrixState(prev => {
-      const current = prev[activeSection]
-      return {
-        ...prev,
-        [activeSection]: { ...current, breaks: current.breaks.filter(b => b.id !== id) }
-      }
-    })
-  }, [activeSection])
+  const updateBreak = (
+    id: string,
+    field: keyof BreakSlot,
+    value: string
+  ) => {
+    updateCurrentMatrix((current) => ({
+      ...current,
+      breaks: current.breaks.map((item) =>
+        item.id === id ? { ...item, [field]: value } : item
+      ),
+    }))
+  }
 
-  const updateBreak = useCallback((id: string, field: keyof BreakSlot, value: string) => {
-    setMatrixState(prev => {
-      const current = prev[activeSection]
-      return {
-        ...prev,
-        [activeSection]: {
-          ...current,
-          breaks: current.breaks.map(b => b.id === id ? { ...b, [field]: value } : b)
-        }
-      }
-    })
-  }, [activeSection])
+  const removeBreak = (id: string) => {
+    updateCurrentMatrix((current) => ({
+      ...current,
+      breaks: current.breaks.filter((item) => item.id !== id),
+    }))
+  }
 
-  const addSubject = useCallback(() => {
-    const newId = `tmp_${Math.random().toString(36).substring(2, 9)}`
-    setMatrixState(prev => {
-      const current = prev[activeSection]
-      return {
-        ...prev,
-        [activeSection]: {
-          ...current,
-          subjects: [...(current.subjects || []), { id: newId, subjectName: "", teacherName: "" }]
-        }
-      }
-    })
-  }, [activeSection])
+  const addSubject = () => {
+    updateCurrentMatrix((current) => ({
+      ...current,
+      subjects: [
+        ...current.subjects,
+        {
+          id: createId("subject"),
+          subjectName: "",
+          teacherName: "",
+        },
+      ],
+    }))
+  }
 
-  const removeSubject = useCallback((id: string) => {
-    setMatrixState(prev => {
-      const current = prev[activeSection]
-      return {
-        ...prev,
-        [activeSection]: { ...current, subjects: (current.subjects || []).filter(s => s.id !== id) }
-      }
-    })
-  }, [activeSection])
+  const updateSubject = (
+    id: string,
+    field: keyof SubjectAssignment,
+    value: string
+  ) => {
+    updateCurrentMatrix((current) => ({
+      ...current,
+      subjects: current.subjects.map((item) =>
+        item.id === id ? { ...item, [field]: value } : item
+      ),
+    }))
+  }
 
-  const updateSubject = useCallback((id: string, field: keyof SubjectAssignment, value: string) => {
-    setMatrixState(prev => {
-      const current = prev[activeSection]
-      return {
-        ...prev,
-        [activeSection]: {
-          ...current,
-          subjects: (current.subjects || []).map(s => s.id === id ? { ...s, [field]: value } : s)
-        }
-      }
-    })
-  }, [activeSection])
+  const removeSubject = (id: string) => {
+    updateCurrentMatrix((current) => ({
+      ...current,
+      subjects: current.subjects.filter((item) => item.id !== id),
+    }))
+  }
 
-  // Submit Operations Layer
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
     try {
       setIsSubmitting(true)
+
       const response = await fetchWithAuth("/timetable/matrix", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: matrixState }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          data: matrixState,
+        }),
       })
-      
+
       const payload = await response.json()
-      if (payload.success) {
-        toast.success("Timetable matrix updated", {
-          description: "All configurations successfully written to Prisma structural layers.",
-        })
-      } else {
-        toast.error("Process aborted", { description: payload.error })
+
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.message ?? "Unable to save timetable.")
       }
+
+      toast.success("Timetable framework saved successfully.")
     } catch (error) {
-      console.error("[Matrix Upload Error]:", error)
-      toast.error("Transmission error", { description: "Could not safely hit the configuration server." })
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to save timetable configuration."
+      )
     } finally {
       setIsSubmitting(false)
     }
@@ -315,361 +316,333 @@ export function TimetableStructureSetup() {
 
   if (isLoading) {
     return (
-      <div className="flex-1 h-full flex flex-col items-center justify-center bg-transparent gap-3">
-        <Loader2 className="h-6 w-6 text-stone-400 animate-spin" />
-        <span className="text-xs font-medium text-stone-500 tracking-tight">Syncing Operational Timetable Matrices...</span>
+      <div className="flex h-[calc(100dvh-7rem)] items-center justify-center gap-3">
+        <Loader2 className="h-6 w-6 animate-spin text-stone-400" />
+        <span className="text-xs font-medium text-stone-500">
+          Loading timetable framework...
+        </span>
       </div>
     )
   }
 
   return (
-    <main className="flex-1 h-full flex flex-col bg-transparent px-8 py-6 overflow-hidden">
-      {/* Header Block */}
-      <div className="flex flex-col gap-2 shrink-0">
-        <div className="inline-flex items-center gap-1.5 text-xs text-muted-foreground tracking-wide uppercase font-bold text-stone-400">
+    <main className="flex h-[calc(100dvh-7rem)] min-h-0 flex-col overflow-hidden bg-transparent px-8 py-6">
+      <div className="shrink-0">
+        <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-stone-400">
           Core Academic Operations / Class Framework Layout
         </div>
-        
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl tracking-tight font-semibold text-foreground capitalize">
-              Timetable Structure Setup
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Configure dynamic period pairings, distinct run configurations, and fixed breaks completely split by institutional grade blocks.
-            </p>
-          </div>
-        </div>
+
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
+          Timetable Structure Setup
+        </h1>
+
+        <p className="mt-1 text-sm text-muted-foreground">
+          Configure periods, breaks, and teacher subject allocations by grade
+          level.
+        </p>
       </div>
 
-      {/* GRADE TIER SELECTOR HUD */}
-      <div className="mt-5 shrink-0 flex flex-col gap-1.5 max-w-3xl">
-        <Label className="text-[11px] font-bold text-stone-400 uppercase tracking-wider flex items-center gap-1">
-          <Layers className="h-3 w-3" /> Select Institutional Grade Tier
+      <div className="mt-5 shrink-0 max-w-5xl">
+        <Label className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-stone-400">
+          <Layers className="h-3 w-3" />
+          Select Institutional Grade Tier
         </Label>
-        
-        <div className="w-full flex flex-col gap-2.5">
-          {/* ROW 1: Early Childhood to Lower Primary Base */}
-          <div className="w-full flex items-center bg-stone-100 p-1.5 rounded-lg border border-stone-200/40">
-            {lowerAcademicTier.map((section, idx) => (
-              <React.Fragment key={section.id}>
-                <button
-                  type="button"
-                  onClick={() => setActiveSection(section.id)}
-                  className={cn(
-                    "flex-1 text-center py-1 rounded text-[11px] font-medium transition-all tracking-tight truncate px-1",
-                    activeSection === section.id
-                      ? "bg-white text-stone-900 shadow-sm border border-stone-200/20 font-semibold"
-                      : "text-stone-500 hover:text-stone-800 hover:bg-stone-50/60"
-                  )}
-                >
-                  {section.label}
-                </button>
-                {idx < lowerAcademicTier.length - 1 && (
-                  <div className="h-3 w-[1px] bg-stone-300 shrink-0 mx-0.5" />
+
+        <div className="mt-2 space-y-2">
+          <div className="flex overflow-x-auto rounded-lg border border-stone-200/60 bg-stone-100 p-1.5">
+            {lowerAcademicTier.map((section) => (
+              <button
+                key={section.id}
+                type="button"
+                onClick={() => setActiveSection(section.id)}
+                className={cn(
+                  "min-w-[76px] flex-1 rounded px-2 py-1.5 text-center text-[11px] font-medium transition-all",
+                  activeSection === section.id
+                    ? "border border-stone-200/40 bg-white font-semibold text-stone-900 shadow-sm"
+                    : "text-stone-500 hover:bg-stone-50 hover:text-stone-800"
                 )}
-              </React.Fragment>
+              >
+                {section.label}
+              </button>
             ))}
           </div>
 
-          {/* ROW 2: Upper Primary to JHS Framework Core */}
-          <div className="w-full flex items-center bg-stone-100 p-1.5 rounded-lg border border-stone-200/40">
-            {upperAcademicTier.map((section, idx) => (
-              <React.Fragment key={section.id}>
-                <button
-                  type="button"
-                  onClick={() => setActiveSection(section.id)}
-                  className={cn(
-                    "flex-1 text-center py-1 rounded text-[11px] font-medium transition-all tracking-tight truncate px-1",
-                    activeSection === section.id
-                      ? "bg-white text-stone-900 shadow-sm border border-stone-200/20 font-semibold"
-                      : "text-stone-500 hover:text-stone-800 hover:bg-stone-50/60"
-                  )}
-                >
-                  {section.label}
-                </button>
-                {idx < upperAcademicTier.length - 1 && (
-                  <div className="h-3 w-[1px] bg-stone-300 shrink-0 mx-0.5" />
+          <div className="flex overflow-x-auto rounded-lg border border-stone-200/60 bg-stone-100 p-1.5">
+            {upperAcademicTier.map((section) => (
+              <button
+                key={section.id}
+                type="button"
+                onClick={() => setActiveSection(section.id)}
+                className={cn(
+                  "min-w-[76px] flex-1 rounded px-2 py-1.5 text-center text-[11px] font-medium transition-all",
+                  activeSection === section.id
+                    ? "border border-stone-200/40 bg-white font-semibold text-stone-900 shadow-sm"
+                    : "text-stone-500 hover:bg-stone-50 hover:text-stone-800"
                 )}
-              </React.Fragment>
+              >
+                {section.label}
+              </button>
             ))}
           </div>
         </div>
       </div>
 
-      <hr className="border-stone-200 dark:border-stone-800 shrink-0 mt-5 mb-6" />
+      <div className="mt-5 mb-4 shrink-0 border-t border-stone-200 dark:border-stone-800" />
 
-      {/* Form Scroll Area */}
-      <ScrollArea className="flex-1 w-full max-w-3xl rounded-none border-none shadow-none bg-transparent">
-        <form onSubmit={handleSubmit} className="space-y-12 pr-4 pb-12 bg-transparent">
-          
-          {/* SECTION 1: PERIOD COUNT SETUP */}
-          <div className="relative pl-10 group">
-            <div className="absolute left-0 top-0 flex flex-col items-center h-full">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full border border-stone-200 bg-background text-xs font-medium text-stone-500">
-                1
-              </div>
-              <div className="w-[1px] flex-1 bg-stone-200 mt-2" />
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-3">
+        <form
+          onSubmit={handleSubmit}
+          className="mx-auto min-h-full max-w-3xl space-y-12 pb-12"
+        >
+          <section className="space-y-5">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-stone-400">
+                Step 1
+              </p>
+              <h2 className="mt-1 text-base font-semibold">
+                Daily Framework Metrics ({activeSectionLabel})
+              </h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Set the number of instructional periods for this grade tier.
+              </p>
             </div>
 
-            <div className="space-y-5">
-              <div>
-                <h3 className="text-base font-semibold text-foreground tracking-tight">
-                  Daily Framework Metrics <span className="text-stone-400 font-normal text-xs">({activeSectionLabel})</span>
-                </h3>
-                <p className="text-xs text-stone-400 mt-0.5">Determine total instructional matrix slots running inside an explicit single layout block cycle.</p>
-              </div>
-              
-              <div className="max-w-xs space-y-1.5">
-                <Label htmlFor="periods-count" className="text-xs font-semibold text-stone-700">
-                  Total Periods Per Day <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="periods-count"
-                  type="number"
-                  min={0}
-                  max={12}
-                  value={currentMatrix.periodsCount || ""}
-                  onChange={handlePeriodsCountChange}
-                  className="h-9 text-xs rounded-md border-stone-200 bg-background"
-                  placeholder="e.g. 6"
-                />
-              </div>
+            <div className="max-w-xs space-y-1.5">
+              <Label htmlFor="periods-count">Total Periods Per Day</Label>
+              <Input
+                id="periods-count"
+                type="number"
+                min={0}
+                max={12}
+                value={currentMatrix.periodsCount}
+                onChange={handlePeriodsCountChange}
+              />
             </div>
-          </div>
+          </section>
 
-          {/* SECTION 2: DYNAMIC TIME SLOTS CONFIGURATION */}
-          <div className="relative pl-10 group">
-            <div className="absolute left-0 top-0 flex flex-col items-center h-full">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full border border-stone-200 bg-background text-xs font-medium text-stone-500">
-                2
-              </div>
-              <div className="w-[1px] flex-1 bg-stone-200 mt-2" />
+          <section className="space-y-5 border-t pt-8">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-stone-400">
+                Step 2
+              </p>
+              <h2 className="mt-1 text-base font-semibold">
+                Instructional Period Slots
+              </h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Configure the start and end time for every period.
+              </p>
             </div>
 
-            <div className="space-y-5">
-              <div>
-                <h3 className="text-base font-semibold text-foreground tracking-tight">
-                  Instructional Matrix Slots <span className="text-stone-400 font-normal text-xs">({activeSectionLabel})</span>
-                </h3>
-                <p className="text-xs text-stone-400 mt-0.5">Map custom paired horizontal run times inside your targeted operational section sequence.</p>
-              </div>
-
-              <div className="space-y-3 max-w-2xl">
-                {currentMatrix.periods.map((period, index) => {
-                  const periodNum = index + 1
-                  return (
-                    <div key={`${activeSection}-period-${periodNum}`} className="flex items-center gap-4 bg-stone-50/50 p-3 rounded-lg border border-stone-100/80">
-                      <div className="flex items-center gap-2 min-w-[90px]">
-                        <Clock className="h-3.5 w-3.5 text-stone-400 shrink-0" />
-                        <span className="text-xs font-semibold text-stone-700">Period {periodNum}</span>
-                      </div>
-                      
-                      <div className="flex items-center gap-3 flex-1">
-                        <div className="flex-1">
-                          <TimePickerInput 
-                            value={period.startTime}
-                            onChange={(val) => updatePeriodTime(index, "startTime", val)}
-                            placeholder="Start Time"
-                            aria-label={`${activeSection} Period ${periodNum} Start Time`}
-                          />
-                        </div>
-                        <span className="text-stone-300 text-xs font-medium">to</span>
-                        <div className="flex-1">
-                          <TimePickerInput 
-                            value={period.endTime}
-                            onChange={(val) => updatePeriodTime(index, "endTime", val)}
-                            placeholder="End Time"
-                            aria-label={`${activeSection} Period ${periodNum} End Time`}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-                {currentMatrix.periodsCount === 0 && (
-                  <p className="text-xs text-stone-400 italic">Adjust execution slots counter above to map time vectors for this layer.</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* SECTION 3: INSTITUTIONAL BREAKS CONFIGURATION */}
-          <div className="relative pl-10 group">
-            <div className="absolute left-0 top-0 flex flex-col items-center h-full">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full border border-stone-200 bg-background text-xs font-medium text-stone-500">
-                3
-              </div>
-              <div className="w-[1px] flex-1 bg-stone-200 mt-2" />
-            </div>
-
-            <div className="space-y-5">
-              <div className="flex items-center justify-between max-w-2xl">
-                <div>
-                  <h3 className="text-base font-semibold text-foreground tracking-tight">
-                    Fixed Institutional Breaks <span className="text-stone-400 font-normal text-xs">({activeSectionLabel})</span>
-                  </h3>
-                  <p className="text-xs text-stone-400 mt-0.5">Establish non-instructional programmatic interruptions inside the operational timetable matrix grid.</p>
-                </div>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={addBreak}
-                  className="h-8 text-[11px] font-medium border-stone-200 gap-1 px-2.5"
+            <div className="space-y-3">
+              {currentMatrix.periods.map((period, index) => (
+                <div
+                  key={`${activeSection}-period-${index}`}
+                  className="flex flex-col gap-3 rounded-lg border border-stone-100 bg-stone-50/60 p-3 sm:flex-row sm:items-center"
                 >
-                  <Plus className="h-3 w-3" /> Add Break
-                </Button>
-              </div>
-
-              <div className="space-y-3 max-w-2xl">
-                {currentMatrix.breaks.map((brk) => (
-                  <div key={brk.id} className="flex items-center gap-4 bg-stone-50/30 p-3 rounded-lg border border-stone-100/60 group/break">
-                    <div className="flex items-center gap-2 w-1/3">
-                      <Coffee className="h-3.5 w-3.5 text-stone-400 shrink-0" />
-                      <Input
-                        type="text"
-                        value={brk.name}
-                        onChange={(e) => updateBreak(brk.id, "name", e.target.value)}
-                        className="h-8 text-xs rounded border-stone-200 font-medium bg-background px-2"
-                        placeholder="Break Label"
-                      />
-                    </div>
-                    
-                    <div className="flex items-center gap-3 flex-1">
-                      <TimePickerInput
-                        value={brk.startTime}
-                        onChange={(val) => updateBreak(brk.id, "startTime", val)}
-                        placeholder="Start Time"
-                      />
-                      <span className="text-stone-300 text-xs font-medium">to</span>
-                      <TimePickerInput
-                        value={brk.endTime}
-                        onChange={(val) => updateBreak(brk.id, "endTime", val)}
-                        placeholder="End Time"
-                      />
-                    </div>
-
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => removeBreak(brk.id)}
-                      className="h-8 w-8 p-0 text-stone-400 hover:text-red-600 rounded opacity-100 md:opacity-0 group-hover/break:opacity-100 transition-opacity"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                  <div className="flex min-w-[105px] items-center gap-2">
+                    <Clock className="h-3.5 w-3.5 text-stone-400" />
+                    <span className="text-xs font-semibold">
+                      Period {index + 1}
+                    </span>
                   </div>
-                ))}
-                {currentMatrix.breaks.length === 0 && (
-                  <p className="text-xs text-stone-400 italic">No structured structural layout configurations mapped for this segment.</p>
-                )}
-              </div>
-            </div>
-          </div>
 
-          {/* SECTION 4: SUBJECTS & FACULTY ASSIGNMENTS */}
-          <div className="relative pl-10 group">
-            <div className="absolute left-0 top-0 flex flex-col items-center h-full">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full border border-stone-200 bg-background text-xs font-medium text-stone-500">
-                4
-              </div>
-            </div>
+                  <div className="flex flex-1 items-center gap-3">
+                    <Input
+                      type="time"
+                      value={period.startTime}
+                      onChange={(event) =>
+                        updatePeriod(index, "startTime", event.target.value)
+                      }
+                      className="h-8 text-xs"
+                    />
 
-            <div className="space-y-5">
-              <div className="flex items-center justify-between max-w-2xl">
-                <div>
-                  <h3 className="text-base font-semibold text-foreground tracking-tight">
-                    Subject & Faculty Allocation <span className="text-stone-400 font-normal text-xs">({activeSectionLabel})</span>
-                  </h3>
-                  <p className="text-xs text-stone-400 mt-0.5">Map core curricular subject fields and pair active operational teachers to this tier matrix.</p>
+                    <span className="text-xs text-stone-400">to</span>
+
+                    <Input
+                      type="time"
+                      value={period.endTime}
+                      onChange={(event) =>
+                        updatePeriod(index, "endTime", event.target.value)
+                      }
+                      className="h-8 text-xs"
+                    />
+                  </div>
                 </div>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={addSubject}
-                  className="h-8 text-[11px] font-medium border-stone-200 gap-1 px-2.5"
-                >
-                  <Plus className="h-3 w-3" /> Add Assignment
-                </Button>
-              </div>
-
-              <div className="space-y-3 max-w-2xl">
-                {(currentMatrix.subjects || []).map((sub) => (
-                  <div key={sub.id} className="flex items-center gap-4 bg-stone-50/30 p-3 rounded-lg border border-stone-100/60 group/subject">
-                    {/* Subject Field Column */}
-                    <div className="flex items-center gap-2 flex-1">
-                      <BookOpen className="h-3.5 w-3.5 text-stone-400 shrink-0" />
-                      <Input
-                        type="text"
-                        value={sub.subjectName}
-                        onChange={(e) => updateSubject(sub.id, "subjectName", e.target.value)}
-                        className="h-8 text-xs rounded border-stone-200 font-medium bg-background px-2"
-                        placeholder="Subject (e.g. Science)"
-                      />
-                    </div>
-                    
-                    {/* Combobox Allocation Column */}
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <GraduationCap className="h-3.5 w-3.5 text-stone-400 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <Combobox 
-                          items={AVAILABLE_TEACHERS}
-                          value={sub.teacherName}
-                          onValueChange={(val) => updateSubject(sub.id, "teacherName", val ?? "")}
-                        >
-                          <ComboboxInput 
-                            placeholder="Select Teacher" 
-                            className="h-8 text-xs w-full rounded border border-stone-200 bg-background px-3 outline-none" 
-                          />
-                          <ComboboxContent>
-                            <ComboboxEmpty>No teachers found.</ComboboxEmpty>
-                            <ComboboxList>
-                              {(teacher) => (
-                                <ComboboxItem key={teacher} value={teacher}>
-                                  {teacher}
-                                </ComboboxItem>
-                              )}
-                            </ComboboxList>
-                          </ComboboxContent>
-                        </Combobox>
-                      </div>
-                    </div>
-
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => removeSubject(sub.id)}
-                      className="h-8 w-8 p-0 text-stone-400 hover:text-red-600 rounded opacity-100 md:opacity-0 group-hover/subject:opacity-100 transition-opacity"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                ))}
-                {(currentMatrix.subjects || []).length === 0 && (
-                  <p className="text-xs text-stone-400 italic">No structured subjects or faculty allocations paired with this academic group.</p>
-                )}
-              </div>
+              ))}
             </div>
-          </div>
+          </section>
 
-          {/* Action Footer */}
-          <div className="flex items-center justify-end gap-3 pt-5 border-t border-stone-200 bg-transparent max-w-2xl">
-            <Button 
-              type="submit" 
+          <section className="space-y-5 border-t pt-8">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-stone-400">
+                  Step 3
+                </p>
+                <h2 className="mt-1 text-base font-semibold">
+                  Fixed Institutional Breaks
+                </h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Add lunch, recess, assembly, and other non-instructional time.
+                </p>
+              </div>
+
+              <Button type="button" variant="outline" size="sm" onClick={addBreak}>
+                <Plus className="mr-1 h-3.5 w-3.5" />
+                Add Break
+              </Button>
+            </div>
+
+            <div className="space-y-3">
+              {currentMatrix.breaks.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex flex-col gap-3 rounded-lg border border-stone-100 bg-stone-50/60 p-3 lg:flex-row lg:items-center"
+                >
+                  <div className="flex flex-1 items-center gap-2">
+                    <Coffee className="h-3.5 w-3.5 shrink-0 text-stone-400" />
+                    <Input
+                      value={item.name}
+                      onChange={(event) =>
+                        updateBreak(item.id, "name", event.target.value)
+                      }
+                      placeholder="Break name"
+                      className="h-8 text-xs"
+                    />
+                  </div>
+
+                  <Input
+                    type="time"
+                    value={item.startTime}
+                    onChange={(event) =>
+                      updateBreak(item.id, "startTime", event.target.value)
+                    }
+                    className="h-8 w-full text-xs lg:w-32"
+                  />
+
+                  <Input
+                    type="time"
+                    value={item.endTime}
+                    onChange={(event) =>
+                      updateBreak(item.id, "endTime", event.target.value)
+                    }
+                    className="h-8 w-full text-xs lg:w-32"
+                  />
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeBreak(item.id)}
+                    className="text-stone-400 hover:text-red-600"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-5 border-t pt-8">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-stone-400">
+                  Step 4
+                </p>
+                <h2 className="mt-1 text-base font-semibold">
+                  Subject and Faculty Allocation
+                </h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Link each subject to a responsible teacher.
+                </p>
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addSubject}
+              >
+                <Plus className="mr-1 h-3.5 w-3.5" />
+                Add Assignment
+              </Button>
+            </div>
+
+            <div className="space-y-3">
+              {currentMatrix.subjects.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex flex-col gap-3 rounded-lg border border-stone-100 bg-stone-50/60 p-3 lg:flex-row lg:items-center"
+                >
+                  <div className="flex flex-1 items-center gap-2">
+                    <BookOpen className="h-3.5 w-3.5 shrink-0 text-stone-400" />
+                    <Input
+                      value={item.subjectName}
+                      onChange={(event) =>
+                        updateSubject(
+                          item.id,
+                          "subjectName",
+                          event.target.value
+                        )
+                      }
+                      placeholder="Subject name"
+                      className="h-8 text-xs"
+                    />
+                  </div>
+
+                  <div className="flex flex-1 items-center gap-2">
+                    <GraduationCap className="h-3.5 w-3.5 shrink-0 text-stone-400" />
+                    <select
+                      value={item.teacherName}
+                      onChange={(event) =>
+                        updateSubject(
+                          item.id,
+                          "teacherName",
+                          event.target.value
+                        )
+                      }
+                      className="h-8 w-full rounded-md border border-input bg-background px-3 text-xs"
+                    >
+                      <option value="">Select Teacher</option>
+                      {AVAILABLE_TEACHERS.map((teacher) => (
+                        <option key={teacher} value={teacher}>
+                          {teacher}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeSubject(item.id)}
+                    className="text-stone-400 hover:text-red-600"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <div className="flex justify-end border-t pt-6">
+            <Button
+              type="submit"
               disabled={isSubmitting}
-              className="h-9 text-xs font-medium px-4 bg-stone-900 text-white flex items-center gap-1.5 min-w-[190px] justify-center"
+              className="min-w-[220px]"
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Saving Schema Changes...
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving Timetable...
                 </>
               ) : (
-                "Initialize Timetable Framework"
+                "Save Timetable Framework"
               )}
             </Button>
           </div>
         </form>
-      </ScrollArea>
+      </div>
     </main>
   )
 }

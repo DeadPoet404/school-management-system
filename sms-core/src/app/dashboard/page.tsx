@@ -1,174 +1,384 @@
 "use client"
-import React, { useEffect, useState } from 'react'
-import { UniversalBarChart, ChartDataPoint, MetricConfig } from '@/components/universal-bar-chart'
-import { UniversalAreaMiniChart } from '@/components/universal-area-mini-chart'
-import { UniversalLineMiniChart } from '@/components/universal-line-mini-chart'
-import { UniversalBarMiniChart } from '@/components/universal-bar-mini-chart'
-import { fetchWithAuth } from '@/lib/fetch-with-auth'
 
-// ── Helpers ───────────────────────────────────────────────────────────
-// The backend list endpoints wrap totals either as `total` or as
-// `pagination.total`; defensively accept either and treat non-ok
-// responses as zero so the dashboard never crashes the page.
-async function fetchTotal(path: string): Promise<number> {
-  try {
-    const res = await fetchWithAuth(path)
-    if (!res.ok) return 0
-    const json = await res.json()
-    // Backend pagination envelope uses pagination.totalItems; some older
-    // controllers return a top-level `total`. Accept any of them.
-    const n = Number(
-      json?.pagination?.totalItems ??
-      json?.pagination?.total ??
-      json?.total ??
-      0,
-    )
-    return Number.isFinite(n) ? n : 0
-  } catch {
-    return 0
-  }
+import * as React from "react"
+import { TrendingUp } from "lucide-react"
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  XAxis,
+} from "recharts"
+
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart"
+
+type DashboardChartPoint = {
+  date: string
+  collections: number
+  attendance: number
+  assessments: number
+  enrollment: number
 }
 
-// The Universal*Chart components compute their headline numbers by
-// SUMMING `dataKey` across all rows, and the main bar chart draws one
-// bar per row. So to produce three distinct, non-double-counted metrics
-// we emit one row per category and populate the target metric column
-// only, leaving the other columns zero. The reduce then returns the
-// correct per-metric total, and the bars align 1:1 with categories.
-function buildChartData(
-  studentTotal: number,
-  teacherTotal: number,
-  staffTotal: number,
-): ChartDataPoint[] {
-  return [
-    // Row label is used as the x-axis category.
-    { date: "Students",     population: studentTotal, personnel: 0,            support: 0            },
-    { date: "Teachers",     population: 0,            personnel: teacherTotal, support: 0            },
-    { date: "Support Staff", population: 0,           personnel: 0,            support: staffTotal   },
-  ]
+const chartConfig = {
+  collections: {
+    label: "Fee Collections",
+    color: "#E85002",
+  },
+  attendance: {
+    label: "Average Attendance",
+    color: "#2563eb",
+  },
+  assessments: {
+    label: "Assessment Activity",
+    color: "#18181b",
+  },
+  enrollment: {
+    label: "Student Enrolment",
+    color: "#16a34a",
+  },
+} satisfies ChartConfig
+
+const metrics = [
+  {
+    key: "collections",
+    label: "Fee Collections",
+    color: "var(--color-collections)",
+  },
+  {
+    key: "attendance",
+    label: "Average Attendance",
+    color: "var(--color-attendance)",
+  },
+  {
+    key: "assessments",
+    label: "Assessment Activity",
+    color: "var(--color-assessments)",
+  },
+  {
+    key: "enrollment",
+    label: "Student Enrolment",
+    color: "var(--color-enrollment)",
+  },
+] as const
+
+function formatDate(date: string, options?: Intl.DateTimeFormatOptions) {
+  return new Date(date).toLocaleDateString(
+    "en-US",
+    options ?? {
+      month: "short",
+      day: "numeric",
+    }
+  )
+}
+
+/*
+  Temporary presentation data.
+
+  This is deliberately separate from your database seed. It allows us
+  to perfect the visual dashboard first, then replace these values with
+  API analytics data without redesigning the UI.
+*/
+const chartData: DashboardChartPoint[] = Array.from(
+  { length: 90 },
+  (_, index) => {
+    const date = new Date("2026-04-24T12:00:00")
+    date.setDate(date.getDate() + index)
+
+    const weekday = date.getDay()
+    const weekendMultiplier = weekday === 0 || weekday === 6 ? 0.35 : 1
+
+    return {
+      date: date.toISOString().slice(0, 10),
+
+      collections: Math.round(
+        (2800 +
+          ((index * 431) % 9300) +
+          Math.sin(index / 4) * 1850) *
+          weekendMultiplier
+      ),
+
+      attendance: Math.round(
+        Math.max(
+          72,
+          Math.min(
+            99,
+            88 + Math.sin(index / 5) * 5 + ((index * 7) % 6)
+          )
+        )
+      ),
+
+      assessments: Math.round(
+        (12 + ((index * 19) % 44) + Math.cos(index / 3) * 7) *
+          weekendMultiplier
+      ),
+
+      enrollment: Math.max(
+        0,
+        Math.round(
+          (index % 11 === 0 ? 6 : index % 5 === 0 ? 3 : 1) *
+            weekendMultiplier
+        )
+      ),
+    }
+  }
+)
+
+function MetricTrendCard({
+  title,
+  description,
+  dataKey,
+  footer,
+}: {
+  title: string
+  description: string
+  dataKey: keyof typeof chartConfig
+  footer: string
+}) {
+  const total = chartData.reduce(
+    (sum, row) => sum + Number(row[dataKey] ?? 0),
+    0
+  )
+
+  const average =
+    dataKey === "attendance"
+      ? Math.round(total / chartData.length)
+      : total.toLocaleString()
+
+  return (
+    <Card className="gap-0 overflow-hidden py-0 shadow-sm">
+      <CardHeader className="gap-1 px-5 pt-5 pb-2">
+        <CardDescription className="text-xs font-medium uppercase tracking-wide">
+          {title}
+        </CardDescription>
+
+        <CardTitle className="text-2xl font-semibold tracking-tight">
+          {dataKey === "attendance" ? `${average}%` : average}
+        </CardTitle>
+
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </CardHeader>
+
+      <CardContent className="px-3 pt-1 pb-2">
+        <ChartContainer config={chartConfig} className="h-[105px] w-full">
+          <LineChart
+            accessibilityLayer
+            data={chartData}
+            margin={{ top: 8, right: 8, left: 8, bottom: 0 }}
+          >
+            <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.35} />
+
+            <XAxis dataKey="date" hide />
+
+            <ChartTooltip
+              cursor={false}
+              content={
+                <ChartTooltipContent
+                  hideLabel={false}
+                  labelFormatter={(value) =>
+                    formatDate(String(value), {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })
+                  }
+                />
+              }
+            />
+
+            <Line
+              type="monotone"
+              dataKey={dataKey}
+              stroke={`var(--color-${dataKey})`}
+              strokeWidth={2}
+              dot={false}
+              activeDot={{ r: 4 }}
+            />
+          </LineChart>
+        </ChartContainer>
+      </CardContent>
+
+      <CardFooter className="border-t px-5 py-3">
+        <p className="text-xs text-muted-foreground">{footer}</p>
+      </CardFooter>
+    </Card>
+  )
 }
 
 export default function DashboardPage() {
-  const [data, setData] = useState<ChartDataPoint[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [activeMetric, setActiveMetric] =
+    React.useState<(typeof metrics)[number]["key"]>("collections")
 
-  useEffect(() => {
-    let cancelled = false
-    async function loadMetrics() {
-      try {
-        setIsLoading(true)
-        setError(null)
-
-        const [studentTotal, teacherTotal, staffTotal] = await Promise.all([
-          fetchTotal("/students?limit=1"),
-          fetchTotal("/teachers?limit=1"),
-          fetchTotal("/staff?limit=1"),
-        ])
-
-        if (cancelled) return
-        setData(buildChartData(studentTotal, teacherTotal, staffTotal))
-      } catch {
-        if (!cancelled) setError("Unable to load dashboard metrics.")
-      } finally {
-        if (!cancelled) setIsLoading(false)
-      }
+  const totals = React.useMemo(() => {
+    return {
+      collections: chartData.reduce((sum, row) => sum + row.collections, 0),
+      attendance: Math.round(
+        chartData.reduce((sum, row) => sum + row.attendance, 0) /
+          chartData.length
+      ),
+      assessments: chartData.reduce((sum, row) => sum + row.assessments, 0),
+      enrollment: chartData.reduce((sum, row) => sum + row.enrollment, 0),
     }
-    loadMetrics()
-    return () => { cancelled = true }
   }, [])
 
-  // Three tabs so users can flip between population / teaching staff /
-  // support staff in the main bar chart; the headline numbers above the
-  // chart are computed per-metric by reducing the data.
-  const metrics: MetricConfig[] = [
-    { key: "population", label: "Student Population", color: "#E85002" },
-    { key: "personnel",  label: "Teaching Staff",    color: "#18181b" },
-    { key: "support",    label: "Support Staff",     color: "#52525b" },
-  ]
-
-  if (isLoading) {
-    return (
-      <div className="flex flex-col gap-4 p-2 md:p-1">
-        <div className="w-full bg-white rounded-xl border border-zinc-200 p-4 shadow-sm h-[320px] animate-pulse" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-[155px] bg-white rounded-xl border border-zinc-200 p-4 shadow-sm animate-pulse" />
-          ))}
-        </div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-3 p-8 h-[500px]">
-        <p className="text-sm text-destructive">{error}</p>
-        <button onClick={() => window.location.reload()} className="text-xs underline">Retry</button>
-      </div>
-    )
-  }
-
   return (
-    <div className="flex flex-col gap-4 p-2 md:p-1">
+    <div className="flex flex-col gap-5 p-2 md:p-1">
+      <Card className="gap-0 overflow-hidden py-0 shadow-sm">
+        <CardHeader className="flex flex-col items-stretch gap-0 border-b p-0 lg:flex-row">
+          <div className="flex flex-1 flex-col justify-center gap-1 px-6 pt-5 pb-4 lg:py-0">
+            <CardTitle className="text-xl">School Operations Overview</CardTitle>
 
-      {/* Universal Interactive Chart View Engine */}
-      <div className="w-full bg-white rounded-xl border border-zinc-200 p-4 shadow-sm">
-        <UniversalBarChart
-          title="Overview"
-          description="Institutional population metrics across student, faculty, and staff divisions."
-          data={data}
-          metrics={metrics}
-          defaultMetricKey="population"
+            <CardDescription>
+              Activity across fees, attendance, academics, and student enrolment
+              over the last 90 days.
+            </CardDescription>
+          </div>
+
+          <div className="grid grid-cols-2 border-t sm:grid-cols-4 lg:border-t-0">
+            {metrics.map((metric) => {
+              const isActive = activeMetric === metric.key
+
+              const displayValue =
+                metric.key === "collections"
+                  ? `GH₵${totals.collections.toLocaleString()}`
+                  : metric.key === "attendance"
+                    ? `${totals.attendance}%`
+                    : totals[metric.key].toLocaleString()
+
+              return (
+                <button
+                  key={metric.key}
+                  type="button"
+                  data-active={isActive}
+                  onClick={() => setActiveMetric(metric.key)}
+                  className="relative flex min-w-[145px] flex-col justify-center gap-1 border-r border-b px-5 py-4 text-left transition-colors last:border-r-0 hover:bg-muted/40 data-[active=true]:bg-muted/50 sm:border-b-0 lg:px-7 lg:py-6"
+                >
+                  <span className="text-xs text-muted-foreground">
+                    {metric.label}
+                  </span>
+
+                  <span
+                    className="text-xl font-bold tracking-tight lg:text-2xl"
+                    style={{
+                      color: isActive ? metric.color : "hsl(var(--foreground))",
+                    }}
+                  >
+                    {displayValue}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </CardHeader>
+
+        <CardContent className="px-3 pt-5 pb-4 sm:px-6">
+          <ChartContainer
+            config={chartConfig}
+            className="aspect-auto h-[320px] w-full"
+          >
+            <BarChart
+              accessibilityLayer
+              data={chartData}
+              margin={{
+                left: 12,
+                right: 12,
+              }}
+            >
+              <CartesianGrid vertical={false} />
+
+              <XAxis
+                dataKey="date"
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                minTickGap={34}
+                tickFormatter={(value) => formatDate(String(value))}
+              />
+
+              <ChartTooltip
+                cursor={false}
+                content={
+                  <ChartTooltipContent
+                    className="w-[165px]"
+                    labelFormatter={(value) =>
+                      formatDate(String(value), {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })
+                    }
+                  />
+                }
+              />
+
+              <Bar
+                dataKey={activeMetric}
+                fill={`var(--color-${activeMetric})`}
+                radius={[4, 4, 0, 0]}
+              />
+            </BarChart>
+          </ChartContainer>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricTrendCard
+          title="Average Attendance"
+          description="Daily school-wide attendance performance"
+          dataKey="attendance"
+          footer="Stable attendance across the current term"
+        />
+
+        <MetricTrendCard
+          title="Fee Collections"
+          description="Daily payments received and posted"
+          dataKey="collections"
+          footer="Collections peak around fee deadlines"
+        />
+
+        <MetricTrendCard
+          title="Assessment Activity"
+          description="Recorded continuous-assessment entries"
+          dataKey="assessments"
+          footer="Academic activity across all sections"
+        />
+
+        <MetricTrendCard
+          title="New Enrolment"
+          description="Student admissions and transfers recorded"
+          dataKey="enrollment"
+          footer="Admissions movement over the last 90 days"
         />
       </div>
 
-      {/* Visual Hierarchy Layout centered on the primary Orange accent */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            School performance is trending positively
+            <TrendingUp className="h-4 w-4 text-emerald-600" />
+          </CardTitle>
 
-        {/* Slot 1: Stacked Layered Area Layout — students (orange) vs faculty (dark) */}
-        <UniversalAreaMiniChart
-          title="Students vs Faculty"
-          subtitle="Population mapped against teaching staff"
-          data={data}
-          dataKey="population"
-          secondaryDataKey="personnel"
-          color="#E85002"
-          secondaryColor="#18181b"
-          height={135}
-        />
-
-        {/* Slot 2: Teaching Staff line chart (crisp dark neutral) */}
-        <UniversalLineMiniChart
-          title="Teaching Staff"
-          subtitle="Total faculty headcount"
-          data={data}
-          dataKey="personnel"
-          color="#18181b"
-          height={135}
-        />
-
-        {/* Slot 3: Student Body bar chart (core accent orange) */}
-        <UniversalBarMiniChart
-          title="Student Body"
-          subtitle="Total enrolled student population"
-          data={data}
-          dataKey="population"
-          color="#E85002"
-          height={135}
-        />
-
-        {/* Slot 4: Support Staff bar chart (muted slate-zinc) */}
-        <UniversalBarMiniChart
-          title="Support Staff"
-          subtitle="Total administrative staff"
-          data={data}
-          dataKey="support"
-          color="#52525b"
-          height={135}
-        />
-      </div>
-
+          <CardDescription>
+            This dashboard is currently using rich fictional presentation data
+            while we finalize the analytics API shape.
+          </CardDescription>
+        </CardHeader>
+      </Card>
     </div>
   )
 }

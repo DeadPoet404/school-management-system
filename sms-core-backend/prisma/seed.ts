@@ -1,265 +1,900 @@
-import { PrismaClient, EntityStatus, PayrollStatus, DepartureType, TreasuryClearanceStatus } from "@prisma/client";
-import { hashPassword } from "@/utils/hash";
+import {
+  AttendanceStatus,
+  DepartureType,
+  EntityStatus,
+  ExpenseStatus,
+  InvoiceStatus,
+  PayrollStatus,
+  Prisma,
+  PrismaClient,
+  TreasuryClearanceStatus,
+} from "@prisma/client"
+import { hashPassword } from "@/utils/hash"
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient()
+
+const maleNames = [
+  "Kwame",
+  "Kofi",
+  "Kojo",
+  "Yaw",
+  "Kwaku",
+  "Daniel",
+  "Emmanuel",
+  "Isaac",
+  "Samuel",
+  "Michael",
+] as const
+
+const femaleNames = [
+  "Ama",
+  "Akosua",
+  "Abena",
+  "Adwoa",
+  "Esi",
+  "Yaa",
+  "Efua",
+  "Grace",
+  "Mabel",
+  "Priscilla",
+] as const
+
+const surnames = [
+  "Mensah",
+  "Asare",
+  "Osei",
+  "Boateng",
+  "Owusu",
+  "Adjei",
+  "Agyeman",
+  "Appiah",
+  "Darko",
+  "Frimpong",
+  "Gyasi",
+  "Amankwah",
+  "Boadi",
+  "Quaye",
+  "Tetteh",
+] as const
+
+const locations = [
+  "East Legon, Accra",
+  "Adenta, Accra",
+  "Madina, Accra",
+  "Dansoman, Accra",
+  "Dzorwulu, Accra",
+  "Legon, Accra",
+  "Tema Community 8",
+  "Spintex Road, Accra",
+  "Airport Residential Area, Accra",
+  "Kasoa, Central Region",
+] as const
+
+const banks = [
+  "Ecobank Ghana",
+  "Absa Bank Ghana",
+  "GCB Bank",
+  "Stanbic Bank Ghana",
+  "Fidelity Bank Ghana",
+  "CalBank",
+] as const
+
+const paymentMethods = [
+  "Mobile Money",
+  "Bank Transfer",
+  "Cash",
+  "POS",
+] as const
+
+const weekdays = [
+  "MONDAY",
+  "TUESDAY",
+  "WEDNESDAY",
+  "THURSDAY",
+  "FRIDAY",
+] as const
+
+const pick = <T,>(items: readonly T[], index: number): T => {
+  if (items.length === 0) {
+    throw new Error("Cannot select an item from an empty array.")
+  }
+
+  return items[((index % items.length) + items.length) % items.length]!
+}
+
+const daysAgo = (days: number): Date => {
+  const date = new Date()
+  date.setDate(date.getDate() - days)
+  date.setHours(10, 0, 0, 0)
+  return date
+}
+
+const schoolDaysBack = (count: number): Date[] => {
+  const dates: Date[] = []
+  let offset = 1
+
+  while (dates.length < count) {
+    const date = daysAgo(offset)
+    const day = date.getDay()
+
+    if (day !== 0 && day !== 6) {
+      dates.push(date)
+    }
+
+    offset += 1
+  }
+
+  return dates.reverse()
+}
+
+const gradeFromScore = (score: number) => {
+  if (score >= 80) return { letterGrade: "A", gradePoints: 4 }
+  if (score >= 75) return { letterGrade: "B+", gradePoints: 3.5 }
+  if (score >= 70) return { letterGrade: "B", gradePoints: 3 }
+  if (score >= 65) return { letterGrade: "C+", gradePoints: 2.5 }
+  if (score >= 60) return { letterGrade: "C", gradePoints: 2 }
+  if (score >= 55) return { letterGrade: "D+", gradePoints: 1.5 }
+  if (score >= 50) return { letterGrade: "D", gradePoints: 1 }
+  return { letterGrade: "E", gradePoints: 0 }
+}
+
+type StudentRow = {
+  id: string
+  name: string
+  classId: string
+  feeAmount: number
+  status: EntityStatus
+}
 
 async function main() {
   if (process.env.NODE_ENV === "production") {
-    throw new Error("SEED PRODUCTION GUARD: Seed script cannot run in production.");
+    throw new Error("SEED PRODUCTION GUARD: Seed script cannot run in production.")
   }
 
-  console.log("🚀 Starting database seeding...");
+  console.log("🚀 Seeding Horizon Heights Academy rich test data...")
 
-  // ═══════════════════════════════════════════════════════════
-  // PHASE 0: CLEANUP — Delete in FK-safe order (children first)
-  // ═══════════════════════════════════════════════════════════
-  console.log("🧹 Cleaning existing data...");
+  console.log("🧹 Removing old data...")
 
-  // Delete entities that reference students/teachers/staff
-  await prisma.studentDeparture.deleteMany();
-  await prisma.teacherDeparture.deleteMany();
-  await prisma.staffDeparture.deleteMany();
-  await prisma.paymentCollection.deleteMany();
-  await prisma.attendanceRecord.deleteMany();
-  await prisma.gradeRecord.deleteMany();
-  await prisma.refreshToken.deleteMany();
+  await prisma.auditLog.deleteMany()
+  await prisma.refreshToken.deleteMany()
+  await prisma.studentDeparture.deleteMany()
+  await prisma.teacherDeparture.deleteMany()
+  await prisma.staffDeparture.deleteMany()
+  await prisma.paymentCollection.deleteMany()
+  await prisma.attendanceRecord.deleteMany()
+  await prisma.gradeRecord.deleteMany()
+  await prisma.expense.deleteMany()
+  await prisma.invoice.deleteMany()
+  await prisma.payment.deleteMany()
+  await prisma.student.deleteMany()
+  await prisma.teacher.deleteMany()
+  await prisma.staff.deleteMany()
+  await prisma.feeComponent.deleteMany()
+  await prisma.feeStructureConfiguration.deleteMany()
+  await prisma.timetableConfiguration.deleteMany()
+  await prisma.ledgerAccount.deleteMany()
+  await prisma.term.deleteMany()
+  await prisma.class.deleteMany()
+  await prisma.feeTier.deleteMany()
+  await prisma.department.deleteMany()
+  await prisma.subject.deleteMany()
 
-  // Delete main entities (cascades handle nested children)
-  await prisma.student.deleteMany();
-  await prisma.teacher.deleteMany();
-  await prisma.staff.deleteMany();
+  const defaultPasswordHash = await hashPassword("SystemDefaultSecure2026!")
+  const adminPasswordHash = await hashPassword("AdminDev2026!")
 
-  // Delete reference/config data
-  await prisma.ledgerAccount.deleteMany();
-  await prisma.timetableConfiguration.deleteMany();
-  await prisma.feeStructureConfiguration.deleteMany();
-  await prisma.class.deleteMany();
-  await prisma.feeTier.deleteMany();
-  await prisma.department.deleteMany();
-  await prisma.subject.deleteMany();
+  console.log("🏫 Creating academic reference data...")
 
-  const defaultPasswordHash = await hashPassword("SystemDefaultSecure2026!");
+  const classDefinitions: Array<[string, string]> = [
+    ["JHS 1A", "A"],
+    ["JHS 1B", "B"],
+    ["JHS 2A", "A"],
+    ["JHS 2B", "B"],
+    ["JHS 3A", "A"],
+    ["JHS 3B", "B"],
+    ["SHS 1A", "A"],
+    ["SHS 1B", "B"],
+    ["SHS 2A", "A"],
+    ["SHS 2B", "B"],
+    ["SHS 3A", "A"],
+    ["SHS 3B", "B"],
+  ]
 
-  // ═══════════════════════════════════════════════════════════
-  // PHASE 1: REFERENCE / MASTER DATA
-  // These must exist before any entity that references them.
-  // ═══════════════════════════════════════════════════════════
-  console.log("📚 Seeding reference data (classes, departments, subjects, fee tiers)...");
+  const sections = await Promise.all(
+    classDefinitions.map(([name, section]) =>
+      prisma.class.create({
+        data: { name, section },
+      })
+    )
+  )
 
-  // ── Classes ──
-  const classJhs1 = await prisma.class.create({
-    data: { name: "JHS 1", section: "A" },
-  });
-  const classJhs2 = await prisma.class.create({
-    data: { name: "JHS 2", section: "A" },
-  });
-  const classJhs3 = await prisma.class.create({
-    data: { name: "JHS 3", section: "A" },
-  });
+  const departmentDefinitions: Array<[string, string]> = [
+    ["Mathematics Department", "MATH"],
+    ["Science Department", "SCI"],
+    ["Languages Department", "LANG"],
+    ["Humanities Department", "HUM"],
+    ["Business Department", "BUS"],
+    ["Administration and Finance", "ADMIN"],
+  ]
 
-  // ── Departments ──
-  const deptMath = await prisma.department.create({
-    data: { name: "Mathematics & Data Science", code: "MATH" },
-  });
-  const deptScience = await prisma.department.create({
-    data: { name: "Natural & Physical Sciences", code: "SCI" },
-  });
-  const deptFinance = await prisma.department.create({
-    data: { name: "Finance & Treasury", code: "FIN" },
-  });
+  const departments = await Promise.all(
+    departmentDefinitions.map(([name, code]) =>
+      prisma.department.create({
+        data: { name, code },
+      })
+    )
+  )
 
-  // ── Subjects ──
-  const subjAlgebra = await prisma.subject.create({
-    data: { name: "Advanced Statistical Algebra", code: "MATH-301" },
-  });
-  const subjBiochem = await prisma.subject.create({
-    data: { name: "Biochemical Foundations", code: "SCI-201" },
-  });
+  const subjectDefinitions: Array<[string, string]> = [
+    ["Mathematics", "MATH-101"],
+    ["Integrated Science", "SCI-101"],
+    ["English Language", "ENG-101"],
+    ["Social Studies", "SOC-101"],
+    ["Computing", "ICT-101"],
+    ["French", "FRE-101"],
+    ["Economics", "ECO-201"],
+    ["Financial Accounting", "ACC-201"],
+    ["Biology", "BIO-201"],
+    ["Physics", "PHY-201"],
+    ["Chemistry", "CHE-201"],
+    ["Government", "GOV-201"],
+  ]
 
-  // ── Fee Tiers ──
-  const tierStandard = await prisma.feeTier.create({
-    data: { name: "Standard Tuition", code: "STD", amount: 2500.00 },
-  });
-  const tierScholarship = await prisma.feeTier.create({
-    data: { name: "Scholarship Exempt", code: "SCH", amount: 0.00 },
-  });
+  const subjects = await Promise.all(
+    subjectDefinitions.map(([name, code]) =>
+      prisma.subject.create({
+        data: { name, code },
+      })
+    )
+  )
 
-  // ═══════════════════════════════════════════════════════════
-  // PHASE 2A: LEDGER ACCOUNTS
-  // ═══════════════════════════════════════════════════════════
-  console.log("📊 Seeding ledger accounts...");
+  const [dayTier, boardingTier, scholarshipTier] = await Promise.all([
+    prisma.feeTier.create({
+      data: { name: "Standard Day Student", code: "DAY", amount: 4800 },
+    }),
+    prisma.feeTier.create({
+      data: { name: "Boarding Student", code: "BOARD", amount: 7800 },
+    }),
+    prisma.feeTier.create({
+      data: { name: "Academic Scholarship", code: "SCH", amount: 1800 },
+    }),
+  ])
+
+  const [termOne, termTwo, termThree] = await Promise.all([
+    prisma.term.create({
+      data: {
+        name: "2026 Term 1",
+        academicYear: "2025/2026",
+        startDate: new Date("2026-01-12"),
+        endDate: new Date("2026-04-02"),
+      },
+    }),
+    prisma.term.create({
+      data: {
+        name: "2026 Term 2",
+        academicYear: "2025/2026",
+        startDate: new Date("2026-04-20"),
+        endDate: new Date("2026-07-24"),
+      },
+    }),
+    prisma.term.create({
+      data: {
+        name: "2026 Term 3",
+        academicYear: "2025/2026",
+        startDate: new Date("2026-09-07"),
+        endDate: new Date("2026-12-18"),
+      },
+    }),
+  ])
+
   await prisma.ledgerAccount.createMany({
     data: [
-      { code: "1010", accountName: "Cash & Cash Equivalents (Treasury)", category: "ASSET", debit: 50000.00, credit: 0.00 },
-      { code: "1200", accountName: "Accounts Receivable (Tuition Control)", category: "ASSET", debit: 12500.00, credit: 0.00 },
-      { code: "4010", accountName: "Tuition Inflow Revenue Matrix", category: "REVENUE", debit: 0.00, credit: 62500.00 },
+      {
+        code: "1010",
+        accountName: "Cash and Bank Balances",
+        category: "ASSET",
+        debit: 428500,
+        credit: 0,
+      },
+      {
+        code: "1100",
+        accountName: "Mobile Money Clearing",
+        category: "ASSET",
+        debit: 45200,
+        credit: 0,
+      },
+      {
+        code: "1200",
+        accountName: "Student Fee Receivables",
+        category: "ASSET",
+        debit: 286400,
+        credit: 0,
+      },
+      {
+        code: "2010",
+        accountName: "Payroll Liabilities",
+        category: "LIABILITY",
+        debit: 0,
+        credit: 86500,
+      },
+      {
+        code: "4010",
+        accountName: "Tuition and Academic Fees",
+        category: "REVENUE",
+        debit: 0,
+        credit: 1184000,
+      },
+      {
+        code: "4020",
+        accountName: "Boarding and Hostel Fees",
+        category: "REVENUE",
+        debit: 0,
+        credit: 326000,
+      },
+      {
+        code: "5010",
+        accountName: "Academic Operations Expense",
+        category: "EXPENSE",
+        debit: 242600,
+        credit: 0,
+      },
+      {
+        code: "5020",
+        accountName: "Staff Payroll Expense",
+        category: "EXPENSE",
+        debit: 612000,
+        credit: 0,
+      },
     ],
-  });
+  })
 
-  // ═══════════════════════════════════════════════════════════
-  // PHASE 2B: STUDENTS
-  // ═══════════════════════════════════════════════════════════
-  console.log("🎓 Seeding students...");
+  console.log("👩🏾‍🏫 Creating teachers and faculty accounts...")
 
-  // Student 1: Active, Standard Tuition, Partial Payment
-  await prisma.student.create({
-    data: {
-      studentId: "STU-2026-8841-A",
-      studentName: "Kwame Mensah",
-      enrollmentDate: new Date("2026-01-10"),
-      status: EntityStatus.ACTIVE,
-      currentGpa: 3.85,
-      attendanceRate: 96.4,
-      account: { create: { portalEmail: "k.mensah@sms-portal.edu.gh", passwordHash: defaultPasswordHash } },
-      demographics: { create: { dateOfBirth: new Date("2011-04-15"), gender: "MALE", residentialAddress: "12 Anum Road, Legon, Accra", medicalNotes: "No known allergies.", bloodType: "O+", religion: "Christian", formerSchool: "Morning Star Prep School" } },
-      placement: { create: { classId: classJhs1.id, academicTrack: "General Arts", boardingStatus: "DAY_STUDENT" } },
-      compliance: { create: { nationalId: "GHA-771829102-4", emergencyName: "Comfort Mensah", emergencyPhone: "+233244111222", emergencyRelation: "MOTHER" } },
-      guardians: { create: { name: "Emmanuel Mensah", relationship: "FATHER", phone: "+233204333444", email: "e.mensah@gmail.com" } },
-      billing: { create: { feeTierId: tierStandard.id, initialDeposit: 1000.00, currentBalance: 1500.00 } },
-      invoices: { create: { invoiceNo: "INV-2026-001", description: "Term 1 Academic Tuition Core Fees", amount: 2500.00, dueDate: new Date("2026-02-01"), status: "PARTIAL" } },
-      payments: { create: { receiptNo: "REC-2026-001", description: "Initial Enrollment Deposit Clearance", amount: 1000.00, paymentType: "Mobile Money" } },
-    },
-  });
+  const teachers: Array<{ id: string }> = []
 
-  // Student 2: Active, Scholarship Exempt, Fully Paid
-  await prisma.student.create({
-    data: {
-      studentId: "STU-2026-1049-B",
-      studentName: "Ama Serwaa Asare",
-      enrollmentDate: new Date("2026-01-12"),
-      status: EntityStatus.ACTIVE,
-      currentGpa: 3.98,
-      attendanceRate: 100.0,
-      account: { create: { portalEmail: "a.asare@sms-portal.edu.gh", passwordHash: defaultPasswordHash } },
-      demographics: { create: { dateOfBirth: new Date("2010-09-22"), gender: "FEMALE", residentialAddress: "Block G, Airport Residential Area, Accra", medicalNotes: null, bloodType: "A-", religion: "Christian", formerSchool: "Ridge Church School" } },
-      placement: { create: { classId: classJhs3.id, academicTrack: "Science Lab Alpha", boardingStatus: "BOARDER" } },
-      compliance: { create: { nationalId: "GHA-992102938-1", emergencyName: "Grace Asare", emergencyPhone: "+233244888999", emergencyRelation: "AUNT" } },
-      guardians: { create: { name: "Dr. Kofi Asare", relationship: "FATHER", phone: "+233266555444", email: "k.asare@health.gov.gh" } },
-      billing: { create: { feeTierId: tierScholarship.id, initialDeposit: 0.00, currentBalance: 0.00 } },
-    },
-  });
+  for (let index = 0; index < 30; index += 1) {
+    const female = index % 2 === 0
+    const firstName = female
+      ? pick(femaleNames, index)
+      : pick(maleNames, index)
+    const surname = pick(surnames, index + 3)
+    const department = pick(departments.slice(0, 5), index)
+    const subject = pick(subjects, index)
+    const baseSalary = 4200 + (index % 8) * 650
+    const deductions = Math.round(baseSalary * 0.11)
 
-  // Student 3: Departed
-  const departedStudent = await prisma.student.create({
-    data: {
-      studentId: "STU-2025-0042-X",
-      studentName: "John Papa Yaw Osei",
-      enrollmentDate: new Date("2025-01-15"),
-      status: EntityStatus.DEPARTED,
-      currentGpa: 2.10,
-      attendanceRate: 74.2,
-      account: { create: { portalEmail: "j.osei@sms-portal.edu.gh", passwordHash: defaultPasswordHash } },
-      demographics: { create: { dateOfBirth: new Date("2009-12-05"), gender: "MALE", residentialAddress: "Plot 4, Spintex Road, Accra", medicalNotes: null, bloodType: "B+", religion: "Christian", formerSchool: "Tema International Prep" } },
-      placement: { create: { classId: classJhs2.id, academicTrack: "Visual Arts", boardingStatus: "DAY_STUDENT" } },
-      compliance: { create: { nationalId: "GHA-123456789-0", emergencyName: "Patricia Osei", emergencyPhone: "+233501234567", emergencyRelation: "MOTHER" } },
-      guardians: { create: { name: "Robert Osei", relationship: "FATHER", phone: "+233244123456", email: "r.osei@spintex.com" } },
-      billing: { create: { feeTierId: tierStandard.id, initialDeposit: 0.00, currentBalance: 2500.00 } },
-      invoices: { create: { invoiceNo: "INV-2025-998", description: "Term 3 Outstanding Core Tuition Balance", amount: 2500.00, dueDate: new Date("2025-11-01"), status: "UNPAID" } },
-    },
-  });
+    const teacher = await prisma.teacher.create({
+      data: {
+        teacherId: `TCH-2026-${String(index + 1).padStart(4, "0")}`,
+        teacherName: `${female ? "Mrs." : "Mr."} ${firstName} ${surname}`,
+        department: department.id,
+        subject: subject.id,
+        status: index >= 28 ? EntityStatus.INACTIVE : EntityStatus.ACTIVE,
+        employmentType: index % 5 === 0 ? "PART_TIME" : "FULL_TIME",
+        email: `${firstName.toLowerCase()}.${surname.toLowerCase()}${index + 1}@horizon.edu.gh`,
+        yearsOfExperience: 2 + (index % 18),
+        account: {
+          create: {
+            email: `faculty${String(index + 1).padStart(2, "0")}@horizon.local`,
+            passwordHash: defaultPasswordHash,
+            role: "FACULTY",
+          },
+        },
+        demographics: {
+          create: {
+            dateOfBirth: new Date(1978 + (index % 18), index % 12, 4 + (index % 20)),
+            gender: female ? "FEMALE" : "MALE",
+            residentialAddress: pick(locations, index),
+            phone: `+23324${String(2000000 + index * 173).padStart(7, "0")}`,
+            bloodType: pick(["O+", "A+", "B+", "AB+", "O-"], index),
+            religion: pick(["Christian", "Muslim"], index),
+            formerSchool: pick(["University of Ghana", "KNUST", "UEW", "UCC"], index),
+          },
+        },
+        compliance: {
+          create: {
+            nationalId: `GHA-T-${String(100000000 + index).slice(-9)}`,
+            ssnitNumber: `SSN-T-2026-${String(index + 1).padStart(4, "0")}`,
+            emergencyName: `${pick(femaleNames, index + 3)} ${pick(surnames, index + 6)}`,
+            emergencyPhone: `+23320${String(3000000 + index * 61).padStart(7, "0")}`,
+          },
+        },
+        payroll: {
+          create: {
+            clearanceTier: index % 6 === 0 ? "Level 2: Department Lead" : "Level 1: Faculty",
+            baseSalary,
+            deductions,
+            netPay: baseSalary - deductions,
+            paymentRoute: "BANK_TRANSFER",
+            bankName: pick(banks, index),
+            bankAccount: `10${String(582100000 + index * 941)}`,
+            salaryStatus:
+              index % 4 === 0 ? PayrollStatus.DISBURSED : PayrollStatus.PENDING,
+          },
+        },
+      },
+    })
 
-  await prisma.studentDeparture.create({
-    data: {
-      studentInternalId: departedStudent.id,
-      departureType: DepartureType.TRANSFER,
-      effectiveDate: new Date("2026-05-01"),
-      destinationInstitution: "Kumasi Academy Senior High",
-      treasuryClearanceStatus: TreasuryClearanceStatus.OUTSTANDING_DEBT,
-      academicRecordsArchived: true,
-      remarks: "Student transferred due to family relocation.",
-    },
-  });
+    teachers.push({ id: teacher.id })
+  }
 
-  // ═══════════════════════════════════════════════════════════
-  // PHASE 2C: TEACHERS
-  // Teacher.department and Teacher.subject are FK-constrained
-  // to Department(id) and Subject(id) respectively.
-  // ═══════════════════════════════════════════════════════════
-  console.log("🍎 Seeding teachers...");
+  console.log("🧑🏾‍💼 Creating staff and operations records...")
 
-  await prisma.teacher.create({
-    data: {
-      teacherId: "TCH-2026-9941",
-      teacherName: "Mr. Ebenezer Mensah Kojo",
-      department: deptMath.id,
-      subject: subjAlgebra.id,
-      status: EntityStatus.ACTIVE,
-      employmentType: "FULL_TIME",
-      email: "e.kojo@sms-institution.edu.gh",
-      yearsOfExperience: 8,
-      demographics: { create: { dateOfBirth: new Date("1988-06-14"), gender: "MALE", residentialAddress: "Flat 4B, Ridge Court, Accra", phone: "+233244999888", bloodType: "O+", religion: "Christian", formerSchool: "Cape Coast University Faculty of Education" } },
-      compliance: { create: { nationalId: "GHA-554102938-9", ssnitNumber: "N8806140001", emergencyName: "Sarah Kojo", emergencyPhone: "+233201223344" } },
-      payroll: { create: { clearanceTier: "Level 1: Standard Faculty Access", baseSalary: 4500.00, deductions: 450.00, netPay: 4050.00, bankName: "Ecobank Ghana Ltd", bankAccount: "1441002938411" } },
-    },
-  });
+  const staffRoles = [
+    "Finance Officer",
+    "Accounts Assistant",
+    "Admissions Officer",
+    "ICT Support Officer",
+    "Librarian",
+    "School Nurse",
+    "Procurement Officer",
+    "HR Officer",
+    "Security Supervisor",
+    "Facilities Coordinator",
+    "Administrative Assistant",
+    "Transport Coordinator",
+  ] as const
 
-  await prisma.teacher.create({
-    data: {
-      teacherId: "TCH-2026-1102",
-      teacherName: "Mrs. Abena Boatemaa Boateng",
-      department: deptScience.id,
-      subject: subjBiochem.id,
-      status: EntityStatus.ACTIVE,
-      employmentType: "PART_TIME",
-      email: "a.boateng@sms-institution.edu.gh",
-      yearsOfExperience: 12,
-      demographics: { create: { dateOfBirth: new Date("1982-11-30"), gender: "FEMALE", residentialAddress: "Akwapim Ridge Estates, Aburi", phone: "+233266112233", bloodType: "A+", religion: "Christian", formerSchool: "KNUST Faculty of Biochemistry" } },
-      compliance: { create: { nationalId: "GHA-221093849-2", ssnitNumber: "N8211300002", emergencyName: "Kofi Boateng", emergencyPhone: "+233244667788" } },
-      payroll: { create: { clearanceTier: "Level 2: Department Head / Lead Educator", baseSalary: 7200.00, deductions: 720.00, netPay: 6480.00, bankName: "Standard Chartered Bank", bankAccount: "0100293841900", salaryStatus: PayrollStatus.PENDING } },
-    },
-  });
+  for (let index = 0; index < 35; index += 1) {
+    const female = index % 2 !== 0
+    const firstName = female
+      ? pick(femaleNames, index + 5)
+      : pick(maleNames, index + 5)
+    const surname = pick(surnames, index + 8)
+    const baseSalary = 2600 + (index % 7) * 450
+    const deductions = Math.round(baseSalary * 0.1)
 
-  // ═══════════════════════════════════════════════════════════
-  // PHASE 2D: STAFF (including bootstrap admin)
-  // StaffPlacement.departmentId has NO FK constraint in the DB,
-  // so a plain descriptive string is acceptable here.
-  // ═══════════════════════════════════════════════════════════
-  console.log("⚙️ Seeding staff...");
-
-  await prisma.staff.create({
-    data: {
-      staffId: "STF-2026-4401",
-      staffName: "Phyllis Afriyie",
-      appointmentDate: new Date("2026-02-01"),
-      status: EntityStatus.ACTIVE,
-      account: { create: { email: "p.afriyie@sms-ops.edu.gh", passwordHash: defaultPasswordHash, role: "STAFF" } },
-      demographics: { create: { dateOfBirth: new Date("1994-03-25"), gender: "FEMALE", residentialAddress: "Dzorwulu Highway Blocks, Accra", phone: "+233243555666", bloodType: "AB+", religion: "Christian", formerSchool: "University of Ghana Business School" } },
-      placement: { create: { departmentId: deptFinance.id, jobTitle: "Senior Treasury Accountant", employmentType: "FULL_TIME", shiftSchedule: "Shift Alpha (08:00 - 17:00)" } },
-      compliance: { create: { nationalId: "GHA-990325412-5", ssnitNumber: "S9403250001", emergencyName: "Francis Afriyie", emergencyPhone: "+233544123987" } },
-      payroll: { create: { clearanceTier: "Level 2: Financial Ledger Access", baseSalary: 5500.00, deductions: 550.00, netPay: 4950.00, bankName: "Absa Bank Ghana", bankAccount: "509182736" } },
-    },
-  });
-
-  // ── Bootstrap Admin ──
-  // Creates an ADMIN-level staff account so the system is
-  // immediately loginable after seeding without manual steps.
-  const adminPasswordHash = await hashPassword("AdminDev2026!");
+    await prisma.staff.create({
+      data: {
+        staffId: `STF-2026-${String(index + 1).padStart(4, "0")}`,
+        staffName: `${firstName} ${surname}`,
+        appointmentDate: daysAgo(180 + index * 20),
+        status: index >= 33 ? EntityStatus.INACTIVE : EntityStatus.ACTIVE,
+        account: {
+          create: {
+            email: `staff${String(index + 1).padStart(2, "0")}@horizon.local`,
+            passwordHash: defaultPasswordHash,
+            role: index < 4 ? "ACCOUNTANT" : "STAFF",
+          },
+        },
+        demographics: {
+          create: {
+            dateOfBirth: new Date(1981 + (index % 17), index % 12, 3 + (index % 20)),
+            gender: female ? "FEMALE" : "MALE",
+            residentialAddress: pick(locations, index + 2),
+            phone: `+23354${String(4000000 + index * 83).padStart(7, "0")}`,
+            bloodType: pick(["O+", "A+", "B+", "AB+"], index),
+            religion: pick(["Christian", "Muslim"], index + 1),
+            formerSchool: pick(["UG", "KNUST", "UCC", "UPSA"], index),
+          },
+        },
+        placement: {
+          create: {
+            departmentId: pick(departments, index).id,
+            jobTitle: pick(staffRoles, index),
+            employmentType: index % 6 === 0 ? "CONTRACT" : "FULL_TIME",
+            shiftSchedule:
+              index % 5 === 0
+                ? "Shift B (12:00 - 21:00)"
+                : "Shift A (08:00 - 17:00)",
+          },
+        },
+        compliance: {
+          create: {
+            nationalId: `GHA-S-${String(200000000 + index).slice(-9)}`,
+            ssnitNumber: `SSN-S-2026-${String(index + 1).padStart(4, "0")}`,
+            emergencyName: `${pick(maleNames, index + 4)} ${pick(surnames, index + 7)}`,
+            emergencyPhone: `+23350${String(5000000 + index * 47).padStart(7, "0")}`,
+          },
+        },
+        payroll: {
+          create: {
+            clearanceTier: "Level 1: Operations",
+            baseSalary,
+            deductions,
+            netPay: baseSalary - deductions,
+            paymentRoute: "BANK_TRANSFER",
+            bankName: pick(banks, index + 2),
+            bankAccount: `20${String(760000000 + index * 733)}`,
+            salaryStatus:
+              index % 3 === 0 ? PayrollStatus.DISBURSED : PayrollStatus.PENDING,
+          },
+        },
+      },
+    })
+  }
 
   await prisma.staff.create({
     data: {
       staffId: "STF-ADMIN-0001",
       staffName: "Platform Administrator",
-      appointmentDate: new Date(),
+      appointmentDate: new Date("2026-01-01"),
       status: EntityStatus.ACTIVE,
-      account: { create: { email: "admin@sms.local", passwordHash: adminPasswordHash, role: "ADMIN" } },
+      account: {
+        create: {
+          email: "admin@sms.local",
+          passwordHash: adminPasswordHash,
+          role: "ADMIN",
+        },
+      },
     },
-  });
+  })
 
-  console.log("✅ Seeding complete.");
-  console.log("");
-  console.log("╔═══════════════════════════════════════════════════╗");
-  console.log("║  BOOTSTRAP ADMIN CREDENTIALS                     ║");
-  console.log("║  Email:    admin@sms.local                       ║");
-  console.log("║  Password: AdminDev2026!                         ║");
-  console.log("║  Role:     ADMIN                                 ║");
-  console.log("╚═══════════════════════════════════════════════════╝");
+  console.log("🎓 Creating 300 students, guardians, billing, and departures...")
+
+  const students: StudentRow[] = []
+
+  for (let index = 0; index < 300; index += 1) {
+    const female = index % 2 === 0
+    const firstName = female
+      ? pick(femaleNames, index)
+      : pick(maleNames, index)
+    const surname = pick(surnames, index + 2)
+    const section = pick(sections, index)
+    const departed = index >= 282
+    const boarder = index % 4 === 0
+    const scholarship = index % 14 === 0
+    const feeTier = scholarship
+      ? scholarshipTier
+      : boarder
+        ? boardingTier
+        : dayTier
+    const feeAmount = scholarship ? 1800 : boarder ? 7800 : 4800
+    const balance =
+      departed || index % 5 === 0
+        ? feeAmount
+        : index % 5 === 1
+          ? Math.round(feeAmount * 0.45)
+          : 0
+
+    const student = await prisma.student.create({
+      data: {
+        studentId: `HHA-${2024 + (index % 3)}-${String(index + 1).padStart(4, "0")}`,
+        studentName: `${firstName}${index % 4 === 0 ? ` ${pick(maleNames, index + 3)}` : ""} ${surname}`,
+        enrollmentDate: daysAgo(40 + (index % 850)),
+        status: departed ? EntityStatus.DEPARTED : EntityStatus.ACTIVE,
+        currentGpa: Number((1.6 + ((index * 19) % 240) / 100).toFixed(2)),
+        attendanceRate: Number((72 + ((index * 7) % 280) / 10).toFixed(1)),
+        account: {
+          create: {
+            portalEmail: `student${String(index + 1).padStart(3, "0")}@horizon.local`,
+            passwordHash: defaultPasswordHash,
+          },
+        },
+        demographics: {
+          create: {
+            dateOfBirth: new Date(2007 + (index % 7), index % 12, 2 + (index % 25)),
+            gender: female ? "FEMALE" : "MALE",
+            residentialAddress: pick(locations, index),
+            medicalNotes: index % 19 === 0 ? "Asthma inhaler kept with school nurse." : null,
+            bloodType: pick(["O+", "A+", "B+", "AB+", "O-"], index),
+            religion: pick(["Christian", "Muslim"], index),
+            formerSchool: pick(
+              ["Bright Future Academy", "Morning Star School", "St. Paul Preparatory"],
+              index
+            ),
+          },
+        },
+        placement: {
+          create: {
+            classId: section.id,
+            academicTrack: section.name.startsWith("SHS")
+              ? pick(["General Science", "General Arts", "Business"], index)
+              : "Junior High Core",
+            boardingStatus: boarder ? "BOARDER" : "DAY_STUDENT",
+          },
+        },
+        compliance: {
+          create: {
+            nationalId: `GHA-ST-${String(300000000 + index).slice(-9)}`,
+            emergencyName: `${pick(femaleNames, index + 6)} ${pick(surnames, index + 5)}`,
+            emergencyPhone: `+23324${String(6000000 + index * 29).padStart(7, "0")}`,
+            emergencyRelation: pick(["MOTHER", "FATHER", "AUNT", "UNCLE"], index),
+          },
+        },
+        guardians: {
+          create: [
+            {
+              name: `${pick(maleNames, index + 2)} ${surname}`,
+              relationship: "FATHER",
+              phone: `+23320${String(7000000 + index * 31).padStart(7, "0")}`,
+              email: `guardian${String(index + 1).padStart(3, "0")}@example.test`,
+            },
+            {
+              name: `${pick(femaleNames, index + 4)} ${surname}`,
+              relationship: "MOTHER",
+              phone: `+23355${String(7100000 + index * 19).padStart(7, "0")}`,
+              email: null,
+            },
+          ],
+        },
+        billing: {
+          create: {
+            feeTierId: feeTier.id,
+            initialDeposit: feeAmount - balance,
+            currentBalance: balance,
+          },
+        },
+      },
+    })
+
+    students.push({
+      id: student.id,
+      name: student.studentName,
+      classId: section.id,
+      feeAmount,
+      status: departed ? EntityStatus.DEPARTED : EntityStatus.ACTIVE,
+    })
+
+    if (departed) {
+      await prisma.studentDeparture.create({
+        data: {
+          studentInternalId: student.id,
+          departureType:
+            index % 2 === 0
+              ? DepartureType.TRANSFER
+              : DepartureType.GRADUATION,
+          effectiveDate: daysAgo(25 + index),
+          destinationInstitution:
+            index % 2 === 0
+              ? "New Dawn Academy"
+              : "Completed programme",
+          treasuryClearanceStatus:
+            index % 3 === 0
+              ? TreasuryClearanceStatus.OUTSTANDING_DEBT
+              : TreasuryClearanceStatus.FULLY_SETTLED,
+          academicRecordsArchived: true,
+          remarks: "Fictional development-data departure record.",
+        },
+      })
+    }
+  }
+
+  console.log("💳 Creating financial history...")
+
+  const invoices: Prisma.InvoiceCreateManyInput[] = []
+  const payments: Prisma.PaymentCreateManyInput[] = []
+  const collections: Prisma.PaymentCollectionCreateManyInput[] = []
+
+  for (const [index, student] of students.entries()) {
+    for (let termIndex = 0; termIndex < 2; termIndex += 1) {
+      const amount = student.feeAmount
+      const paidAmount =
+        index % 5 === 0
+          ? 0
+          : index % 5 === 1
+            ? Math.round(amount * 0.55)
+            : amount
+
+      const invoiceNo = `INV-2026-${String(index * 2 + termIndex + 1).padStart(5, "0")}`
+
+      invoices.push({
+        invoiceNo,
+        studentId: student.id,
+        description: `2026 Term ${termIndex + 1} Academic and Student Services Fees`,
+        amount,
+        paidAmount,
+        dueDate: daysAgo(100 - termIndex * 65),
+        status:
+          paidAmount === 0
+            ? InvoiceStatus.UNPAID
+            : paidAmount < amount
+              ? InvoiceStatus.PARTIAL
+              : InvoiceStatus.PAID,
+      })
+
+      if (paidAmount > 0) {
+        const receiptNo = `REC-2026-${String(index * 2 + termIndex + 1).padStart(5, "0")}`
+
+        payments.push({
+          receiptNo,
+          studentId: student.id,
+          description: `Payment against ${invoiceNo}`,
+          amount: paidAmount,
+          paymentType: pick(paymentMethods, index + termIndex),
+          createdAt: daysAgo(95 - termIndex * 55 - (index % 20)),
+        })
+
+        collections.push({
+          receiptNumber: `COL-2026-${String(index * 2 + termIndex + 1).padStart(5, "0")}`,
+          sectionId: student.classId,
+          studentName: student.name,
+          amountPaid: paidAmount,
+          paymentMethod: pick(paymentMethods, index + termIndex),
+          referenceNo: `HHA-PAY-${String(index * 11 + termIndex).padStart(6, "0")}`,
+          allocationTarget: invoiceNo,
+          dateProcessed: daysAgo(95 - termIndex * 55 - (index % 20)),
+          studentInternalId: student.id,
+        })
+      }
+    }
+  }
+
+  await prisma.invoice.createMany({ data: invoices })
+  await prisma.payment.createMany({ data: payments })
+  await prisma.paymentCollection.createMany({ data: collections })
+
+  await prisma.expense.createMany({
+    data: Array.from({ length: 100 }, (_, index) => ({
+      expenseNo: `EXP-2026-${String(index + 1).padStart(4, "0")}`,
+      vendorName: pick(
+        [
+          "Ghana Education Supplies Ltd",
+          "Accra Utilities",
+          "TechBridge Ghana",
+          "Prime Catering Services",
+          "Metro Transport Services",
+        ],
+        index
+      ),
+      category: pick(
+        ["Utilities", "Learning Materials", "ICT", "Transport", "Catering", "Maintenance"],
+        index
+      ),
+      description: "Fictional development expense for finance dashboard testing.",
+      amount: 450 + ((index * 379) % 12400),
+      paymentMethod: pick(paymentMethods, index),
+      status:
+        index % 8 === 0
+          ? ExpenseStatus.PENDING_APPROVAL
+          : ExpenseStatus.CLEARED,
+      expenseDate: daysAgo(index % 90),
+      processedBy: "admin@sms.local",
+    })),
+  })
+
+  console.log("📚 Creating grades and attendance history...")
+
+  const activeStudents = students.filter(
+    (student) => student.status === EntityStatus.ACTIVE
+  )
+
+  const grades: Prisma.GradeRecordCreateManyInput[] = []
+
+  for (const [studentIndex, student] of activeStudents.entries()) {
+    for (let subjectIndex = 0; subjectIndex < 8; subjectIndex += 1) {
+      for (const term of [termOne, termTwo, termThree]) {
+        const continuousAssessment =
+          42 + ((studentIndex * 7 + subjectIndex * 11) % 48)
+        const examination =
+          38 + ((studentIndex * 13 + subjectIndex * 5) % 58)
+        const finalScore = Number(
+          (continuousAssessment * 0.4 + examination * 0.6).toFixed(2)
+        )
+        const grade = gradeFromScore(finalScore)
+
+        grades.push({
+          studentId: student.id,
+          subjectId: pick(subjects, subjectIndex).id,
+          classId: student.classId,
+          termId: term.id,
+          continuousAssessment,
+          examination,
+          finalScore,
+          letterGrade: grade.letterGrade,
+          gradePoints: grade.gradePoints,
+          creditHours: subjectIndex < 5 ? 3 : 2,
+        })
+      }
+    }
+  }
+
+  await prisma.gradeRecord.createMany({ data: grades })
+
+  const attendanceDates = schoolDaysBack(35)
+  const attendance: Prisma.AttendanceRecordCreateManyInput[] = []
+
+  for (const [studentIndex, student] of activeStudents.entries()) {
+    for (const [dateIndex, date] of attendanceDates.entries()) {
+      const selector = (studentIndex * 17 + dateIndex * 7) % 100
+
+      attendance.push({
+        studentId: student.id,
+        date,
+        status:
+          selector < 87
+            ? AttendanceStatus.PRESENT
+            : selector < 93
+              ? AttendanceStatus.LATE
+              : selector < 97
+                ? AttendanceStatus.EXCUSED
+                : AttendanceStatus.ABSENT,
+        remarks: selector >= 97 ? "Parent notified of absence." : null,
+      })
+    }
+  }
+
+  await prisma.attendanceRecord.createMany({ data: attendance })
+
+  console.log("🗓️ Creating timetables and fee structures...")
+
+  for (const [sectionIndex, section] of sections.entries()) {
+    await prisma.timetableConfiguration.create({
+      data: {
+        sectionId: section.id,
+        periodsCount: 7,
+        periods: {
+          create: Array.from({ length: 7 }, (_, periodIndex) => ({
+            periodNumber: periodIndex + 1,
+            dayOfWeek: "MONDAY",
+            startTime: `${String(8 + periodIndex).padStart(2, "0")}:00`,
+            endTime: `${String(8 + periodIndex).padStart(2, "0")}:45`,
+          })),
+        },
+        breaks: {
+          create: [
+            {
+              name: "Morning Break",
+              dayOfWeek: "MONDAY",
+              startTime: "10:30",
+              endTime: "10:50",
+            },
+          ],
+        },
+        subjects: {
+          create: subjects.slice(0, 8).map((subject, subjectIndex) => ({
+            subjectName: subject.name,
+            teacherId: pick(teachers, sectionIndex + subjectIndex).id,
+            dayOfWeek: pick(weekdays, subjectIndex),
+          })),
+        },
+      },
+    })
+
+    await prisma.feeStructureConfiguration.create({
+      data: {
+        sectionId: section.id,
+        issueDate: new Date("2026-04-20"),
+        dueDate: new Date("2026-05-20"),
+        allowInstallments: true,
+        lateFeeRate: 3.5,
+        components: {
+          create: [
+            {
+              name: "Academic Tuition",
+              amount: section.name.startsWith("SHS") ? 3200 : 2200,
+              frequency: "TERM",
+              isMandatory: true,
+            },
+            {
+              name: "Examination and Assessment",
+              amount: 450,
+              frequency: "TERM",
+              isMandatory: true,
+            },
+            {
+              name: "ICT and Digital Learning",
+              amount: 350,
+              frequency: "TERM",
+              isMandatory: true,
+            },
+          ],
+        },
+      },
+    })
+  }
+
+  console.log("✅ Rich fictional test data seed complete.")
+  console.log("")
+  console.log("════════════════════════════════════════════════════")
+  console.log("ADMIN LOGIN")
+  console.log("Email:    admin@sms.local")
+  console.log("Password: AdminDev2026!")
+  console.log("")
+  console.log("FACULTY LOGIN")
+  console.log("Email:    faculty01@horizon.local")
+  console.log("Password: SystemDefaultSecure2026!")
+  console.log("")
+  console.log("STAFF LOGIN")
+  console.log("Email:    staff01@horizon.local")
+  console.log("Password: SystemDefaultSecure2026!")
+  console.log("════════════════════════════════════════════════════")
 }
 
 main()
-  .catch((e) => {
-    console.error("🚨 Seed failed:", e);
-    process.exitCode = 1;
+  .catch((error) => {
+    console.error("🚨 Rich seed failed:", error)
+    process.exitCode = 1
   })
   .finally(async () => {
-    await prisma.$disconnect();
-  });
+    await prisma.$disconnect()
+  })

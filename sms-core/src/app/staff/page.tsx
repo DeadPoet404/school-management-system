@@ -178,14 +178,15 @@ export default function StaffPage() {
             label="Import"
             menuLabel="Data Ingestion"
             items={[
-              { label: "Upload CSV / XLSX", icon: FileSpreadsheet, onClick: () => {} },
-              { label: "Sync Directory Server", icon: RefreshCw, onClick: () => {} },
+              { label: "Upload CSV / XLSX", icon: FileSpreadsheet, onClick: () => router.push("/staff/import/csv") },
+              { label: "Sync Directory Server", icon: RefreshCw, onClick: () => router.push("/staff/import/directory") },
             ]}
           />
 
           <Button
+            
             variant="outline"
-            onClick={() => {}}
+            onClick={() => router.push("/staff/departure")}
             className="h-9 gap-1.5 px-3 text-xs font-medium tracking-wide border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900/60 shadow-none transition-colors"
           >
             <UserMinus className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
