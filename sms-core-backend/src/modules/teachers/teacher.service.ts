@@ -230,8 +230,9 @@ export class TeacherService {
         teacherId: uniqueTeacherId,
         teacherName: account.fullName,
         email: account.email,
-        department: placement?.departmentId || "ACADEMICS",
-        subject: placement?.jobTitle || "General Subject",
+        departmentRecord: placement?.departmentId
+          ? { connect: { id: placement.departmentId } }
+          : undefined,
         employmentType: placement?.employmentType || "Full-Time",
         status: EntityStatus.ACTIVE,
         yearsOfExperience: 0,

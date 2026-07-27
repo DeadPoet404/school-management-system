@@ -76,6 +76,9 @@ model Class {
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+
+  placements   Placement[]
+  gradeRecords GradeRecord[]
 }
 
 model Subject {
@@ -86,6 +89,9 @@ model Subject {
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+
+  teachers     Teacher[]    @relation("TeacherSubject")
+  gradeRecords GradeRecord[]
 }
 
 model Term {
@@ -98,6 +104,8 @@ model Term {
   isActive     Boolean   @default(true)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+
+  gradeRecords GradeRecord[]
 }
 
 model Department {
@@ -108,6 +116,8 @@ model Department {
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+
+  teachers Teacher[] @relation("TeacherDepartment")
 }
 
 model FeeTier {
@@ -119,6 +129,8 @@ model FeeTier {
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+
+  billingLedgers BillingLedger[]
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -178,6 +190,7 @@ model Placement {
   studentId      String  @unique
   student        Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
   classId        String?
+  class          Class?  @relation(fields: [classId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   academicTrack  String
   boardingStatus String
 }
@@ -209,6 +222,7 @@ model BillingLedger {
   studentId      String  @unique
   student        Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
   feeTierId      String?
+  feeTier        FeeTier? @relation(fields: [feeTierId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   initialDeposit Decimal @default(0.0) @db.Decimal(10, 2)
   currentBalance Decimal @db.Decimal(10, 2)
 }
@@ -272,7 +286,9 @@ model Teacher {
   teacherId         String       @unique
   teacherName       String
   department        String?
+  departmentRecord  Department?  @relation("TeacherDepartment", fields: [department], references: [id], onDelete: SetNull, onUpdate: NoAction)
   subject           String?
+  subjectRecord     Subject?     @relation("TeacherSubject", fields: [subject], references: [id], onDelete: SetNull, onUpdate: NoAction)
   status            EntityStatus @default(ACTIVE)
   employmentType    String
   email             String       @unique
@@ -609,12 +625,14 @@ model GradeRecord {
   finalScore           Decimal  @db.Decimal(5, 2)
   letterGrade          String   @db.VarChar(2)
   gradePoints          Decimal  @db.Decimal(3, 2)
-  creditHours         Int             @default(3)
+  creditHours          Int      @default(3)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  // Relations
   student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  class   Class   @relation(fields: [classId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  term    Term    @relation(fields: [termId], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
   @@unique([studentId, subjectId, termId], name: "studentId_subjectId_termId")
   @@index([studentId, termId])

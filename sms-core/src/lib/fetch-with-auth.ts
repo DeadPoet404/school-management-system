@@ -48,7 +48,13 @@ async function attemptRefresh(): Promise<boolean> {
  * ProtectedRoute/middleware handles routing.
  */
 export async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
-  const fullUrl = url.startsWith('http') ? url : `${API_URL}${url}`;
+  // D-06: API_URL is '/api' and this used to concatenate without a
+  // separator, so a call site passing 'students' produced '/apistudents'.
+  // The Next.js rewrite only matches '/api/:path*', so those requests
+  // 404'd at the frontend and never reached the backend. Normalising here
+  // means no call site can get it wrong.
+  const path = url.startsWith('/') ? url : `/${url}`;
+  const fullUrl = url.startsWith('http') ? url : `${API_URL}${path}`;
 
   const response = await fetch(fullUrl, {
     ...options,

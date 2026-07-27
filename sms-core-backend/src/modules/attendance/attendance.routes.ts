@@ -4,7 +4,10 @@ import { AttendanceService } from "./attendance.service";
 import { AttendanceRepository } from "./attendance.repository";
 import { validate } from "@/middleware/validate";
 import { requireRole, ROLES } from "@/middleware/rbac.middleware";
-import { submitSectionAttendanceSchema } from "./attendance.validation";
+import {
+  submitSectionAttendanceSchema,
+  correctStudentAttendanceSchema,
+} from "./attendance.validation";
 
 const router = Router();
 
@@ -18,6 +21,15 @@ router.post(
   requireRole(ROLES.FACULTY, ROLES.ADMIN, ROLES.STAFF),
   validate(submitSectionAttendanceSchema),
   controller.submitSectionAttendance,
+);
+
+// Correct one existing attendance record. The global audit middleware logs
+// every PATCH request; this handler rejects missing records rather than upserting.
+router.patch(
+  "/student/:studentId",
+  requireRole(ROLES.FACULTY, ROLES.ADMIN, ROLES.STAFF),
+  validate(correctStudentAttendanceSchema),
+  controller.correctStudentAttendance,
 );
 
 // View attendance sheet for a class + date (FACULTY/ADMIN/STAFF)

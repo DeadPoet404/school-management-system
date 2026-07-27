@@ -2,6 +2,15 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
+# Prisma selects its engine variant from the OpenSSL version present at
+# install time. The runner stage installs openssl 3, so it detects the
+# platform as linux-musl-openssl-3.0.x. Without openssl here, npm ci
+# downloads plain linux-musl engines instead, leaving no matching
+# schema-engine in the image - so `prisma migrate deploy` tries to fetch
+# one from binaries.prisma.sh on every boot and the container crash-loops
+# whenever that host is unreachable. Keep both stages on the same platform.
+RUN apk add --no-cache openssl
+
 COPY package.json package-lock.json ./
 RUN npm ci
 

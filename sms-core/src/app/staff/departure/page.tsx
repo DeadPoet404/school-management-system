@@ -77,7 +77,7 @@ function StaffDepartureForm() {
     }
 
     try {
-      const response = await fetchWithAuth("staff/departure", {
+      const response = await fetchWithAuth("/staff/departure", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(departurePayload),

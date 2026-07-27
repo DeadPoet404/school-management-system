@@ -33,12 +33,18 @@ export const studentEnrollmentSchema = z.object({
       relationship: z.string().nullable(),
     }),
   }),
-  parent: z.object({
+  // D-04: the enrollment wizard sends `guardian`, but this schema declared
+  // `parent`. Zod strips unknown keys, so the guardian object was deleted
+  // before the controller ran - and because `parent` was .optional(), no
+  // validation error was raised. Unified on `guardian` (the name already
+  // used by the UI and student.types.ts) and made it required, so a
+  // missing guardian is a field-level 400 instead of silent data loss.
+  guardian: z.object({
     name: z.string().min(1, "Primary guardian legal name is required."),
     relationship: z.string().min(1, "Guardian connection matrix selection is required."),
     phone: z.string().min(1, "Guardian primary contact phone number is mandatory."),
     email: z.string().nullable(),
-  }).optional(), // Standardized to handle nested client structure
+  }),
   billing: z.object({
     feeTierId: z.string().min(1, "Assigned billing tier configuration is required."),
     initialDeposit: z.number().nonnegative("Initial ledger deposit cannot fall below 0.00."),

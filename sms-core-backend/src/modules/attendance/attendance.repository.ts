@@ -89,6 +89,38 @@ export class AttendanceRepository implements IAttendanceRepository {
   }
 
   /**
+   * Finds the one attendance record identified by the schema's
+   * studentId + date unique constraint.
+   */
+  async findByStudentAndDate(
+    studentId: string,
+    date: Date,
+    tx: TransactionClient = prisma,
+  ) {
+    return tx.attendanceRecord.findUnique({
+      where: { studentId_date: { studentId, date } },
+    });
+  }
+
+  /**
+   * Updates an existing attendance record. Corrections deliberately use this
+   * rather than an upsert so PATCH cannot silently create a new record.
+   */
+  async updateAttendanceRecord(
+    id: string,
+    data: { status: AttendanceStatus; remarks?: string | null },
+    tx: TransactionClient = prisma,
+  ) {
+    return tx.attendanceRecord.update({
+      where: { id },
+      data: {
+        status: data.status,
+        remarks: data.remarks ?? null,
+      },
+    });
+  }
+
+  /**
    * Attendance counts grouped by status, plus total.
    */
   async getStudentAttendanceCounts(studentInternalId: string, tx: TransactionClient = prisma) {

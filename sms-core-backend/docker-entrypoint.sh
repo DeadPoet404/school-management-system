@@ -34,13 +34,14 @@ echo "[SMS] Migrations complete."
 # Set RUN_SEED=true in your .env before running docker compose up
 # to populate demo accounts and sample data.
 #
-# The seed script has a production guard that checks NODE_ENV.
-# We override it to "development" only for this one node process.
-# This does NOT affect the Express server — exec below starts a
-# completely separate process with the original environment.
+# The seed script is destructive and additionally refuses a non-empty
+# database unless FORCE=true. FORCE_SEED=true is intentionally separate from
+# RUN_SEED=true so accidental restarts cannot erase existing school records.
+# NODE_ENV is overridden only for the seed process; the Express server keeps
+# its original environment.
 if [ "${RUN_SEED}" = "true" ]; then
-  echo "[SMS] RUN_SEED=true — seeding database..."
-  NODE_ENV=development node dist-seed/prisma/seed.js
+  echo "[SMS] RUN_SEED=true — running destructive-seed safety checks..."
+  FORCE="${FORCE_SEED:-false}" NODE_ENV=development node dist-seed/prisma/seed.js
   echo "[SMS] Seed complete."
 else
   echo "[SMS] Skipping seed (set RUN_SEED=true to seed on next boot)."

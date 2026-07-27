@@ -20,6 +20,12 @@ const SOFT_DELETE_MODELS = [
 
 prisma.$use(async (params: any, next: any) => {
   if (SOFT_DELETE_MODELS.includes(params.model || '')) {
+    // Guard: Prisma passes args === undefined for zero-argument calls
+    // such as model.count() or model.findMany(). Without this, the
+    // assignments below throw "Cannot read properties of undefined
+    // (reading 'where')" and every such query returns HTTP 500.
+    params.args = params.args || {};
+
     if (params.action === 'findMany' || params.action === 'findFirst' || params.action === 'count') {
       params.args.where = { ...params.args.where, deletedAt: null };
     }

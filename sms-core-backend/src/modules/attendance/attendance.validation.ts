@@ -19,6 +19,17 @@ export const submitSectionAttendanceSchema = z.object({
 });
 
 /**
+ * PATCH /api/attendance/student/:studentId
+ * Corrects an existing attendance record for the supplied date.
+ */
+export const correctStudentAttendanceSchema = z.object({
+  classId: z.string().min(1, "Class ID is required."),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD."),
+  status: z.enum(["PRESENT", "ABSENT", "LATE", "EXCUSED"]),
+  remarks: z.string().nullable().optional(),
+});
+
+/**
  * GET /api/attendance/class/:classId
  * Query params: date (YYYY-MM-DD), optional.
  */

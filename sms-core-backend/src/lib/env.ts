@@ -15,6 +15,7 @@ const envSchema = z.object({
 
   // ── OPTIONAL — have safe defaults ──
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  ENABLE_API_DOCS: z.coerce.string().transform(v => v === 'true').default(false),
   PORT: z.coerce.number().int().min(1).max(65535).default(5000),
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
@@ -51,6 +52,7 @@ function validateEnv() {
   // the rest of the application can use them as before
   const env = result.data;
   process.env.NODE_ENV = env.NODE_ENV;
+  process.env.ENABLE_API_DOCS = String(env.ENABLE_API_DOCS);
   process.env.PORT = String(env.PORT);
   process.env.JWT_ACCESS_EXPIRES_IN = env.JWT_ACCESS_EXPIRES_IN;
   process.env.JWT_REFRESH_EXPIRES_IN = env.JWT_REFRESH_EXPIRES_IN;

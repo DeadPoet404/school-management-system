@@ -16,28 +16,21 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { fetchWithAuth } from "@/lib/fetch-with-auth"
+import type { ReferenceDepartment } from "@/lib/api/reference"
+import { useDepartments } from "@/lib/api/reference"
 
 type FormState = "idle" | "submitting" | "success" | "error"
 
-interface DepartmentOption {
-  id: string
-  name: string
-  code: string
-}
+// D-08: departments were a hardcoded array of invented identifiers
+// that matched no database row, so every submission carried an
+// invalid foreign key. The shape now comes from /api/reference.
+type DepartmentOption = ReferenceDepartment
 
 interface ClearanceOption {
   id: string
   name: string
   description: string
 }
-
-const MOCK_DEPARTMENTS: DepartmentOption[] = [
-  { id: "dept-fin", name: "Finance & Treasury", code: "FIN" },
-  { id: "dept-reg", name: "Registry & Admissions", code: "REG" },
-  { id: "dept-ops", name: "Operations & Facilities Management", code: "OPS" },
-  { id: "dept-it", name: "IT Infrastructure & Automation", code: "ITS" },
-  { id: "dept-sec", name: "Security & Campus Logistics", code: "SEC" },
-]
 
 const MOCK_CLEARANCE_LEVELS: ClearanceOption[] = [
   {
@@ -114,8 +107,8 @@ function ComprehensiveStaffEnrollmentWizard() {
     string | null
   >(null)
 
-  const [departments, setDepartments] = React.useState<DepartmentOption[]>([])
-  const [deptsLoading, setDeptsLoading] = React.useState(true)
+  // ── REFERENCE DATA (live, from /api/reference) ──
+  const { data: departments = [], isLoading: deptsLoading } = useDepartments()
 
   const isSubmitting = formState === "submitting"
 
@@ -143,14 +136,6 @@ function ComprehensiveStaffEnrollmentWizard() {
   const isGhanaCardValid = React.useMemo(() => {
     return /^GHA-\d{9}-\d$/.test(ghanaCardNumber)
   }, [ghanaCardNumber])
-
-  React.useEffect(() => {
-    const timer = setTimeout(() => {
-      setDepartments(MOCK_DEPARTMENTS)
-      setDeptsLoading(false)
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [])
 
   // ── STRUCTURAL UNIFIED PAYLOAD ASSEMBLY → REAL BACKEND ──
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -201,7 +186,7 @@ function ComprehensiveStaffEnrollmentWizard() {
     }
 
     try {
-      const response = await fetchWithAuth("staff", {
+      const response = await fetchWithAuth("/staff", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(staffPayload),

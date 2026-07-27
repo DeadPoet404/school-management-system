@@ -10,6 +10,7 @@ import {
   TreasuryClearanceStatus,
 } from "@prisma/client"
 import { hashPassword } from "@/utils/hash"
+import { resolveGrade } from "@/constants/grade-boundaries"
 
 const prisma = new PrismaClient()
 
@@ -127,16 +128,11 @@ const schoolDaysBack = (count: number): Date[] => {
   return dates.reverse()
 }
 
-const gradeFromScore = (score: number) => {
-  if (score >= 80) return { letterGrade: "A", gradePoints: 4 }
-  if (score >= 75) return { letterGrade: "B+", gradePoints: 3.5 }
-  if (score >= 70) return { letterGrade: "B", gradePoints: 3 }
-  if (score >= 65) return { letterGrade: "C+", gradePoints: 2.5 }
-  if (score >= 60) return { letterGrade: "C", gradePoints: 2 }
-  if (score >= 55) return { letterGrade: "D+", gradePoints: 1.5 }
-  if (score >= 50) return { letterGrade: "D", gradePoints: 1 }
-  return { letterGrade: "E", gradePoints: 0 }
-}
+// D-22: this used to be a second, divergent grade table (it had a D+ band
+// at 55 and an "E" fallback that the application does not have), so seeded
+// rows carried letter grades the API could never produce. Delegate to the
+// single source of truth in src/constants/grade-boundaries.ts.
+const gradeFromScore = (score: number) => resolveGrade(score)
 
 type StudentRow = {
   id: string
@@ -152,6 +148,28 @@ async function main() {
   }
 
   console.log("🚀 Seeding Horizon Heights Academy rich test data...")
+
+  // This seed is destructive. Refuse to erase an existing school database
+  // unless the caller has explicitly acknowledged the risk with FORCE=true.
+  const existingDataCounts = await Promise.all([
+    prisma.student.count(),
+    prisma.teacher.count(),
+    prisma.staff.count(),
+    prisma.class.count(),
+    prisma.subject.count(),
+    prisma.term.count(),
+    prisma.department.count(),
+    prisma.feeTier.count(),
+    prisma.auditLog.count(),
+  ]);
+  const hasExistingData = existingDataCounts.some((count) => count > 0);
+
+  if (hasExistingData && process.env.FORCE !== "true") {
+    throw new Error(
+      "SEED SAFETY GUARD: Database contains data. Refusing destructive seed. " +
+      "Use FORCE=true only when you intentionally want to erase and replace all data.",
+    );
+  }
 
   console.log("🧹 Removing old data...")
 
@@ -753,12 +771,18 @@ async function main() {
   for (const [studentIndex, student] of activeStudents.entries()) {
     for (let subjectIndex = 0; subjectIndex < 8; subjectIndex += 1) {
       for (const term of [termOne, termTwo, termThree]) {
+        // D-22: the API caps continuousAssessment at 30 and examination at 70
+        // (grades.validation.ts), and the gradebook UI is labelled "Class (Max
+        // 30)" / "Exam (Max 70)". The two components are already weighted at
+        // entry, so finalScore is their sum on a /100 scale. This block used to
+        // emit CA 42-89 and exam 38-95 - values the API rejects with 400 - and
+        // then applied a 0.4/0.6 weighting that exists nowhere in the app.
         const continuousAssessment =
-          42 + ((studentIndex * 7 + subjectIndex * 11) % 48)
+          12 + ((studentIndex * 7 + subjectIndex * 11) % 19)
         const examination =
-          38 + ((studentIndex * 13 + subjectIndex * 5) % 58)
+          28 + ((studentIndex * 13 + subjectIndex * 5) % 43)
         const finalScore = Number(
-          (continuousAssessment * 0.4 + examination * 0.6).toFixed(2)
+          (continuousAssessment + examination).toFixed(2)
         )
         const grade = gradeFromScore(finalScore)
 
@@ -779,6 +803,32 @@ async function main() {
   }
 
   await prisma.gradeRecord.createMany({ data: grades })
+
+  // D-22: currentGpa was assigned an arbitrary decorative value when each
+  // student was created, so 280 of 282 students disagreed with their own
+  // grade records. Recompute it from the rows written above, using the same
+  // credit-hour weighting as GradesService. Students with no grades (departed
+  // records) keep their placeholder value.
+  const gpaTotals = new Map<string, { points: number; hours: number }>()
+  for (const grade of grades) {
+    const hours = grade.creditHours ?? 3
+    const entry = gpaTotals.get(grade.studentId) ?? { points: 0, hours: 0 }
+    entry.points += Number(grade.gradePoints) * hours
+    entry.hours += hours
+    gpaTotals.set(grade.studentId, entry)
+  }
+
+  for (const [gpaStudentId, totals] of Array.from(gpaTotals.entries())) {
+    await prisma.student.update({
+      where: { id: gpaStudentId },
+      data: {
+        currentGpa:
+          totals.hours > 0
+            ? Number((totals.points / totals.hours).toFixed(2))
+            : 0,
+      },
+    })
+  }
 
   const attendanceDates = schoolDaysBack(35)
   const attendance: Prisma.AttendanceRecordCreateManyInput[] = []

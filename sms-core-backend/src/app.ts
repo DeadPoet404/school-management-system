@@ -29,6 +29,7 @@ import referenceRoutes from './modules/reference/reference.routes';
 // ── Auth ──
 import authRoutes from './modules/auth/auth.routes';
 import { authenticate } from './middleware/auth.middleware';
+import { requireRole, ROLES } from './middleware/rbac.middleware';
 import { startBlocklistCleanup } from './lib/token-blocklist';
 
 // ── Security ──
@@ -85,7 +86,7 @@ const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000,http:
 
 app.use(cors({
   origin: allowedOrigins,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true,
   optionsSuccessStatus: 200
@@ -137,9 +138,20 @@ app.get('/api/health', async (_req, res) => {
   });
 });
 
-// API Documentation
-if (process.env.NODE_ENV === 'development') {
-  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+// API documentation is opt-in. Development use is public for convenience;
+ // any non-development exposure requires an authenticated ADMIN session.
+if (process.env.ENABLE_API_DOCS === 'true') {
+  if (process.env.NODE_ENV === 'development') {
+    app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  } else {
+    app.use(
+      '/api/docs',
+      authenticate,
+      requireRole(ROLES.ADMIN),
+      swaggerUi.serve,
+      swaggerUi.setup(swaggerSpec),
+    );
+  }
 }
 
 // Auth — login, refresh, logout, me (login has its own stricter rate limiter)

@@ -16,6 +16,8 @@
     SelectValue,
   } from "@/components/ui/select"
   import { fetchWithAuth } from "@/lib/fetch-with-auth"
+  import type { ReferenceClass, ReferenceFeeTier } from "@/lib/api/reference"
+  import { useClasses, useFeeTiers } from "@/lib/api/reference"
 
 
 
@@ -23,31 +25,12 @@
   // ── TYPE DEFINITIONS ──
   type FormState = "idle" | "submitting" | "success" | "error"
 
-  interface ClassOption {
-    id: string
-    name: string
-    room?: string
-  }
-
-  interface FeeTierOption {
-    id: string
-    name: string
-    amount: string
-  }
-
-  // ── STATIC REFERENCE DATA ──
-  const MOCK_CLASSES: ClassOption[] = [
-    { id: "cls-1", name: "Junior High School (JHS 1)", room: "Room A" },
-    { id: "cls-2", name: "Junior High School (JHS 2)", room: "Room B" },
-    { id: "cls-3", name: "Senior High School (SHS 1)", room: "Science Lab Alpha" },
-    { id: "cls-4", name: "Senior High School (SHS 2)", room: "Arts Block" },
-  ]
-
-  const MOCK_FEE_TIERS: FeeTierOption[] = [
-    { id: "tier-std", name: "Standard Tuition Rate", amount: "GH₵ 2,500 / Term" },
-    { id: "tier-aid", name: "Financial Aid Subsidized (Tier 2)", amount: "GH₵ 1,250 / Term" },
-    { id: "tier-sch", name: "Exempt / Full Academic Scholarship", amount: "GH₵ 0 / Term" },
-  ]
+  // D-08: the MOCK_CLASSES / MOCK_FEE_TIERS arrays used invented IDs
+  // (cls-1, tier-std) that do not exist in the database, so every
+  // submission carried invalid foreign keys. Shapes now come from the
+  // live /api/reference catalogue.
+  type ClassOption = ReferenceClass
+  type FeeTierOption = ReferenceFeeTier
 
   // ── MAIN COMPONENT ──
   function ComprehensiveEnrollmentWizard() {
@@ -111,9 +94,9 @@
     const [createdStudentId, setCreatedStudentId] = React.useState<string | null>(null)
     const [createdStudentName, setCreatedStudentName] = React.useState<string | null>(null)
 
-    // ── MOCK CLASS LOADING STATE ──
-    const [classes, setClasses] = React.useState<ClassOption[]>([])
-    const [classesLoading, setClassesLoading] = React.useState(true)
+    // ── REFERENCE DATA (live, from /api/reference) ──
+    const { data: classes = [], isLoading: classesLoading } = useClasses()
+    const { data: feeTiers = [], isLoading: feeTiersLoading } = useFeeTiers()
 
     const isSubmitting = formState === "submitting"
 
@@ -134,15 +117,6 @@
     const isGhanaCardValid = React.useMemo(() => {
       return /^GHA-\d{9}-\d$/.test(ghanaCardNumber)
     }, [ghanaCardNumber])
-
-    // ── SIMULATE CLASS DATA FETCH ──
-    React.useEffect(() => {
-      const timer = setTimeout(() => {
-        setClasses(MOCK_CLASSES)
-        setClassesLoading(false)
-      }, 300)
-      return () => clearTimeout(timer)
-    }, [])
 
     // ── SELECT TRIGGER CLASS HELPER ──
     const selectTriggerClass = (field: string, value: string) =>
@@ -251,7 +225,7 @@
       // API TRANSMISSION
       // ═══════════════════════════════════════════════════════════
       try {
-        const response = await fetchWithAuth("students", {
+        const response = await fetchWithAuth("/students", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(enrollmentPayload),
@@ -681,7 +655,7 @@
                       {classes.map((cls) => (
                         <SelectItem key={cls.id} value={cls.id} className="text-xs">
                           {cls.name}
-                          {cls.room ? ` — ${cls.room}` : ""}
+                          {cls.section ? ` \u2014 Section ${cls.section}` : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1010,7 +984,7 @@
                       setFeeTierId(val)
                       markTouched("feeTierId")
                     }}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || feeTiersLoading}
                   >
                     <SelectTrigger
                       id="fee-tier"
@@ -1019,10 +993,12 @@
                       <SelectValue placeholder="Assign treasury clearing template..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {MOCK_FEE_TIERS.map((tier) => (
+                      {feeTiers.map((tier) => (
                         <SelectItem key={tier.id} value={tier.id} className="text-xs">
-                          {tier.name} —{" "}
-                          <span className="text-muted-foreground font-medium">{tier.amount}</span>
+                          {tier.name} \u2014 GH\u20b5 {Number(tier.amount).toLocaleString("en-GH", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })} / Term
                         </SelectItem>
                       ))}
                     </SelectContent>

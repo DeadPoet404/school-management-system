@@ -1,4 +1,5 @@
 import { logger } from '@/lib/logger';
+import { prisma } from "@/lib/prisma";
 import { AttendanceStatus } from "@prisma/client";
 import { AttendanceRepository } from "./attendance.repository";
 import { AppError } from "@/middleware/error.handler";
@@ -132,6 +133,69 @@ export class AttendanceService {
         : 100.0;
 
     return { studentId, history, metrics: { ...metrics, rate } };
+  }
+
+  /**
+   * Corrects one existing attendance record without allowing PATCH to create
+   * a new one. The global audit middleware records this write request.
+   */
+  async correctStudentAttendance(payload: {
+    studentId: string;
+    classId: string;
+    date: string;
+    status: AttendanceStatus;
+    remarks?: string | null;
+  }) {
+    const targetDate = new Date(payload.date);
+    if (isNaN(targetDate.getTime())) {
+      throw new AppError(400, `Invalid attendance date: ${payload.date}`);
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const mismatched = await this.attendanceRepo.findMismatchedStudents(
+        [payload.studentId],
+        payload.classId,
+        tx,
+      );
+      if (mismatched.length > 0) {
+        throw new AppError(
+          400,
+          `Student ${payload.studentId} is not placed in class ${payload.classId}.`,
+        );
+      }
+
+      const existing = await this.attendanceRepo.findByStudentAndDate(
+        payload.studentId,
+        targetDate,
+        tx,
+      );
+      if (!existing) {
+        throw new AppError(
+          404,
+          `No attendance record exists for student ${payload.studentId} on ${payload.date}.`,
+        );
+      }
+
+      const updated = await this.attendanceRepo.updateAttendanceRecord(
+        existing.id,
+        { status: payload.status, remarks: payload.remarks },
+        tx,
+      );
+
+      const { presentCount, lateCount, totalCount } =
+        await this.attendanceRepo.getStudentAttendanceCounts(payload.studentId, tx);
+      const rate =
+        totalCount > 0
+          ? Math.round((((presentCount ?? 0) + (lateCount ?? 0)) / totalCount) * 10000) / 100
+          : 100.0;
+      await this.attendanceRepo.updateStudentAttendanceRate(
+        payload.studentId,
+        rate,
+        tx,
+      );
+
+      return { record: updated, attendanceRate: rate };
+    });
   }
 
   /**

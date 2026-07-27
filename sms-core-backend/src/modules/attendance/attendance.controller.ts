@@ -19,6 +19,28 @@ export class AttendanceController {
     }
   };
 
+  public correctStudentAttendance = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+    try {
+      const { studentId } = req.params;
+      const { classId, date, status, remarks } = req.body;
+      const outcome = await this.attendanceService.correctStudentAttendance({
+        studentId: studentId!,
+        classId,
+        date,
+        status,
+        remarks,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "Attendance record corrected and student attendance rate recalculated.",
+        data: outcome,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
   public getClassSheet = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
       const { classId } = req.params;

@@ -16,28 +16,21 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { fetchWithAuth } from "@/lib/fetch-with-auth"
+import type { ReferenceDepartment } from "@/lib/api/reference"
+import { useDepartments } from "@/lib/api/reference"
 
 type FormState = "idle" | "submitting" | "success" | "error"
 
-interface DepartmentOption {
-  id: string
-  name: string
-  code: string
-}
+// D-08: departments were a hardcoded array of invented identifiers
+// that matched no database row, so every submission carried an
+// invalid foreign key. The shape now comes from /api/reference.
+type DepartmentOption = ReferenceDepartment
 
 interface ClearanceOption {
   id: string
   name: string
   description: string
 }
-
-const MOCK_ACADEMIC_DEPARTMENTS: DepartmentOption[] = [
-  { id: "dept-mat", name: "Mathematics & Data Science", code: "MAT" },
-  { id: "dept-sci", name: "Natural & Physical Sciences", code: "SCI" },
-  { id: "dept-hum", name: "Humanities & Social Studies", code: "HUM" },
-  { id: "dept-lng", name: "Languages & Literature", code: "LNG" },
-  { id: "dept-art", name: "Creative & Performing Arts", code: "ART" },
-]
 
 const MOCK_TEACHER_CLEARANCE_LEVELS: ClearanceOption[] = [
   { id: "clear-tch", name: "Level 1: Standard Faculty Access", description: "Roster management, gradebook entries, and basic student tracking portals" },
@@ -95,18 +88,10 @@ function ComprehensiveTeacherEnrollmentWizard() {
   const [createdTeacherId, setCreatedTeacherId] = React.useState<string | null>(null)
   const [createdTeacherName, setCreatedTeacherName] = React.useState<string | null>(null)
 
-  const [departments, setDepartments] = React.useState<DepartmentOption[]>([])
-  const [deptsLoading, setDeptsLoading] = React.useState(true)
+  // ── REFERENCE DATA (live, from /api/reference) ──
+  const { data: departments = [], isLoading: deptsLoading } = useDepartments()
 
   const isSubmitting = formState === "submitting"
-
-  React.useEffect(() => {
-    const timer = setTimeout(() => {
-      setDepartments(MOCK_ACADEMIC_DEPARTMENTS)
-      setDeptsLoading(false)
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [])
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -130,7 +115,7 @@ function ComprehensiveTeacherEnrollmentWizard() {
     }
 
     try {
-      const response = await fetchWithAuth("teachers", {
+      const response = await fetchWithAuth("/teachers", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

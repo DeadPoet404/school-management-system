@@ -29,6 +29,9 @@ services:
       NODE_ENV: production
       PORT: "5000"
       LOG_LEVEL: info
+      # API docs are disabled by default. When true in production, /api/docs
+      # requires an authenticated ADMIN session.
+      ENABLE_API_DOCS: ${ENABLE_API_DOCS:-false}
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_ACCESS_EXPIRES_IN: 15m

@@ -12,7 +12,11 @@ const authController = new AuthController();
 // This is in-memory only — resets on server restart, which is acceptable
 // for a single-instance school management system. For multi-instance
 // deployments, this should be replaced with Redis-backed storage.
-const failedAttempts = new Map<string, { count: number; lockedUntil: number }>();
+const failedAttempts = new Map<string, {
+  count: number;
+  firstAttemptAt: number;
+  lockedUntil: number;
+}>();
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
@@ -32,8 +36,9 @@ function isAccountLocked(email: string): { locked: boolean; retryAfterMs: number
     return { locked: true, retryAfterMs: record.lockedUntil - Date.now() };
   }
 
-  // Reset counter if window has elapsed
-  if (Date.now() - record.lockedUntil > ATTEMPT_WINDOW_MS && record.count > 0) {
+  // Reset the failure window from the first failed attempt, not from
+  // lockedUntil (which is 0 until the account is actually locked).
+  if (Date.now() - record.firstAttemptAt > ATTEMPT_WINDOW_MS) {
     failedAttempts.delete(email.toLowerCase());
   }
 
@@ -44,15 +49,24 @@ function recordFailedAttempt(email: string): void {
   const key = email.toLowerCase();
   const record = failedAttempts.get(key);
 
+  const now = Date.now();
+
   if (!record) {
-    failedAttempts.set(key, { count: 1, lockedUntil: 0 });
+    failedAttempts.set(key, { count: 1, firstAttemptAt: now, lockedUntil: 0 });
+    return;
+  }
+
+  // A failure after the attempt window starts a new window rather than
+  // accumulating historical attempts indefinitely.
+  if (now - record.firstAttemptAt > ATTEMPT_WINDOW_MS) {
+    failedAttempts.set(key, { count: 1, firstAttemptAt: now, lockedUntil: 0 });
     return;
   }
 
   record.count++;
 
   if (record.count >= MAX_FAILED_ATTEMPTS) {
-    record.lockedUntil = Date.now() + LOCKOUT_DURATION_MS;
+    record.lockedUntil = now + LOCKOUT_DURATION_MS;
   }
 }
 

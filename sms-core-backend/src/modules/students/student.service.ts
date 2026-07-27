@@ -181,9 +181,27 @@ export class StudentService {
     const feeTier =
       (await prisma.feeTier.findUnique({ where: { id: billing.feeTierId } })) ??
       (await prisma.feeTier.findUnique({ where: { code: billing.feeTierId } }));
-    const baseTariff = feeTier ? Number(feeTier.amount) : 0;
-    const resolvedTierId = feeTier?.id ?? null;
-    const computedBalance = Math.max(0, baseTariff - billing.initialDeposit);
+    // D-05: a failed tier lookup must never silently default the tariff to 0.
+    // Previously an unresolvable tier enrolled the student with a 0.00 balance
+    // and returned 201, so the school never billed them. Fail loudly instead.
+    if (!feeTier) {
+      throw new AppError(400, `Unknown fee tier: ${billing.feeTierId}`);
+    }
+    if (!feeTier.isActive) {
+      throw new AppError(400, `Fee tier ${feeTier.code} is inactive and cannot be assigned.`);
+    }
+
+    const initialDeposit = Number(billing.initialDeposit);
+    if (!Number.isFinite(initialDeposit) || initialDeposit < 0) {
+      throw new AppError(400, 'Initial deposit must be a non-negative number.');
+    }
+
+    const baseTariff = Number(feeTier.amount);
+    if (!Number.isFinite(baseTariff)) {
+      throw new AppError(500, `Fee tier ${feeTier.code} has a non-numeric amount.`);
+    }
+    const resolvedTierId = feeTier.id;
+    const computedBalance = Math.max(0, baseTariff - initialDeposit);
 
     return await prisma.$transaction(async (tx) => {
       const hashedPassword = await hashPassword(account.password);

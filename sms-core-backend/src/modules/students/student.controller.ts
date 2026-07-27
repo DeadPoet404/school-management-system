@@ -50,7 +50,7 @@ export class StudentController {
 
   public enrollStudent = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
-      const { account, demographics, placement, compliance, billing, payroll } = req.body;
+      const { account, demographics, placement, compliance, billing, payroll, guardian, parent } = req.body;
 
       if (!account?.fullName || !account?.email) {
         return res.status(400).json({ success: false, message: "Missing core identity payloads (fullName and email are required)." });
@@ -59,6 +59,12 @@ export class StudentController {
       const newStudent = await this.studentService.createStudent({
         account: { fullName: account.fullName, email: account.email, password: account.password, enrollmentDate: account.enrollmentDate || new Date().toISOString() },
         demographics, placement, compliance,
+        // D-03: the controller previously destructured neither `guardian` nor
+        // `parent`, so the service never received one and rejected every single
+        // enrollment with a 400. Both are forwarded; the service prefers
+        // `guardian` and falls back to `parent`.
+        guardian,
+        parent,
         billing: billing || payroll,
       });
 

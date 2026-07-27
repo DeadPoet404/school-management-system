@@ -52,7 +52,7 @@ describe('StudentService', () => {
     // Default: transaction executes callback immediately with mock tx
     (prisma.$transaction as any).mockImplementation(async (fn: any) => fn({}));
     // Default: feeTier found
-    (prisma.feeTier.findUnique as any).mockResolvedValue({ code: 'TIER-A', amount: '2000' });
+    (prisma.feeTier.findUnique as any).mockResolvedValue({ id: 'tier-uuid-a', code: 'TIER-A', amount: '2000', isActive: true });
   });
 
   // ── getById ──
@@ -217,7 +217,7 @@ describe('StudentService', () => {
     });
 
     it('should calculate balance as feeTier amount minus initial deposit', async () => {
-      (prisma.feeTier.findUnique as any).mockResolvedValue({ code: 'TIER-A', amount: '2000' });
+      (prisma.feeTier.findUnique as any).mockResolvedValue({ id: 'tier-uuid-a', code: 'TIER-A', amount: '2000', isActive: true });
       (repo.createNestedStudent as any).mockResolvedValue({ id: 'new-1', studentId: 'STU-X', studentName: 'Jane' });
 
       await service.createStudent({
@@ -229,17 +229,62 @@ describe('StudentService', () => {
       expect(createData.billing.create.currentBalance).toBe(1500);
     });
 
-    it('should handle missing feeTier gracefully (balance = full deposit)', async () => {
+    // D-05: an unresolvable tier must fail loudly. This test previously
+    // asserted a 0.00 balance, which is the silent revenue-loss bug itself.
+    it('should throw 400 when the fee tier cannot be resolved', async () => {
       (prisma.feeTier.findUnique as any).mockResolvedValue(null);
-      (repo.createNestedStudent as any).mockResolvedValue({ id: 'new-1', studentId: 'STU-X', studentName: 'Jane' });
+
+      await expect(service.createStudent({
+        ...VALID_ENROLLMENT_PAYLOAD,
+        billing: { feeTierId: 'UNKNOWN', initialDeposit: 500 },
+      })).rejects.toMatchObject({
+        statusCode: 400,
+        message: 'Unknown fee tier: UNKNOWN',
+      });
+
+      expect(repo.createNestedStudent).not.toHaveBeenCalled();
+    });
+
+    it('should throw 400 when the fee tier is inactive', async () => {
+      (prisma.feeTier.findUnique as any).mockResolvedValue({
+        id: 'tier-uuid-a', code: 'TIER-A', amount: '2000', isActive: false,
+      });
+
+      await expect(service.createStudent({
+        ...VALID_ENROLLMENT_PAYLOAD,
+        billing: { feeTierId: 'TIER-A', initialDeposit: 500 },
+      })).rejects.toMatchObject({
+        statusCode: 400,
+        message: expect.stringContaining('inactive'),
+      });
+
+      expect(repo.createNestedStudent).not.toHaveBeenCalled();
+    });
+
+    it('should throw 400 when the initial deposit is negative', async () => {
+      await expect(service.createStudent({
+        ...VALID_ENROLLMENT_PAYLOAD,
+        billing: { feeTierId: 'TIER-A', initialDeposit: -100 },
+      })).rejects.toMatchObject({ statusCode: 400 });
+
+      expect(repo.createNestedStudent).not.toHaveBeenCalled();
+    });
+
+    // D-05 regression: the FK must receive the tier UUID, never the code,
+    // and the balance must equal tier amount minus deposit.
+    it('should store the tier UUID and bill amount minus deposit', async () => {
+      (repo.createNestedStudent as any).mockResolvedValue({
+        id: 'new-1', studentId: 'STU-X', studentName: 'Jane',
+      });
 
       await service.createStudent({
         ...VALID_ENROLLMENT_PAYLOAD,
-        billing: { feeTierId: 'UNKNOWN', initialDeposit: 500 },
+        billing: { feeTierId: 'TIER-A', initialDeposit: 500 },
       });
 
       const createData = (repo.createNestedStudent as any).mock.calls[0][0];
-      expect(createData.billing.create.currentBalance).toBe(0);
+      expect(createData.billing.create.feeTierId).toBe('tier-uuid-a');
+      expect(createData.billing.create.currentBalance).toBe(1500);
     });
   });
 

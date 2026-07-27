@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# D-13: scratch/backup artefacts belong in version control history, not the
+# working tree. A corrupted component once hid in a .bak while the real file
+# was broken (D-01). Note: this does not affect scripts/backup.sh or the
+# backups/ directory used for database dumps.
+*.bak
+*.corrupt
+_legacy_bak/
+_*_backup/
