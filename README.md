@@ -2,77 +2,200 @@
 
 A full-stack K-12 school management platform built for Ghanaian second-cycle
 schools.
-Stack:
-  - Frontend : Next.js 16 (React 19) + TypeScript, Tailwind v4, TanStack Query
-  - Backend : Node.js 20 + Express + TypeScript, Prisma ORM
-  - Database : PostgreS\ 16
-  - Deploy  : Docker Compose (one command brings the whole stack up)
-Traffic flow:
-  Browser --> Next.js frontend (port 3000)
-     Next.js rewrites paths beginning with /api/ to the backend
-  --> Express API (port 5000)
-  --> PostgreSQL 16 (private Docker network)
 
-Features (current)
-  - Student registry: enrollment, demographics, guardians, class placement,
-    billing, departure/off-boarding with immutable audit log.
-  - Teacher/faculty registry: onboarding, demographics, compliance, payroll,
-    departure with academic and treasury clearance.
-  - Non-teaching staff registry: HR, It-asset, treasury clearance on exit.
-  - Section-wise attendance capture with separate desktop and mobile layouts.
-  - Gradebook entry with automatic weighted-GPA recomputation and FACULTY
-    authorization (a teacher can only grade subject/class combinations they
-    are assigned to in the timetable).
-  - Timetable configuration (periods, breaks, subject-teacher allocation per
-    section).
-  - Finance engine: fee structures per section, invoice generation, payment
-    collections (auto-applied to the oldest outstanding invoice), chart of
-    accounts ledger, expenses, combined teacher plus staff^\›Û‚ˆH]]ˆÚÜ[]™Y•ÕXØÙ\ÜÈÚÙ[œÈ
-MHZ[ŠH\È‹X˜XÚÙY›Ý][™Âˆ™Yœ™\ÚÚÙ[œÈ
-È^\ÊHÝÜ™Y[ˆÛ›HÛÛÚÚY\ÎÈ\‹Y[XZ[ØÚÛÝ]ˆ
-H˜Z[Y][\ÈØÚÜÈ›ÜˆMHZ[]\ÊNÈPÈ›Û\ÈÕQS•ÕQ‘‹PÕSKˆQRS‹PÐÓÕS•S•‚ˆH]Y]ÙÙÚ[™ÈÙˆ[Üš]HÜ\˜][ÛœÈÚ]Ù[œÚ]]™KYšY[™YXÝ[ÛŽÂˆÔÕˆ^ÜÛˆ]™\žHYÚ[˜]Y\ÝÈ™XÝ\œÚ]™HÔÈØ[š]^˜][ÛŽÈ[Y]ÂˆÛØ˜[[™]]\ÜXÚYšXÈ˜]H[Z][™Ë‚‚”™\ÜÚ]ÜžH^[Ý]ˆØÚÙ\‹XÛÛ\ÜÙKž[[ÜÝÜ™\Ë˜XÚÙ[™œ›Û[™ÛˆHš]˜]HØÚÙ\ˆ™]ÛÜšÂˆ™[‹™^[\HÛÛ\ÜÙK[]™[ÙXÜ™]È[™[š\›Û›Y[ÛÛ™šYÝ\˜][Û‚ˆØÜš\ËØ˜XÚÝ\œÚ×Ù[\˜XÚÝ\Ü™\ÝÜ™H[\ˆYØZ[œÝHÜÝÜ™\ÈÛÛZ[™\‚ˆ˜XÚÝ\ËÈ˜XÚÝ\Ý]]\™XÝÜžH
-Ü[™Þˆš[\È\™HÚ]ZYÛ›Ü™Y
-Bˆ™Ú]X‹ÝÛÜšÙ›ÝÜËÈÚ]XˆXÝ[ÛœÈÒH
-[Z[\ÝØÚÙ\ˆZ[
-BˆÛ\ËXÛÜ™KÈ™^šœÈMˆœ›Û[™ˆÛ\ËXÛÜ™KX˜XÚÙ[™È^™\ÜÈ‘TÕTKš\ÛXHØÚ[XK[™[HZYÜ˜][ÛœÂˆSSTÒTËÈ\˜Ú]XÝ\˜[]Y]ˆ
-[™[Ù™ˆœšYYˆ›ÜˆRHÙ\ÜÚ[ÛœÊB‚”]ZXÚÈÝ\
-ØÚÙ\ˆH™XÛÛ[Y[™Y
-B‚”™\]Z\™\ÈØÚÙ\ˆ[™Ú[™HŒ
-ÈÚ]HÛÛ\ÜÙHYÚ[‹‚‚ˆKˆÙ‹ÜÛ\Ë[[Û›Ü™\Âˆ‹ˆÜ™[‹™^[\H™[‚ˆËˆÙ[™\˜]HÝ›Û™ÈÙXÜ™]È[™\ÝHXXÚ˜[YH[È™[Ž‚ˆÜ[œÜÛ˜[™Z^ÌˆÈÔÕÔ‘T×ÔTÔÕÓÔ‘ˆÜ[œÜÛ˜[™Z^ÌˆÈ•ÕÔÑPÔ‘UˆÜ[œÜÛ˜[™Z^ÌˆÈ•ÕÔ‘Q”‘TÒÔÑPÔ‘U
-UTÕY™™\ˆœ›ÛH•ÕÔÑPÔ‘U
-BˆÜ[œÜÛ˜[™Z^ÌˆÈÓÓÒÒQWÔÑPÔ‘Uˆ›ÜˆØØ[]‹X]™HÓÓÒÒQWÑÓPRSˆ[\H[™Ù]ÓÓÕQWÔÑPÕT‘OY˜[ÙK‚ˆˆš\œÝ›ÛÝ
-Z[È[XYÙ\Ë[œÈZYÜ˜][ÛœËÙYYÈ[[È]JN‚ˆ•S—ÔÑQQ]YHØÚÙ\ˆÛÛ\ÜÙH\KXZ[ˆKˆY\ˆš\œÝÝXØÙ\ÜÙ[›ÛÝ™\ÜÈÝ›
-ÐÈ[ˆÝ\›Ü›X[N‚ˆØÚÙ\ˆÛÛ\ÜÙH\Y‚“Ü[ˆ[Ý\ˆœ›ÝÜÙ\ˆ]ØØ[ÜÝÛˆÜÌˆ[ÝHÚ[™H™Y\™XÝYÈÛÙÚ[‹‚‚‘[[ÈXØÛÝ[È
-ÙYYYÚ[ˆ•S—ÔÑQQ\ÈYJBˆ›ÛH[XZ[\ÜÝÛÜ™ˆYZ[ˆYZ[Û\Ë›ØØ[YZ[‘]ŒŒˆBˆXØÛÝ[[˜Yœš^ZYPÛ\Ë[ÜË™YK™ÚÞ\Ý[QY˜][ÙXÝ\™LŒˆBˆXXÚ\ˆ
-X]ÊHKšÛÚ›ÐÛ\ËZ[œÝ]][Û‹™YK™ÚÞ\Ý[QY˜][ÙXÝ\™LŒˆBˆXXÚ\ˆ
-ØÚY[˜ÙJHK˜›Ø][™ÐÛ\ËZ[œÝ]][Û‹™YK™ÚÞ\Ý[QY˜][ÙXÝ\™LŒˆBˆÝY[
-XÝ]™JHË›Y[œØZÛ\Ë\Ü[™YK™ÚÞ\Ý[QY˜][ÙXÝ\™LŒˆBˆÝY[
-ØÚÛ\ŠHK˜\Ø\™PÛ\Ë\Ü[™YK™ÚÞ\Ý[QY˜][ÙXÝ\™LŒˆB‚•HY˜][ÙYY\ÜÝÛÜ™]™\È[ˆÛ\ËXÛÜ™KX˜XÚÙ[™Üš\ÛXKÜÙYYÈ\Âš\Ú\ÜÝÛÜ™ÙˆHÝš[™ÈÞ\Ý[QY˜][ÙXÝ\™LŒˆ›ÛÝÙYžH[ˆ^[[X][Û‚›X\šËˆÚ[™ÙH[\ÜÝÛÜ™È[[YYX][HY\ˆš\œÝÙÚ[‹\ÜXÚX[H™Y›Ü™B˜[žH™X[\Þ[Y[‚‚’X[ÚXÚÂˆÝ\›ØØ[ÜÝŒÌØ\KÚX[ˆÈ^XÝ”ÓÓˆÚ]ÝXØÙ\ÜÈYKÝ]\ÈX[KˆÝ]\ÈÛÛ›™XÝY\[YK‚•\ÙY[ÛÛ[X[™ÂˆÙ‹ÜÛ\Ë[[Û›Ü™\ÂˆØÚÙ\ˆÛÛ\ÜÙHÙÜÈYˆ˜XÚÙ[™ÈZ[˜XÚÙ[™ÙÜÂˆØÚÙ\ˆÛÛ\ÜÙHÙÜÈYˆœ›Û[™ÈZ[œ›Û[™ÙÜÂˆØÚÙ\ˆÛÛ\ÜÙH^XÈ˜XÚÙ[™ÚÈÚ[[È˜XÚÙ[™ÛÛZ[™\‚ˆØÚÙ\ˆÛÛ\ÜÙH^XÈÜÝÜ™\ÈÜ[QHÛ\×Ý\Ù\ˆYÛ\×ÙˆÈ˜]ÈÜ[Ú[ˆ‹ÜØÜš\ËØ˜XÚÝ\œÚÈÞš\Y×Ù[\[È‹Ø˜XÚÝ\ËÂˆ‹ÜØÜš\ËØ˜XÚÝ\œÚ\ÝÈ\Ý^\Ý[™È˜XÚÝ\Âˆ‹ÜØÜš\ËØ˜XÚÝ\œÚ™\ÝÜ™H’SHÈ™\ÝÜ™H
-[\˜XÝ]™HÛÛ™š\›X][ÛŠBˆØÚÙ\ˆÛÛ\ÜÙHÝÛˆÈÝÜ
-ÙY\ÈÜÝÜ™\È]H›Û[YJBˆØÚÙ\ˆÛÛ\ÜÙHÝÛˆ]ˆÈÝÜS‘Ú\HÜÝÜ™\È
-™\Ù]ÈŠB‚‘]™[ÜY[Ú]Ý]ØÚÙ\ˆ
-˜\Ý\ˆ]\˜][ÛŠB‚•\›Z[˜[HH˜XÚÙ[™‚ˆÙ‹ÜÛ\Ë[[Û›Ü™\ËÜÛ\ËXÛÜ™KX˜XÚÙ[™ˆÜ™[‹™^[\H™[ˆÈÙ]UPTÑWÕT“[™H™YHÙXÜ™]ÂˆœH[œÝ[ˆœš\ÛXHZYÜ˜]H]‚ˆœH[ˆÙYYÈÛ›HÛˆ[ˆ[\H‚ˆœH[ˆ]ˆÈ˜XÚÙ[™\Ý[œÈÛˆØØ[ÜÝÜL‚•\›Z[˜[ˆHœ›Û[™‚ˆÙ‹ÜÛ\Ë[[Û›Ü™\ËÜÛ\ËXÛÜ™BˆœH[œÝ[ˆ‘VÔP“P×ÐTWÕT“Hš‹ËÛØØ[ÜÝLØ\HˆPÒÑS‘ÕT“Hš‹ËÛØØ[ÜÝLˆœH[ˆ]‚ˆÈœ›Û[™ÛˆØØ[ÜÝÜÌ‚•\ÝÈ[È\KXÚXÚÂˆ˜XÚÙ[™‚ˆÙ‹ÜÛ\Ë[[Û›Ü™\ËÜÛ\ËXÛÜ™KX˜XÚÙ[™ˆœH[ˆ[ˆœH[ˆ\ÝÈš]\Ý[š]
-ÈÝ\\\ÝÛ[ÚÙBˆœH[ˆ\Ý˜ÛÝ™\˜YÙBˆœH[ˆZ[ÈØÈ
-ÈØËX[X\ÎÈ˜Z[ÈÛˆ\H\œ›ÜœÂˆœ›Û[™‚ˆÙ‹ÜÛ\Ë[[Û›Ü™\ËÜÛ\ËXÛÜ™BˆœH[ˆ[ˆœH[ˆZ[È™^šœÈ›ÙXÝ[ÛˆZ[
-\KXÚXÚÜÈÛÊB‚‘[š\›Û›Y[˜\šXX›\Â‚[ÛÛ\ÜÙK[]™[˜\šXX›\È\™HØÝ[Y[Y[ˆ™[‹™^[\KˆH˜XÚÙ[™˜[Y]\È™\]Z\™Y˜\šXX›\È]Ý\\
-Û\ËXÛÜ™KX˜XÚÙ[™ÜÜ˜ËÛX‹Ù[‹ÊB˜[™™Y\Ù\ÈÈ›ÛÝYˆ[žH\™HZ\ÜÚ[™ÈÜˆX[›Ü›YY‚‚ˆÔÝÔ‘T×ÔTÔÕÓÔ‘ˆ\ÜÝÛÜ™›ÜˆÛ\×Ý\Ù\ˆ
-™\]Z\™Y
-Bˆ•ÕÔÑPÔ‘UÚYÛœÈXØÙ\ÜÈÚÙ[œË]X\ÝMˆÚ\œÈ
-™\]Z\™Y
-Bˆ•ÕÔ‘Q”‘TÒÔÑPÔ‘UÚYÛœÈ™Yœ™\ÚÚÙ[œË]X\ÝMˆÚ\œËUTÕY™™\ˆ
-™\]Z\™Y
-BˆÓÓÕQWÔÑPÔ‘UÚYÛœÈÛ›HÛÛÚÚY\Ë]X\ÝMˆÚ\œÈ
-™\]Z\™Y
-BˆÓÓÒÒQWÑÓPRSˆÛÛÚÚYHÛXZ[ˆ]šX]HHPU‘HSTH›ÜˆØØ[ÜÝˆÓÓÕQWÔÑPÕT‘HYHÛ›HÝ™\ˆÎÈ\ÙH˜[ÙH›ÜˆØØ[]‚ˆÓÓÒÒQWÔÐSQWÔÒUH^
-Y˜][
-KÝšXÝÜˆ›Û™BˆÓÔ”×ÓÔ’QÒS”ÈÛÛ[XK\Ù\\˜]Y[ÝÙYœ›ÝÜÙ\ˆÜšYÚ[œÈ
-Y˜][ØØ[ÜÝŒÌ
-Bˆ•S—ÔÑQQ              Run seed on container boot; set true only on first launch
+**Stack**
 
-Node version
-package.json in both packages requires Node 20+ and npm 10+.
+- **Frontend** - Next.js 16 (React 19) + TypeScript, Tailwind v4, TanStack Query
+- **Backend** - Node.js 20 + Express + TypeScript, Prisma ORM
+- **Database** - PostgreSQL 16
+- **Deploy** - Docker Compose (one command brings the whole stack up)
 
-Project status
-See ANALYSIS/SMS_Repo_Analysis.pdf for the full architectural walkthrough,
-known-bug list, and enterprise-grade roadmap. Phase 0 (stabilization) is
-tracked in sections 9 and 10 of that document.
+**Traffic flow**
+
+```
+Browser --> Next.js frontend (port 3000)
+              Next.js rewrites paths beginning with /api/ to the backend
+        --> Express API (port 5000)
+        --> PostgreSQL 16 (private Docker network)
+```
+
+## Features (current)
+
+- **Student registry** - enrollment, demographics, guardians, class placement,
+  billing, departure/off-boarding with immutable audit log.
+- **Teacher/faculty registry** - onboarding, demographics, compliance, payroll,
+  departure with academic and treasury clearance.
+- **Non-teaching staff registry** - HR, IT-asset, treasury clearance on exit.
+- **Attendance** - section-wise capture with separate desktop and mobile layouts.
+- **Gradebook** - entry with automatic weighted-GPA recomputation and FACULTY
+  authorization (a teacher can only grade subject/class combinations they are
+  assigned to in the timetable).
+- **Timetable** - configuration of periods, breaks, and subject-teacher
+  allocation per section.
+- **Finance engine** - fee structures per section, invoice generation, payment
+  collections (auto-applied to the oldest outstanding invoice), chart of
+  accounts ledger, expenses, combined teacher plus staff payroll.
+- **Auth** - short-lived JWT access tokens (15 min) plus DB-backed rotating
+  refresh tokens (7 days) stored in httpOnly cookies; per-email lockout
+  (5 failed attempts locks for 15 minutes); RBAC roles STUDENT, STAFF,
+  FACULTY, ADMIN, ACCOUNTANT.
+- **Hardening** - audit logging of all write operations with sensitive-field
+  redaction; CSV export on every paginated list; recursive XSS sanitization;
+  Helmet; global and auth-specific rate limiting.
+
+## Repository layout
+
+| Path | Purpose |
+| --- | --- |
+| `docker-compose.yml` | Postgres, backend, frontend on a private Docker network |
+| `.env.example` | Compose-level secrets and environment configuration |
+| `scripts/backup.sh` | pg_dump backup/restore helper against the Postgres container |
+| `backups/` | Backup output directory (`.sql.gz` files are git-ignored) |
+| `.github/workflows/` | GitHub Actions CI (lint, build, test, Docker build) |
+| `sms-core/` | Next.js 16 frontend |
+| `sms-core-backend/` | Express REST API, Prisma schema, and all migrations |
+| `ANALYSIS/` | Architectural audit PDF (hand-off brief for AI sessions) |
+
+## Quick start (Docker - recommended)
+
+Requires Docker Engine v24+ with the Compose plugin.
+
+1. `cd ~/sms-monorepo`
+2. `cp .env.example .env`
+3. Generate strong secrets and paste each value into `.env`:
+
+   ```bash
+   openssl rand -hex 32   # POSTGRES_PASSWORD
+   openssl rand -hex 32   # JWT_SECRET
+   openssl rand -hex 32   # JWT_REFRESH_SECRET  (MUST differ from JWT_SECRET)
+   openssl rand -hex 32   # COOKIE_SECRET
+   ```
+
+   For local dev, leave `COOKIE_DOMAIN` empty and set `COOKIE_SECURE=false`.
+
+4. First boot (builds images, runs migrations, seeds demo data):
+
+   ```bash
+   RUN_SEED=true docker compose up --build
+   ```
+
+5. After the first successful boot, press Ctrl+C then start normally:
+
+   ```bash
+   docker compose up -d
+   ```
+
+Open your browser at `localhost` on port 3000. You will be redirected to
+`/login`.
+
+> The first boot runs database migrations before the API starts, and the
+> backend healthcheck allows a 60-second start period. `docker compose ps` can
+> report `health: starting` for up to a minute on a cold start - this is
+> expected, not a hang.
+
+## Demo accounts (seeded when `RUN_SEED` is true)
+
+| Role | Email | Password |
+| --- | --- | --- |
+| Admin | `admin@sms.local` | `AdminDev2026!` |
+| Accountant | `p.afriyie@sms-ops.edu.gh` | `SystemDefaultSecure2026!` |
+| Teacher (Maths) | `e.kojo@sms-institution.edu.gh` | `SystemDefaultSecure2026!` |
+| Teacher (Science) | `a.boateng@sms-institution.edu.gh` | `SystemDefaultSecure2026!` |
+| Student (active) | `k.mensah@sms-portal.edu.gh` | `SystemDefaultSecure2026!` |
+| Student (scholar) | `a.asare@sms-portal.edu.gh` | `SystemDefaultSecure2026!` |
+
+The default seed password lives in `sms-core-backend/prisma/seed.ts` as
+`hashPassword` of the string `SystemDefaultSecure2026` followed by an
+exclamation mark. Change all passwords immediately after first login,
+especially before any real deployment.
+
+## Health check
+
+```bash
+curl localhost:3000/api/health
+# Expect JSON with success true, status healthy, db status connected, uptime.
+```
+
+## Useful commands
+
+```bash
+cd ~/sms-monorepo
+docker compose logs -f backend                            # tail backend logs
+docker compose logs -f frontend                           # tail frontend logs
+docker compose exec backend sh                            # shell into backend container
+docker compose exec postgres psql -U sms_user -d sms_db   # raw psql shell
+./scripts/backup.sh                                       # gzipped pg_dump into ./backups/
+./scripts/backup.sh list                                  # list existing backups
+./scripts/backup.sh restore FILE                          # restore (interactive confirmation)
+docker compose down                                       # stop (keeps Postgres data volume)
+docker compose down -v                                    # stop AND wipe Postgres (resets DB)
+```
+
+## Development without Docker (faster iteration)
+
+**Terminal 1 - backend:**
+
+```bash
+cd ~/sms-monorepo/sms-core-backend
+cp .env.example .env       # set DATABASE_URL and the three secrets
+npm install
+npx prisma migrate dev
+npx prisma db seed         # only on an empty DB
+npm run dev                # backend listens on localhost port 5000
+```
+
+**Terminal 2 - frontend:**
+
+```bash
+cd ~/sms-monorepo/sms-core
+npm install
+NEXT_PUBLIC_API_URL="http://localhost:5000/api" BACKEND_URL="http://localhost:5000" npm run dev
+# frontend on localhost port 3000
+```
+
+## Test / lint / type-check
+
+**Backend:**
+
+```bash
+cd ~/sms-monorepo/sms-core-backend
+npm run lint
+npm run test             # vitest unit + supertest smoke
+npm run test:coverage
+npm run build            # tsc + tsc-alias; fails on type errors
+```
+
+**Frontend:**
+
+```bash
+cd ~/sms-monorepo/sms-core
+npm run lint
+npm run build            # Next.js production build (type-checks too)
+```
+
+## Environment variables
+
+All compose-level variables are documented in `.env.example`. The backend
+validates required variables at startup and refuses to boot if any are missing
+or malformed.
+
+| Variable | Description |
+| --- | --- |
+| `POSTGRES_PASSWORD` | DB password for `sms_user` (required) |
+| `JWT_SECRET` | Signs access tokens, at least 16 chars (required) |
+| `JWT_REFRESH_SECRET` | Signs refresh tokens, at least 16 chars, MUST differ (required) |
+| `COOKIE_SECRET` | Signs httpOnly cookies, at least 16 chars (required) |
+| `COOKIE_DOMAIN` | Cookie Domain attribute - LEAVE EMPTY for localhost |
+| `COOKIE_SECURE` | `true` only over HTTPS; use `false` for local dev |
+| `COOKIE_SAME_SITE` | `lax` (default), `strict`, or `none` |
+| `CORS_ORIGINS` | Comma-separated allowed browser origins (default `http://localhost:3000`) |
+| `RUN_SEED` | Run seed on container boot; set `true` only on first launch |
+
+## Node version
+
+`package.json` in both packages requires Node 20+ and npm 10+.
+
+## Project status
+
+See the architectural audit PDF in `ANALYSIS/` for the full walkthrough,
+known-bug list, and roadmap.
