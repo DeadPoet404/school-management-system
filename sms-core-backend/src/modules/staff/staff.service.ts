@@ -5,6 +5,7 @@ import { IStaffRepository } from "@/types/repositories";
 import { StaffRepository } from "./staff.repository";
 import { formatInstitutionalId } from "@/utils";
 import { hashPassword } from "@/utils/hash";
+import { parseStaffImportFile, type StaffImportError, type StaffImportUploadedFile } from "./staff.import";
 
 type StaffWithRelations = Prisma.StaffGetPayload<{
   include: {
@@ -170,6 +171,102 @@ export class StaffService {
     }));
   }
 
+  async getPerformanceMetrics() {
+    const rawStaff = await this.repo.findAllActive();
+    const now = Date.now();
+
+    const percent = (values: unknown[]) => {
+      if (values.length === 0) return 0;
+      const complete = values.filter(Boolean).length;
+      return Math.round((complete / values.length) * 100);
+    };
+
+    return (rawStaff as StaffWithRelations[]).map((member) => {
+      const appointmentTime = member.appointmentDate
+        ? new Date(member.appointmentDate).getTime()
+        : Number.NaN;
+
+      const tenureDays = Number.isFinite(appointmentTime)
+        ? Math.max(0, Math.floor((now - appointmentTime) / (1000 * 60 * 60 * 24)))
+        : 0;
+
+      const profileCompleteness = percent([
+        member.staffName,
+        member.appointmentDate,
+        member.account?.email,
+        member.account?.role,
+        member.demographics?.dateOfBirth,
+        member.demographics?.gender,
+        member.demographics?.residentialAddress,
+        member.demographics?.phone,
+        member.placement?.departmentId,
+        member.placement?.jobTitle,
+        member.placement?.employmentType,
+        member.placement?.shiftSchedule,
+      ]);
+
+      const complianceScore = percent([
+        member.compliance?.nationalId,
+        member.compliance?.ssnitNumber,
+        member.compliance?.emergencyName,
+        member.compliance?.emergencyPhone,
+      ]);
+
+      const payrollReadiness = percent([
+        member.payroll?.clearanceTier,
+        Number(member.payroll?.baseSalary ?? 0) > 0,
+        member.payroll?.bankName,
+        member.payroll?.bankAccount,
+        member.payroll?.salaryStatus,
+      ]);
+
+      const statusScore =
+        member.status === EntityStatus.ACTIVE
+          ? 100
+          : member.status === EntityStatus.DEPARTED
+            ? 0
+            : 60;
+
+      const performanceScore = Math.round(
+        profileCompleteness * 0.35 +
+        complianceScore * 0.25 +
+        payrollReadiness * 0.25 +
+        statusScore * 0.15
+      );
+
+      const reviewStatus =
+        performanceScore >= 85
+          ? "On Track"
+          : performanceScore >= 65
+            ? "Needs Review"
+            : "Action Required";
+
+      return {
+        id: member.id,
+        staffId: member.staffId,
+        staffName: member.staffName,
+        email: member.account?.email ?? null,
+        role: member.account?.role ?? "STAFF",
+        departmentId: member.placement?.departmentId ?? "UNASSIGNED",
+        jobTitle: member.placement?.jobTitle ?? "General Staff",
+        employmentType: member.placement?.employmentType ?? "Full-Time",
+        shiftSchedule: member.placement?.shiftSchedule ?? "Standard Day",
+        status: member.status,
+        tenureDays,
+        profileCompleteness,
+        complianceScore,
+        payrollReadiness,
+        performanceScore,
+        reviewStatus,
+        attendanceRate: null,
+        punctualityRate: null,
+        taskCompletionRate: null,
+        metricsSource: "staff_registry",
+        notes: "Attendance, punctuality, and task completion metrics require dedicated staff attendance/task modules before they can be calculated.",
+      };
+    });
+  }
+
   async createStaff(payload: {
     account: {
       fullName: string;
@@ -281,6 +378,99 @@ export class StaffService {
         staffName: staff.staffName,
       };
     });
+  }
+
+  async importStaffFromFile(file: StaffImportUploadedFile) {
+    const parsed = parseStaffImportFile(file);
+    const errors: StaffImportError[] = [...parsed.errors];
+    const createdStaff: Array<{ row: number; id: string; staffId: string; staffName: string }> = [];
+    const seenEmails = new Set<string>();
+    const departmentCache = new Map<string, string>();
+
+    for (const row of parsed.rows) {
+      try {
+        const emailKey = row.payload.account.email.trim().toLowerCase();
+
+        if (seenEmails.has(emailKey)) {
+          throw new AppError(409, `Duplicate email ${row.payload.account.email} appears more than once in the import file.`);
+        }
+
+        seenEmails.add(emailKey);
+
+        const existingAccount = await prisma.staffAccount.findUnique({
+          where: { email: row.payload.account.email },
+        });
+
+        if (existingAccount) {
+          throw new AppError(409, `Staff account email already exists: ${row.payload.account.email}`);
+        }
+
+        const departmentId = await this.resolveImportDepartmentId(row.payload.placement.departmentId, departmentCache);
+
+        const created = await this.createStaff({
+          ...row.payload,
+          placement: {
+            ...row.payload.placement,
+            departmentId,
+          },
+        });
+
+        createdStaff.push({
+          row: row.rowNumber,
+          id: created.id,
+          staffId: created.staffId,
+          staffName: created.staffName,
+        });
+      } catch (error) {
+        errors.push({
+          row: row.rowNumber,
+          message: error instanceof Error ? error.message : "Staff import failed for this row.",
+        });
+      }
+    }
+
+    const failedRows = new Set(errors.map((error) => error.row));
+
+    return {
+      totalRows: parsed.totalRows,
+      attemptedRows: parsed.rows.length,
+      created: createdStaff.length,
+      failed: failedRows.size,
+      errors,
+      createdStaff,
+    };
+  }
+
+  private async resolveImportDepartmentId(value: string, cache: Map<string, string>): Promise<string> {
+    const lookup = value.trim();
+    const cacheKey = lookup.toLowerCase();
+    const cached = cache.get(cacheKey);
+
+    if (cached) return cached;
+
+    const byId = await prisma.department.findFirst({
+      where: { id: lookup, deletedAt: null, isActive: true },
+      select: { id: true },
+    });
+
+    const found = byId ?? await prisma.department.findFirst({
+      where: {
+        deletedAt: null,
+        isActive: true,
+        OR: [
+          { code: { equals: lookup, mode: "insensitive" } },
+          { name: { equals: lookup, mode: "insensitive" } },
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (!found) {
+      throw new AppError(400, `Unknown active department: ${lookup}`);
+    }
+
+    cache.set(cacheKey, found.id);
+    return found.id;
   }
 
   async processDeparture(payload: {

@@ -1,0 +1,2 @@
+fullName,email,dateOfBirth,gender,residentialAddress,phone,department,jobTitle,employmentType,password,nationalId,ssnitNumber,baseSalary,bankName,bankAccount,emergencyName,emergencyPhone,bloodType,religion,formerSchool
+Teacher Import Test,teacher.import.1785179702415@example.com,1988-03-12,Female,"45 Faculty Avenue, Accra",555-222-1111,ce7b647f-d21b-440d-b1a9-c7e68a219916,Mathematics Teacher,Full-Time,Passw0rd!,GHA-987654321-1,SSNIT-TCH-001,3500.00,GCB Bank,TCH1785179702415,Emergency Teacher Contact,555-222-9999,A+,Christianity,Previous Academy

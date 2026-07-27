@@ -6,6 +6,7 @@ import { ITeacherRepository } from "@/types/repositories";
 import { TeacherRepository } from "./teacher.repository";
 import { formatInstitutionalId } from "@/utils";
 import { hashPassword } from "@/utils/hash";
+import { parseTeacherImportFile, type TeacherImportError, type TeacherImportUploadedFile } from "./teacher.import";
 
 type TeacherWithRelations = Prisma.TeacherGetPayload<{
   include: {
@@ -300,6 +301,112 @@ export class TeacherService {
       _temporaryPassword: rawPassword,
       _warning: "Communicate this password to the teacher immediately. Email delivery not yet implemented.",
     };
+  }
+
+  async importTeachersFromFile(file: TeacherImportUploadedFile) {
+    const parsed = parseTeacherImportFile(file);
+    const errors: TeacherImportError[] = [...parsed.errors];
+    const createdTeachers: Array<{ row: number; id: string; teacherId: string; teacherName: string }> = [];
+    const seenEmails = new Set<string>();
+    const departmentCache = new Map<string, string>();
+
+    for (const row of parsed.rows) {
+      try {
+        const emailKey = row.payload.account.email.trim().toLowerCase();
+
+        if (seenEmails.has(emailKey)) {
+          throw new AppError(409, `Duplicate email ${row.payload.account.email} appears more than once in the import file.`);
+        }
+
+        seenEmails.add(emailKey);
+
+        const existingTeacher = await prisma.teacher.findUnique({
+          where: { email: row.payload.account.email },
+        });
+
+        if (existingTeacher) {
+          throw new AppError(409, `Teacher email already exists: ${row.payload.account.email}`);
+        }
+
+        const existingAccount = await prisma.teacherAccount.findUnique({
+          where: { email: row.payload.account.email },
+        });
+
+        if (existingAccount) {
+          throw new AppError(409, `Teacher account email already exists: ${row.payload.account.email}`);
+        }
+
+        const departmentRef = row.payload.placement?.departmentId?.trim();
+        const departmentId = departmentRef
+          ? await this.resolveImportDepartmentId(departmentRef, departmentCache)
+          : undefined;
+
+        const created = await this.createTeacher({
+          ...row.payload,
+          placement: row.payload.placement
+            ? {
+                ...row.payload.placement,
+                departmentId,
+              }
+            : undefined,
+        });
+
+        createdTeachers.push({
+          row: row.rowNumber,
+          id: created.id,
+          teacherId: created.teacherId,
+          teacherName: created.teacherName,
+        });
+      } catch (error) {
+        errors.push({
+          row: row.rowNumber,
+          message: error instanceof Error ? error.message : "Teacher import failed for this row.",
+        });
+      }
+    }
+
+    const failedRows = new Set(errors.map((error) => error.row));
+
+    return {
+      totalRows: parsed.totalRows,
+      attemptedRows: parsed.rows.length,
+      created: createdTeachers.length,
+      failed: failedRows.size,
+      errors,
+      createdTeachers,
+    };
+  }
+
+  private async resolveImportDepartmentId(value: string, cache: Map<string, string>): Promise<string> {
+    const lookup = value.trim();
+    const cacheKey = lookup.toLowerCase();
+    const cached = cache.get(cacheKey);
+
+    if (cached) return cached;
+
+    const byId = await prisma.department.findFirst({
+      where: { id: lookup, deletedAt: null, isActive: true },
+      select: { id: true },
+    });
+
+    const found = byId ?? await prisma.department.findFirst({
+      where: {
+        deletedAt: null,
+        isActive: true,
+        OR: [
+          { code: { equals: lookup, mode: "insensitive" } },
+          { name: { equals: lookup, mode: "insensitive" } },
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (!found) {
+      throw new AppError(400, `Unknown active department: ${lookup}`);
+    }
+
+    cache.set(cacheKey, found.id);
+    return found.id;
   }
 
   async processDeparture(payload: {

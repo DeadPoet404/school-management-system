@@ -51,6 +51,7 @@ const StudentsPage = () => {
   const [students, setStudents] = useState<StudentRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [importing, setImporting] = useState(false)
 
   const loadStudents = useCallback(async () => {
     try {
@@ -99,21 +100,70 @@ const StudentsPage = () => {
   }
 
   const handleImportClick = () => {
+    if (importing) {
+      return
+    }
+
     fileInputRef.current?.click()
   }
 
-  const handleFileSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
+  const handleFileSelected = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const input = event.currentTarget
+    const file = input.files?.[0]
 
     if (!file) {
       return
     }
 
-    window.alert(
-      `Selected "${file.name}". Import processing is not connected to the backend yet.`
-    )
+    try {
+      setImporting(true)
 
-    event.target.value = ""
+      const formData = new FormData()
+      formData.append("file", file)
+
+      const response = await fetchWithAuth("/students/import", {
+        method: "POST",
+        body: formData,
+      })
+
+      const result = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(
+          result?.message || `Student import failed with HTTP ${response.status}.`
+        )
+      }
+
+      const summary = result?.data ?? {}
+      const rowErrors = Array.isArray(summary.errors)
+        ? summary.errors.slice(0, 5)
+        : []
+
+      const lines = [
+        `Student import complete for "${file.name}".`,
+        `Total rows: ${summary.totalRows ?? 0}`,
+        `Created: ${summary.created ?? 0}`,
+        `Failed: ${summary.failed ?? 0}`,
+      ]
+
+      if (rowErrors.length > 0) {
+        lines.push("")
+        lines.push("First row errors:")
+        rowErrors.forEach((rowError: { row?: number; message?: string }) => {
+          lines.push(`Row ${rowError.row ?? "?"}: ${rowError.message ?? "Unknown error"}`)
+        })
+      }
+
+      window.alert(lines.join("\n"))
+      await loadStudents()
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Student import failed.")
+    } finally {
+      input.value = ""
+      setImporting(false)
+    }
   }
 
   const filteredStudents = useMemo(() => {
@@ -200,6 +250,7 @@ const StudentsPage = () => {
         accept=".csv,.xlsx,.xls"
         className="hidden"
         onChange={handleFileSelected}
+        disabled={importing}
       />
 
       <div className="shrink-0">
@@ -238,7 +289,7 @@ const StudentsPage = () => {
             menuLabel="Import Options"
             items={[
               {
-                label: "Upload CSV / XLSX",
+                label: importing ? "Importing..." : "Upload CSV / XLSX",
                 icon: FileSpreadsheet,
                 onClick: handleImportClick,
               },

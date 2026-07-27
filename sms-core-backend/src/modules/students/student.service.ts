@@ -5,6 +5,7 @@ import { IStudentRepository } from "@/types/repositories";
 import { StudentRepository } from "./student.repository";
 import { formatInstitutionalId } from "@/utils";
 import { hashPassword } from "@/utils/hash";
+import { parseStudentImportFile, type StudentImportError, type StudentImportUploadedFile } from "./student.import";
 
 type StudentFinancialRow = Prisma.StudentGetPayload<{
   include: { account: true; invoices: true; payments: true; };
@@ -233,6 +234,134 @@ export class StudentService {
 
       return this.repo.createNestedStudent(dbPayload, tx);
     });
+  }
+
+  async importStudentsFromFile(file: StudentImportUploadedFile) {
+    const parsed = parseStudentImportFile(file);
+    const errors: StudentImportError[] = [...parsed.errors];
+    const createdStudents: Array<{ row: number; id: string; studentId: string; studentName: string }> = [];
+    const seenEmails = new Set<string>();
+    const classCache = new Map<string, string>();
+    const feeTierCache = new Map<string, string>();
+
+    for (const row of parsed.rows) {
+      try {
+        const emailKey = row.payload.account.email.trim().toLowerCase();
+
+        if (seenEmails.has(emailKey)) {
+          throw new AppError(409, `Duplicate email ${row.payload.account.email} appears more than once in the import file.`);
+        }
+
+        seenEmails.add(emailKey);
+
+        const existingAccount = await prisma.studentAccount.findUnique({
+          where: { portalEmail: row.payload.account.email },
+        });
+
+        if (existingAccount) {
+          throw new AppError(409, `Student account email already exists: ${row.payload.account.email}`);
+        }
+
+        const classId = await this.resolveImportClassId(row.payload.placement.classId, classCache);
+        const feeTierId = await this.resolveImportFeeTierId(row.payload.billing.feeTierId, feeTierCache);
+
+        const created = await this.createStudent({
+          ...row.payload,
+          placement: {
+            ...row.payload.placement,
+            classId,
+          },
+          billing: {
+            ...row.payload.billing,
+            feeTierId,
+          },
+        });
+
+        createdStudents.push({
+          row: row.rowNumber,
+          id: created.id,
+          studentId: created.studentId,
+          studentName: created.studentName,
+        });
+      } catch (error) {
+        errors.push({
+          row: row.rowNumber,
+          message: error instanceof Error ? error.message : "Student import failed for this row.",
+        });
+      }
+    }
+
+    const failedRows = new Set(errors.map((error) => error.row));
+
+    return {
+      totalRows: parsed.totalRows,
+      attemptedRows: parsed.rows.length,
+      created: createdStudents.length,
+      failed: failedRows.size,
+      errors,
+      createdStudents,
+    };
+  }
+
+  private async resolveImportClassId(value: string, cache: Map<string, string>): Promise<string> {
+    const lookup = value.trim();
+    const cacheKey = lookup.toLowerCase();
+    const cached = cache.get(cacheKey);
+
+    if (cached) return cached;
+
+    const byId = await prisma.class.findFirst({
+      where: { id: lookup, deletedAt: null, isActive: true },
+      select: { id: true },
+    });
+
+    const found = byId ?? await prisma.class.findFirst({
+      where: {
+        deletedAt: null,
+        isActive: true,
+        name: { equals: lookup, mode: "insensitive" },
+      },
+      select: { id: true },
+    });
+
+    if (!found) {
+      throw new AppError(400, `Unknown active class: ${lookup}`);
+    }
+
+    cache.set(cacheKey, found.id);
+    return found.id;
+  }
+
+  private async resolveImportFeeTierId(value: string, cache: Map<string, string>): Promise<string> {
+    const lookup = value.trim();
+    const cacheKey = lookup.toLowerCase();
+    const cached = cache.get(cacheKey);
+
+    if (cached) return cached;
+
+    const byId = await prisma.feeTier.findFirst({
+      where: { id: lookup, deletedAt: null, isActive: true },
+      select: { id: true },
+    });
+
+    const found = byId ?? await prisma.feeTier.findFirst({
+      where: {
+        deletedAt: null,
+        isActive: true,
+        OR: [
+          { code: { equals: lookup, mode: "insensitive" } },
+          { name: { equals: lookup, mode: "insensitive" } },
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (!found) {
+      throw new AppError(400, `Unknown active fee tier: ${lookup}`);
+    }
+
+    cache.set(cacheKey, found.id);
+    return found.id;
   }
 
   async processDeparture(payload: {

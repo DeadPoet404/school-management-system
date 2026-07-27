@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { UniversalDataTable, type DataTableColumn } from "@/components/universal-data-table"
 import { fetchWithAuth } from "@/lib/fetch-with-auth";
 
@@ -16,6 +17,7 @@ type StudentOverviewRow = {
   status: string
   feesStatus: "Paid" | "Partial" | "Unpaid"
   enrollmentDate: string
+  attendanceLink: React.ReactNode
 }
 
 interface StudentOverviewTableProps {
@@ -95,6 +97,8 @@ export function StudentOverviewTable({ data: initialData }: StudentOverviewTable
       ? `${rawTrack || ""} ${rawClass}`.trim() 
       : rawTrack || "Unassigned"
 
+    const attendanceRouteId = student.id || student.studentId
+
     return {
       id: student.studentId || "—",
       studentName: student.studentName || "Unknown Student",
@@ -107,6 +111,16 @@ export function StudentOverviewTable({ data: initialData }: StudentOverviewTable
       status: student.status || "ACTIVE",
       feesStatus: financialStatus,
       enrollmentDate: formattedDate,
+      attendanceLink: attendanceRouteId ? (
+        <Link
+          href={`/students/${encodeURIComponent(String(attendanceRouteId))}/attendance`}
+          className="inline-flex rounded border border-zinc-200 px-2 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
+        >
+          View
+        </Link>
+      ) : (
+        "—"
+      ),
     }
   })
 
@@ -173,6 +187,11 @@ export function StudentOverviewTable({ data: initialData }: StudentOverviewTable
       header: "Attendance",
       className: "w-[95px]",
       cellClassName: "font-mono text-zinc-600 dark:text-zinc-400",
+    },
+    {
+      key: "attendanceLink",
+      header: "Report",
+      className: "w-[85px]",
     },
     {
       key: "enrollmentDate",

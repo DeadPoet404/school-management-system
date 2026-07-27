@@ -3,6 +3,13 @@ import { StaffService } from "./staff.service";
 import { parsePaginationQuery, buildPaginationResponse } from "@/utils/pagination";
 import { toCSV, respondCSV } from "@/utils/export";
 
+type UploadedStaffImportFile = {
+  buffer: Buffer;
+  originalname: string;
+  mimetype?: string;
+  size?: number;
+};
+
 export class StaffController {
   constructor(private staffService: StaffService) {}
 
@@ -44,6 +51,35 @@ export class StaffController {
     try {
       const matrix = await this.staffService.getWorkforceMatrix();
       return res.status(200).json({ success: true, data: matrix });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  public getPerformanceMetrics = async (_req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+    try {
+      const metrics = await this.staffService.getPerformanceMetrics();
+      return res.status(200).json({ success: true, data: metrics });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  public importStaff = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+    try {
+      const file = (req as Request & { file?: UploadedStaffImportFile }).file;
+
+      if (!file) {
+        return res.status(400).json({ success: false, message: "A CSV, XLSX, or XLS file is required." });
+      }
+
+      const summary = await this.staffService.importStaffFromFile(file);
+
+      return res.status(200).json({
+        success: true,
+        message: `Staff import complete. Created ${summary.created} of ${summary.totalRows} row(s).`,
+        data: summary,
+      });
     } catch (error) {
       next(error);
     }

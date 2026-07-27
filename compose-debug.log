@@ -1,0 +1,238 @@
+== Command ==
+docker compose up --build -d
+
+== Compose up output ==
+time="2026-07-27T18:22:19Z" level=warning msg="Docker Compose is configured to build using Bake, but buildx isn't installed"
+#0 building with "default" instance using docker driver
+
+#1 [backend internal] load build definition from Dockerfile
+#1 transferring dockerfile: 2.23kB done
+#1 DONE 0.0s
+
+#2 [backend internal] load metadata for docker.io/library/node:20-alpine
+#2 DONE 0.0s
+
+#3 [backend internal] load .dockerignore
+#3 transferring context: 410B done
+#3 DONE 0.0s
+
+#4 [backend internal] load build context
+#4 DONE 0.0s
+
+#5 [backend builder  1/13] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+#5 resolve docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 0.0s done
+#5 DONE 0.0s
+
+#4 [backend internal] load build context
+#4 transferring context: 9.32kB 0.0s done
+#4 DONE 0.0s
+
+#6 [backend builder  2/13] WORKDIR /app
+#6 CACHED
+
+#7 [backend runner  9/12] COPY --from=builder --chown=appuser:appgroup /app/dist ./dist
+#7 CACHED
+
+#8 [backend runner  4/12] WORKDIR /app
+#8 CACHED
+
+#9 [backend builder  7/13] RUN npx prisma generate
+#9 CACHED
+
+#10 [backend runner  5/12] COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
+#10 CACHED
+
+#11 [backend builder  8/13] COPY tsconfig.json tsconfig.seed.json ./
+#11 CACHED
+
+#12 [backend builder 12/13] RUN cp -r node_modules/prisma /tmp/prisma-cli
+#12 CACHED
+
+#13 [backend builder 13/13] RUN npm prune --production
+#13 CACHED
+
+#14 [backend builder  9/13] COPY src ./src/
+#14 CACHED
+
+#15 [backend runner  6/12] COPY --from=builder --chown=appuser:appgroup /tmp/prisma-cli ./node_modules/prisma
+#15 CACHED
+
+#16 [backend runner  3/12] RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+#16 CACHED
+
+#17 [backend runner  7/12] COPY --from=builder --chown=appuser:appgroup /app/package.json ./package.json
+#17 CACHED
+
+#18 [backend runner  8/12] COPY --from=builder --chown=appuser:appgroup /app/prisma ./prisma
+#18 CACHED
+
+#19 [backend builder 11/13] RUN npx tsc --project tsconfig.seed.json && npx tsc-alias --project tsconfig.seed.json
+#19 CACHED
+
+#20 [backend runner 11/12] COPY --chown=appuser:appgroup docker-entrypoint.sh ./docker-entrypoint.sh
+#20 CACHED
+
+#21 [backend builder  5/13] RUN npm ci
+#21 CACHED
+
+#22 [backend builder  4/13] COPY package.json package-lock.json ./
+#22 CACHED
+
+#23 [backend runner 10/12] COPY --from=builder --chown=appuser:appgroup /app/dist-seed ./dist-seed
+#23 CACHED
+
+#24 [backend builder  3/13] RUN apk add --no-cache openssl
+#24 CACHED
+
+#25 [backend builder  6/13] COPY prisma ./prisma/
+#25 CACHED
+
+#26 [backend runner  2/12] RUN apk add --no-cache openssl wget libc6-compat
+#26 CACHED
+
+#27 [backend builder 10/13] RUN npm run build
+#27 CACHED
+
+#28 [backend runner 12/12] RUN chmod +x docker-entrypoint.sh
+#28 CACHED
+
+#29 [backend] exporting to image
+#29 exporting layers done
+#29 exporting manifest sha256:1c427903d36d53e8b1283e9faa9b178de6162c53148651874e423c6533c45586 done
+#29 exporting config sha256:9d8febbe5c057af78e32e4e67b6b3b27a9b95ec6762ec55aba99c62e9987ed99 done
+#29 exporting attestation manifest sha256:0d4ef129e69e035106c02f70d381314fdc818bd4c5d42a8bed315fa28a03f0ef 0.0s done
+#29 exporting manifest list sha256:87f8a3b57cb4595adf95a3db832f5fbcda2ebad677ff560111d41d226f4f9a76 done
+#29 naming to docker.io/library/sms-monorepo-backend:latest done
+#29 unpacking to docker.io/library/sms-monorepo-backend:latest 0.0s done
+#29 DONE 0.1s
+
+#30 [backend] resolving provenance for metadata file
+#30 DONE 0.0s
+
+#31 [frontend internal] load build definition from Dockerfile
+#31 transferring dockerfile: 1.98kB done
+#31 DONE 0.0s
+
+#2 [frontend internal] load metadata for docker.io/library/node:20-alpine
+#2 DONE 0.1s
+
+#32 [frontend internal] load metadata for docker.io/library/node:20-slim
+#32 DONE 0.0s
+
+#33 [frontend internal] load .dockerignore
+#33 transferring context: 581B done
+#33 DONE 0.0s
+
+#34 [frontend builder 1/7] FROM docker.io/library/node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
+#34 resolve docker.io/library/node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 0.0s done
+#34 DONE 0.0s
+
+#5 [frontend runner 1/7] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+#5 resolve docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 0.0s done
+#5 DONE 0.1s
+
+#35 [frontend internal] load build context
+#35 transferring context: 8.89kB 0.0s done
+#35 DONE 0.0s
+
+#36 [frontend builder 6/7] RUN mkdir -p public
+#36 CACHED
+
+#37 [frontend runner 2/7] RUN apk add --no-cache wget
+#37 CACHED
+
+#38 [frontend builder 5/7] COPY . .
+#38 CACHED
+
+#39 [frontend runner 3/7] RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+#39 CACHED
+
+#40 [frontend runner 5/7] COPY --from=builder --chown=appuser:appgroup /app/.next/standalone ./
+#40 CACHED
+
+#41 [frontend builder 4/7] RUN npm ci
+#41 CACHED
+
+#42 [frontend runner 4/7] WORKDIR /app
+#42 CACHED
+
+#43 [frontend runner 6/7] COPY --from=builder --chown=appuser:appgroup /app/.next/static ./.next/static
+#43 CACHED
+
+#44 [frontend builder 3/7] COPY package.json package-lock.json ./
+#44 CACHED
+
+#45 [frontend builder 2/7] WORKDIR /app
+#45 CACHED
+
+#46 [frontend builder 7/7] RUN npm run build
+#46 CACHED
+
+#47 [frontend runner 7/7] COPY --from=builder --chown=appuser:appgroup /app/public ./public
+#47 CACHED
+
+#48 [frontend] exporting to image
+#48 exporting layers done
+#48 exporting manifest sha256:432062335e6fc58d781a40c60bce5b9fefeccfad77c18a6ca1fa6960251d08fa done
+#48 exporting config sha256:fb84032e591582c015384a93e7a5c20060d1a82171920d80ed3c01e78a5c7ba6 done
+#48 exporting attestation manifest sha256:f636231c7d7e1f92aecdfe2e51e6c353cda26e42eac018244fa6a472e7a65a49 0.0s done
+#48 exporting manifest list sha256:3f65c419fdfedd3d94d9e6fbf5145a4ade26f134aa3702b14009f366048047ae 0.0s done
+#48 naming to docker.io/library/sms-monorepo-frontend:latest done
+#48 unpacking to docker.io/library/sms-monorepo-frontend:latest 0.0s done
+#48 DONE 0.1s
+
+#49 [frontend] resolving provenance for metadata file
+#49 DONE 0.0s
+ backend  Built
+ frontend  Built
+ Container sms-monorepo-postgres-1  Running
+ Container sms-monorepo-backend-1  Recreate
+ Container sms-monorepo-backend-1  Recreated
+ Container sms-monorepo-frontend-1  Recreate
+ Container sms-monorepo-frontend-1  Recreated
+ Container sms-monorepo-postgres-1  Waiting
+ Container sms-monorepo-postgres-1  Healthy
+ Container sms-monorepo-backend-1  Starting
+Error response from daemon: failed to set up container networking: driver failed programming external connectivity on endpoint sms-monorepo-backend-1 (1904255a78460473dcb7f6c4834a81244e0894f41938f368ab30d980a887028c): Bind for 127.0.0.1:5000 failed: port is already allocated
+
+== Compose exit code ==
+1
+
+== Compose status ==
+NAME                      IMAGE                   COMMAND                  SERVICE    CREATED        STATUS                 PORTS
+sms-monorepo-backend-1    sms-monorepo-backend    "./docker-entrypoint…"   backend    1 second ago   Created                
+sms-monorepo-frontend-1   sms-monorepo-frontend   "docker-entrypoint.s…"   frontend   1 second ago   Created                
+sms-monorepo-postgres-1   postgres:16-alpine      "docker-entrypoint.s…"   postgres   3 hours ago    Up 3 hours (healthy)   5432/tcp
+
+== Backend logs ==
+
+== Frontend logs ==
+
+== Postgres logs ==
+postgres-1  | 
+postgres-1  | PostgreSQL Database directory appears to contain a database; Skipping initialization
+postgres-1  | 
+postgres-1  | 2026-07-27 15:47:58.156 UTC [1] LOG:  starting PostgreSQL 16.14 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+postgres-1  | 2026-07-27 15:47:58.156 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+postgres-1  | 2026-07-27 15:47:58.156 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+postgres-1  | 2026-07-27 15:47:58.159 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+postgres-1  | 2026-07-27 15:47:58.168 UTC [29] LOG:  database system was shut down at 2026-07-22 18:11:47 UTC
+postgres-1  | 2026-07-27 15:47:58.184 UTC [1] LOG:  database system is ready to accept connections
+postgres-1  | 2026-07-27 15:48:49.781 UTC [1] LOG:  received fast shutdown request
+postgres-1  | 2026-07-27 15:48:49.784 UTC [1] LOG:  aborting any active transactions
+postgres-1  | 2026-07-27 15:48:49.793 UTC [1] LOG:  background worker "logical replication launcher" (PID 32) exited with exit code 1
+postgres-1  | 2026-07-27 15:48:49.800 UTC [27] LOG:  shutting down
+postgres-1  | 2026-07-27 15:48:49.802 UTC [27] LOG:  checkpoint starting: shutdown immediate
+postgres-1  | 2026-07-27 15:48:49.828 UTC [27] LOG:  checkpoint complete: wrote 3 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.013 s, sync=0.003 s, total=0.028 s; sync files=2, longest=0.002 s, average=0.002 s; distance=0 kB, estimate=0 kB; lsn=0/1B39910, redo lsn=0/1B39910
+postgres-1  | 2026-07-27 15:48:49.847 UTC [1] LOG:  database system is shut down
+postgres-1  | 
+postgres-1  | PostgreSQL Database directory appears to contain a database; Skipping initialization
+postgres-1  | 
+postgres-1  | 2026-07-27 15:49:01.359 UTC [1] LOG:  starting PostgreSQL 16.14 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+postgres-1  | 2026-07-27 15:49:01.359 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+postgres-1  | 2026-07-27 15:49:01.359 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+postgres-1  | 2026-07-27 15:49:01.362 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+postgres-1  | 2026-07-27 15:49:01.370 UTC [28] LOG:  database system was shut down at 2026-07-27 15:48:49 UTC
+postgres-1  | 2026-07-27 15:49:01.383 UTC [1] LOG:  database system is ready to accept connections
+postgres-1  | 2026-07-27 15:54:15.933 UTC [26] LOG:  checkpoint starting: time
+postgres-1  | 2026-07-27 15:54:15.950 UTC [26] LOG:  checkpoint complete: wrote 3 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.004 s, sync=0.001 s, total=0.017 s; sync files=2, longest=0.001 s, average=0.001 s; distance=0 kB, estimate=0 kB; lsn=0/1B399F8, redo lsn=0/1B399C0

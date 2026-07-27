@@ -3,6 +3,13 @@ import { TeacherService } from "./teacher.service";
 import { parsePaginationQuery, buildPaginationResponse } from "@/utils/pagination";
 import { toCSV, respondCSV } from "@/utils/export";
 
+type UploadedTeacherImportFile = {
+  buffer: Buffer;
+  originalname: string;
+  mimetype?: string;
+  size?: number;
+};
+
 export class TeacherController {
   constructor(private teacherService: TeacherService) {}
   
@@ -35,6 +42,26 @@ export class TeacherController {
       const { id } = req.params;
       const teacher = await this.teacherService.getById(id!);
       return res.status(200).json({ success: true, data: teacher });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  public importTeachers = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+    try {
+      const file = (req as Request & { file?: UploadedTeacherImportFile }).file;
+
+      if (!file) {
+        return res.status(400).json({ success: false, message: "A CSV, XLSX, or XLS file is required." });
+      }
+
+      const summary = await this.teacherService.importTeachersFromFile(file);
+
+      return res.status(200).json({
+        success: true,
+        message: `Teacher import complete. Created ${summary.created} of ${summary.totalRows} row(s).`,
+        data: summary,
+      });
     } catch (error) {
       next(error);
     }

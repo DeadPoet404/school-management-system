@@ -36,6 +36,18 @@ async function attemptRefresh(): Promise<boolean> {
   return refreshPromise;
 }
 
+function buildRequestHeaders(options: RequestInit): Headers {
+  const headers = new Headers(options.headers)
+  const isFormDataBody =
+    typeof FormData !== 'undefined' && options.body instanceof FormData
+
+  if (!isFormDataBody && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
+
+  return headers
+}
+
 /**
  * Authenticated fetch wrapper.
  *
@@ -58,10 +70,7 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}): Pro
 
   const response = await fetch(fullUrl, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers as Record<string, string>),
-    },
+    headers: buildRequestHeaders(options),
     credentials: 'include',
   });
 
@@ -73,10 +82,7 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}): Pro
       // Retry original request with new cookies
       return fetch(fullUrl, {
         ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          ...(options.headers as Record<string, string>),
-        },
+        headers: buildRequestHeaders(options),
         credentials: 'include',
       });
     }

@@ -39,10 +39,14 @@ export function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Check for access_token cookie existence
+  // Check for either access_token or refresh_token cookie existence.
+  // The access token is intentionally short-lived; if only the refresh token
+  // exists, allow the page to render so AuthProvider/fetchWithAuth can refresh
+  // the session through /api/auth/refresh instead of causing a login loop.
   const accessToken = request.cookies.get("access_token")?.value
+  const refreshToken = request.cookies.get("refresh_token")?.value
 
-  if (!accessToken) {
+  if (!accessToken && !refreshToken) {
     const loginUrl = new URL("/login", request.url)
     loginUrl.searchParams.set("from", pathname)
     return NextResponse.redirect(loginUrl)

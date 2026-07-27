@@ -1,4 +1,5 @@
-import { Router } from "express";
+import { Router, type RequestHandler } from "express";
+import multer from "multer";
 import { TeacherController } from "./teacher.controller";
 import { TeacherService } from "./teacher.service";
 import { TeacherRepository } from "./teacher.repository";
@@ -14,7 +15,30 @@ const teacherRepo = new TeacherRepository();
 const teacherService = new TeacherService(teacherRepo);
 const teacherController = new TeacherController(teacherService);
 
+const teacherImportUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
+
+const handleTeacherImportUpload: RequestHandler = (req, res, next) => {
+  teacherImportUpload.single("file")(req, res, (error: unknown) => {
+    if (error) {
+      const message = error instanceof Error ? error.message : "Teacher import upload failed.";
+      return res.status(400).json({ success: false, message });
+    }
+
+    next();
+  });
+};
+
 // ── SPECIALIZED DOMAIN TARGETS ──
+router.post(
+  "/import",
+  requireRole(ROLES.STAFF, ROLES.ADMIN),
+  handleTeacherImportUpload,
+  teacherController.importTeachers
+);
+
 router.post("/departure", requireRole(ROLES.STAFF, ROLES.ADMIN), validate(teacherDepartureSchema), teacherController.executeDeparture);
 
 // ── CORE REGISTRY ENTRIES ──

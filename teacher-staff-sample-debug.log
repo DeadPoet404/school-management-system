@@ -1,0 +1,39 @@
+== Compose status ==
+NAME                      IMAGE                   COMMAND                  SERVICE    CREATED          STATUS                    PORTS
+sms-monorepo-backend-1    sms-monorepo-backend    "./docker-entrypoint…"   backend    49 minutes ago   Up 49 minutes (healthy)   127.0.0.1:5000->5000/tcp
+sms-monorepo-frontend-1   sms-monorepo-frontend   "docker-entrypoint.s…"   frontend   49 minutes ago   Up 49 minutes (healthy)   0.0.0.0:3000->3000/tcp, [::]:3000->3000/tcp
+sms-monorepo-postgres-1   postgres:16-alpine      "docker-entrypoint.s…"   postgres   3 hours ago      Up 3 hours (healthy)      5432/tcp
+
+== Active departments in database ==
+[
+  {
+    "id": "ce7b647f-d21b-440d-b1a9-c7e68a219916",
+    "code": "FIN",
+    "name": "Finance & Treasury"
+  },
+  {
+    "id": "4e661097-a3e6-40ea-ac84-a8ca9773788e",
+    "code": "MATH",
+    "name": "Mathematics & Data Science"
+  },
+  {
+    "id": "444cf4e0-2fc1-4425-9919-dd72aa2caf9c",
+    "code": "SCI",
+    "name": "Natural & Physical Sciences"
+  }
+]
+
+Department query exit code: 0
+
+== Generating sample CSV files on host ==
+Using department: FIN / Finance & Treasury (ce7b647f-d21b-440d-b1a9-c7e68a219916)
+Created sample-valid-teacher-import.csv
+Created sample-valid-staff-import.csv
+
+== Teacher sample ==
+fullName,email,dateOfBirth,gender,residentialAddress,phone,department,jobTitle,employmentType,password,nationalId,ssnitNumber,baseSalary,bankName,bankAccount,emergencyName,emergencyPhone,bloodType,religion,formerSchool
+Teacher Import Test,teacher.import.1785179702415@example.com,1988-03-12,Female,"45 Faculty Avenue, Accra",555-222-1111,ce7b647f-d21b-440d-b1a9-c7e68a219916,Mathematics Teacher,Full-Time,Passw0rd!,GHA-987654321-1,SSNIT-TCH-001,3500.00,GCB Bank,TCH1785179702415,Emergency Teacher Contact,555-222-9999,A+,Christianity,Previous Academy
+
+== Staff sample ==
+fullName,email,dateOfBirth,gender,residentialAddress,phone,department,jobTitle,employmentType,shiftSchedule,password,employmentDate,nationalId,ssnitNumber,baseSalary,bankName,bankAccount,emergencyName,emergencyPhone,bloodType,religion,formerSchool
+Staff Import Test,staff.import.1785179702415@example.com,1990-07-22,Male,"78 Admin Road, Accra",555-333-1111,ce7b647f-d21b-440d-b1a9-c7e68a219916,Administrative Officer,Full-Time,Standard Day,Passw0rd!,2026-09-01,GHA-111222333-4,SSNIT-STF-001,2500.00,GCB Bank,STF1785179702415,Emergency Staff Contact,555-333-9999,B+,Christianity,Previous Office

@@ -1,0 +1,317 @@
+== Stop old sms-ui-test stack if it exists ==
+ Container sms-ui-test-frontend-1  Stopping
+ Container sms-ui-test-frontend-1  Stopped
+ Container sms-ui-test-frontend-1  Removing
+ Container sms-ui-test-frontend-1  Removed
+ Container sms-ui-test-backend-1  Stopping
+ Container sms-ui-test-backend-1  Stopped
+ Container sms-ui-test-backend-1  Removing
+ Container sms-ui-test-backend-1  Removed
+ Container sms-ui-test-postgres-1  Stopping
+ Container sms-ui-test-postgres-1  Stopped
+ Container sms-ui-test-postgres-1  Removing
+ Container sms-ui-test-postgres-1  Removed
+ Network sms-ui-test_sms-net  Removing
+ Network sms-ui-test_sms-net  Removed
+
+== Stop any running containers publishing host ports 3000 or 5000 ==
+5675f7c1f8cb sms-monorepo-backend-1 127.0.0.1:5000->5000/tcp  
+Stopping container 5675f7c1f8cb
+5675f7c1f8cb
+
+== Current containers after freeing ports ==
+CONTAINER ID   NAMES                     PORTS
+3967de6d3568   sms-monorepo-postgres-1   5432/tcp
+
+== Starting current sms-monorepo stack ==
+time="2026-07-27T18:25:52Z" level=warning msg="Docker Compose is configured to build using Bake, but buildx isn't installed"
+#0 building with "default" instance using docker driver
+
+#1 [backend internal] load build definition from Dockerfile
+#1 transferring dockerfile: 2.23kB done
+#1 DONE 0.0s
+
+#2 [backend internal] load metadata for docker.io/library/node:20-alpine
+#2 DONE 0.0s
+
+#3 [backend internal] load .dockerignore
+#3 transferring context: 410B done
+#3 DONE 0.0s
+
+#4 [backend builder  1/13] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+#4 resolve docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 0.0s done
+#4 DONE 0.0s
+
+#5 [backend internal] load build context
+#5 transferring context: 9.32kB 0.0s done
+#5 DONE 0.0s
+
+#6 [backend builder  5/13] RUN npm ci
+#6 CACHED
+
+#7 [backend builder  7/13] RUN npx prisma generate
+#7 CACHED
+
+#8 [backend runner  2/12] RUN apk add --no-cache openssl wget libc6-compat
+#8 CACHED
+
+#9 [backend builder  9/13] COPY src ./src/
+#9 CACHED
+
+#10 [backend runner  5/12] COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
+#10 CACHED
+
+#11 [backend runner  6/12] COPY --from=builder --chown=appuser:appgroup /tmp/prisma-cli ./node_modules/prisma
+#11 CACHED
+
+#12 [backend builder 12/13] RUN cp -r node_modules/prisma /tmp/prisma-cli
+#12 CACHED
+
+#13 [backend builder  3/13] RUN apk add --no-cache openssl
+#13 CACHED
+
+#14 [backend runner  7/12] COPY --from=builder --chown=appuser:appgroup /app/package.json ./package.json
+#14 CACHED
+
+#15 [backend builder  2/13] WORKDIR /app
+#15 CACHED
+
+#16 [backend builder 10/13] RUN npm run build
+#16 CACHED
+
+#17 [backend runner  9/12] COPY --from=builder --chown=appuser:appgroup /app/dist ./dist
+#17 CACHED
+
+#18 [backend runner  3/12] RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+#18 CACHED
+
+#19 [backend builder 13/13] RUN npm prune --production
+#19 CACHED
+
+#20 [backend runner 11/12] COPY --chown=appuser:appgroup docker-entrypoint.sh ./docker-entrypoint.sh
+#20 CACHED
+
+#21 [backend runner  4/12] WORKDIR /app
+#21 CACHED
+
+#22 [backend builder  6/13] COPY prisma ./prisma/
+#22 CACHED
+
+#23 [backend builder  8/13] COPY tsconfig.json tsconfig.seed.json ./
+#23 CACHED
+
+#24 [backend builder 11/13] RUN npx tsc --project tsconfig.seed.json && npx tsc-alias --project tsconfig.seed.json
+#24 CACHED
+
+#25 [backend runner 10/12] COPY --from=builder --chown=appuser:appgroup /app/dist-seed ./dist-seed
+#25 CACHED
+
+#26 [backend runner  8/12] COPY --from=builder --chown=appuser:appgroup /app/prisma ./prisma
+#26 CACHED
+
+#27 [backend builder  4/13] COPY package.json package-lock.json ./
+#27 CACHED
+
+#28 [backend runner 12/12] RUN chmod +x docker-entrypoint.sh
+#28 CACHED
+
+#29 [backend] exporting to image
+#29 exporting layers done
+#29 exporting manifest sha256:1c427903d36d53e8b1283e9faa9b178de6162c53148651874e423c6533c45586 done
+#29 exporting config sha256:9d8febbe5c057af78e32e4e67b6b3b27a9b95ec6762ec55aba99c62e9987ed99 done
+#29 exporting attestation manifest sha256:85a24724cde20e41d007c08bf578472ab2e5a52758070547c92b7f90920ac807 0.0s done
+#29 exporting manifest list sha256:8754349d025141a3735682a100d2e1217b18538f38c3cecd27e9765416fd21ed 0.0s done
+#29 naming to docker.io/library/sms-monorepo-backend:latest done
+#29 unpacking to docker.io/library/sms-monorepo-backend:latest 0.0s done
+#29 DONE 0.1s
+
+#30 [backend] resolving provenance for metadata file
+#30 DONE 0.0s
+
+#31 [frontend internal] load build definition from Dockerfile
+#31 transferring dockerfile: 1.98kB done
+#31 DONE 0.0s
+
+#2 [frontend internal] load metadata for docker.io/library/node:20-alpine
+#2 DONE 0.0s
+
+#32 [frontend internal] load metadata for docker.io/library/node:20-slim
+#32 DONE 0.0s
+
+#33 [frontend internal] load .dockerignore
+#33 transferring context: 581B done
+#33 DONE 0.0s
+
+#4 [frontend runner 1/7] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+#4 resolve docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 0.0s done
+#4 DONE 0.1s
+
+#34 [frontend builder 1/7] FROM docker.io/library/node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
+#34 resolve docker.io/library/node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 0.0s done
+#34 DONE 0.0s
+
+#35 [frontend internal] load build context
+#35 transferring context: 8.89kB 0.0s done
+#35 DONE 0.0s
+
+#36 [frontend builder 5/7] COPY . .
+#36 CACHED
+
+#37 [frontend runner 3/7] RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+#37 CACHED
+
+#38 [frontend builder 6/7] RUN mkdir -p public
+#38 CACHED
+
+#39 [frontend runner 5/7] COPY --from=builder --chown=appuser:appgroup /app/.next/standalone ./
+#39 CACHED
+
+#40 [frontend runner 4/7] WORKDIR /app
+#40 CACHED
+
+#41 [frontend runner 2/7] RUN apk add --no-cache wget
+#41 CACHED
+
+#42 [frontend builder 7/7] RUN npm run build
+#42 CACHED
+
+#43 [frontend builder 2/7] WORKDIR /app
+#43 CACHED
+
+#44 [frontend builder 3/7] COPY package.json package-lock.json ./
+#44 CACHED
+
+#45 [frontend runner 6/7] COPY --from=builder --chown=appuser:appgroup /app/.next/static ./.next/static
+#45 CACHED
+
+#46 [frontend builder 4/7] RUN npm ci
+#46 CACHED
+
+#47 [frontend runner 7/7] COPY --from=builder --chown=appuser:appgroup /app/public ./public
+#47 CACHED
+
+#48 [frontend] exporting to image
+#48 exporting layers done
+#48 exporting manifest sha256:432062335e6fc58d781a40c60bce5b9fefeccfad77c18a6ca1fa6960251d08fa done
+#48 exporting config sha256:fb84032e591582c015384a93e7a5c20060d1a82171920d80ed3c01e78a5c7ba6 done
+#48 exporting attestation manifest sha256:91426a7a95e05d403d146647fc8a0ee0a66842b0198d48dabc96c678d3876f32 0.0s done
+#48 exporting manifest list sha256:9a3c179184fa9c22597b68466c3729aa3dd0cf96072fefbe4b8e22c61c992d0e done
+#48 naming to docker.io/library/sms-monorepo-frontend:latest done
+#48 unpacking to docker.io/library/sms-monorepo-frontend:latest 0.0s done
+#48 DONE 0.1s
+
+#49 [frontend] resolving provenance for metadata file
+#49 DONE 0.0s
+ backend  Built
+ frontend  Built
+ Container sms-monorepo-postgres-1  Running
+ Container sms-monorepo-backend-1  Recreate
+ Container sms-monorepo-backend-1  Recreated
+ Container sms-monorepo-frontend-1  Recreate
+ Container sms-monorepo-frontend-1  Recreated
+ Container sms-monorepo-postgres-1  Waiting
+ Container sms-monorepo-postgres-1  Healthy
+ Container sms-monorepo-backend-1  Starting
+ Container sms-monorepo-backend-1  Started
+ Container sms-monorepo-backend-1  Waiting
+ Container sms-monorepo-backend-1  Healthy
+ Container sms-monorepo-frontend-1  Starting
+ Container sms-monorepo-frontend-1  Started
+
+== Compose exit code ==
+0
+
+== Compose status ==
+NAME                      IMAGE                   COMMAND                  SERVICE    CREATED         STATUS                                     PORTS
+sms-monorepo-backend-1    sms-monorepo-backend    "./docker-entrypoint…"   backend    7 seconds ago   Up 6 seconds (healthy)                     127.0.0.1:5000->5000/tcp
+sms-monorepo-frontend-1   sms-monorepo-frontend   "docker-entrypoint.s…"   frontend   7 seconds ago   Up Less than a second (health: starting)   0.0.0.0:3000->3000/tcp, [::]:3000->3000/tcp
+sms-monorepo-postgres-1   postgres:16-alpine      "docker-entrypoint.s…"   postgres   3 hours ago     Up 3 hours (healthy)                       5432/tcp
+
+== Backend health check ==
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   136  100   136    0     0  11594      0 --:--:-- --:--:-- --:--:-- 12363
+HTTP/1.1 200 OK
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+X-Request-Id: xyzwsocbiii40o19cytu4egc
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+RateLimit-Policy: 100;w=60
+RateLimit-Limit: 100
+RateLimit-Remaining: 99
+RateLimit-Reset: 60
+Content-Type: application/json; charset=utf-8
+Content-Length: 136
+ETag: W/"88-wR1QyaxXdG14XvyEnicg/Uneaj0"
+Date: Mon, 27 Jul 2026 18:26:00 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"success":true,"data":{"status":"healthy","timestamp":"2026-07-27T18:26:00.805Z","uptime":4,"db":{"status":"connected","latencyMs":1}}}
+== Frontend check ==
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+curl: (56) Recv failure: Connection reset by peer
+
+== Recent backend logs ==
+backend-1  | [SMS] Waiting for database to be ready...
+backend-1  | [SMS] Database is ready.
+backend-1  | [SMS] Running database migrations...
+backend-1  | Prisma schema loaded from prisma/schema.prisma
+backend-1  | Datasource "db": PostgreSQL database "sms_db", schema "public" at "postgres:5432"
+backend-1  | 
+backend-1  | 25 migrations found in prisma/migrations
+backend-1  | 
+backend-1  | 
+backend-1  | No pending migrations to apply.
+backend-1  | [SMS] Migrations complete.
+backend-1  | [SMS] Skipping seed (set RUN_SEED=true to seed on next boot).
+backend-1  | [SMS] Starting application server...
+backend-1  | {"level":30,"time":1785176757815,"pid":1,"hostname":"a3fa0ca079f9","port":"5000","msg":"[SMS-Core-Backend] Pipeline online."}
+backend-1  | {"level":30,"time":1785176760005,"pid":1,"hostname":"a3fa0ca079f9","req":{"id":"n7kc3grns1hkqmfnqtj6v0f0","method":"GET","url":"/api/health","query":{},"params":{},"headers":{"host":"localhost:5000","user-agent":"Wget/1.25.0","accept":"*/*","accept-encoding":"identity","connection":"Keep-Alive"},"remoteAddress":"::1","remotePort":50632},"res":{"statusCode":200,"headers":{"content-security-policy":"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests","cross-origin-opener-policy":"same-origin","cross-origin-resource-policy":"same-origin","origin-agent-cluster":"?1","referrer-policy":"no-referrer","strict-transport-security":"max-age=31536000; includeSubDomains","x-content-type-options":"nosniff","x-dns-prefetch-control":"off","x-download-options":"noopen","x-frame-options":"SAMEORIGIN","x-permitted-cross-domain-policies":"none","x-xss-protection":"0","x-request-id":"n7kc3grns1hkqmfnqtj6v0f0","vary":"Origin, Accept-Encoding","access-control-allow-credentials":"true","ratelimit-policy":"100;w=60","ratelimit-limit":"100","ratelimit-remaining":"99","ratelimit-reset":"60","content-type":"application/json; charset=utf-8","content-length":"138","etag":"W/\"8a-w9NBG9tCjn3woUdk8T246ffvqkc\""}},"responseTime":144,"msg":"request completed"}
+backend-1  | {"level":30,"time":1785176760806,"pid":1,"hostname":"a3fa0ca079f9","req":{"id":"xyzwsocbiii40o19cytu4egc","method":"GET","url":"/api/health","query":{},"params":{},"headers":{"host":"localhost:5000","user-agent":"curl/8.5.0","accept":"*/*"},"remoteAddress":"::ffff:172.21.0.1","remotePort":56962},"res":{"statusCode":200,"headers":{"content-security-policy":"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests","cross-origin-opener-policy":"same-origin","cross-origin-resource-policy":"same-origin","origin-agent-cluster":"?1","referrer-policy":"no-referrer","strict-transport-security":"max-age=31536000; includeSubDomains","x-content-type-options":"nosniff","x-dns-prefetch-control":"off","x-download-options":"noopen","x-frame-options":"SAMEORIGIN","x-permitted-cross-domain-policies":"none","x-xss-protection":"0","x-request-id":"xyzwsocbiii40o19cytu4egc","vary":"Origin, Accept-Encoding","access-control-allow-credentials":"true","ratelimit-policy":"100;w=60","ratelimit-limit":"100","ratelimit-remaining":"99","ratelimit-reset":"60","content-type":"application/json; charset=utf-8","content-length":"136","etag":"W/\"88-wR1QyaxXdG14XvyEnicg/Uneaj0\""}},"responseTime":5,"msg":"request completed"}
+
+== Recent frontend logs ==
+
+== Recent postgres logs ==
+postgres-1  | 
+postgres-1  | PostgreSQL Database directory appears to contain a database; Skipping initialization
+postgres-1  | 
+postgres-1  | 2026-07-27 15:47:58.156 UTC [1] LOG:  starting PostgreSQL 16.14 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+postgres-1  | 2026-07-27 15:47:58.156 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+postgres-1  | 2026-07-27 15:47:58.156 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+postgres-1  | 2026-07-27 15:47:58.159 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+postgres-1  | 2026-07-27 15:47:58.168 UTC [29] LOG:  database system was shut down at 2026-07-22 18:11:47 UTC
+postgres-1  | 2026-07-27 15:47:58.184 UTC [1] LOG:  database system is ready to accept connections
+postgres-1  | 2026-07-27 15:48:49.781 UTC [1] LOG:  received fast shutdown request
+postgres-1  | 2026-07-27 15:48:49.784 UTC [1] LOG:  aborting any active transactions
+postgres-1  | 2026-07-27 15:48:49.793 UTC [1] LOG:  background worker "logical replication launcher" (PID 32) exited with exit code 1
+postgres-1  | 2026-07-27 15:48:49.800 UTC [27] LOG:  shutting down
+postgres-1  | 2026-07-27 15:48:49.802 UTC [27] LOG:  checkpoint starting: shutdown immediate
+postgres-1  | 2026-07-27 15:48:49.828 UTC [27] LOG:  checkpoint complete: wrote 3 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.013 s, sync=0.003 s, total=0.028 s; sync files=2, longest=0.002 s, average=0.002 s; distance=0 kB, estimate=0 kB; lsn=0/1B39910, redo lsn=0/1B39910
+postgres-1  | 2026-07-27 15:48:49.847 UTC [1] LOG:  database system is shut down
+postgres-1  | 
+postgres-1  | PostgreSQL Database directory appears to contain a database; Skipping initialization
+postgres-1  | 
+postgres-1  | 2026-07-27 15:49:01.359 UTC [1] LOG:  starting PostgreSQL 16.14 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+postgres-1  | 2026-07-27 15:49:01.359 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+postgres-1  | 2026-07-27 15:49:01.359 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+postgres-1  | 2026-07-27 15:49:01.362 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+postgres-1  | 2026-07-27 15:49:01.370 UTC [28] LOG:  database system was shut down at 2026-07-27 15:48:49 UTC
+postgres-1  | 2026-07-27 15:49:01.383 UTC [1] LOG:  database system is ready to accept connections
+postgres-1  | 2026-07-27 15:54:15.933 UTC [26] LOG:  checkpoint starting: time
+postgres-1  | 2026-07-27 15:54:15.950 UTC [26] LOG:  checkpoint complete: wrote 3 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.004 s, sync=0.001 s, total=0.017 s; sync files=2, longest=0.001 s, average=0.001 s; distance=0 kB, estimate=0 kB; lsn=0/1B399F8, redo lsn=0/1B399C0
+postgres-1  | 2026-07-27 18:25:03.204 UTC [13397] LOG:  could not receive data from client: Connection reset by peer
+postgres-1  | 2026-07-27 18:25:56.350 UTC [13473] LOG:  could not receive data from client: Connection reset by peer

@@ -3,6 +3,13 @@ import { StudentService } from "./student.service";
 import { parsePaginationQuery, buildPaginationResponse } from "@/utils/pagination";
 import { toCSV, respondCSV } from "@/utils/export";
 
+type UploadedStudentImportFile = {
+  buffer: Buffer;
+  originalname: string;
+  mimetype?: string;
+  size?: number;
+};
+
 export class StudentController {
   constructor(private studentService: StudentService) {}
 
@@ -69,6 +76,26 @@ export class StudentController {
       });
 
       return res.status(201).json({ success: true, message: "Student enrollment pipeline complete.", data: { id: newStudent.id, studentId: newStudent.studentId, studentName: newStudent.studentName } });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  public importStudents = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+    try {
+      const file = (req as Request & { file?: UploadedStudentImportFile }).file;
+
+      if (!file) {
+        return res.status(400).json({ success: false, message: "A CSV, XLSX, or XLS file is required." });
+      }
+
+      const summary = await this.studentService.importStudentsFromFile(file);
+
+      return res.status(200).json({
+        success: true,
+        message: `Student import complete. Created ${summary.created} of ${summary.totalRows} row(s).`,
+        data: summary,
+      });
     } catch (error) {
       next(error);
     }

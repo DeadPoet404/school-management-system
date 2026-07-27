@@ -13,7 +13,7 @@ const timetableRepo = new TimetableRepository();
 const timetableService = new TimetableService(timetableRepo);
 const controller = new TimetableController(timetableService);
 
-router.get("/matrix", requireRole(ROLES.ADMIN), controller.getMatrix);
+router.get("/matrix", requireRole(ROLES.ADMIN, ROLES.FACULTY), controller.getMatrix);
 router.post("/matrix", requireRole(ROLES.ADMIN), validate(saveMatrixSchema), controller.saveMatrix);
 
 export default router;

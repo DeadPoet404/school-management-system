@@ -122,9 +122,32 @@ export class AttendanceService {
     if (from && isNaN(from.getTime())) throw new AppError(400, `Invalid from date: ${params.from}`);
     if (to && isNaN(to.getTime())) throw new AppError(400, `Invalid to date: ${params.to}`);
 
+    const student = await prisma.student.findFirst({
+      where: {
+        OR: [
+          { id: studentId },
+          { studentId },
+        ],
+      },
+      select: {
+        id: true,
+        studentId: true,
+        studentName: true,
+        attendanceRate: true,
+        status: true,
+        enrollmentDate: true,
+        placement: true,
+        demographics: true,
+      },
+    });
+
+    if (!student) {
+      throw new AppError(404, `Student not found with ID: ${studentId}`);
+    }
+
     const [history, metrics] = await Promise.all([
-      this.attendanceRepo.getStudentHistory(studentId, { from, to, limit: params.limit }),
-      this.attendanceRepo.getStudentAttendanceCounts(studentId),
+      this.attendanceRepo.getStudentHistory(student.id, { from, to, limit: params.limit }),
+      this.attendanceRepo.getStudentAttendanceCounts(student.id),
     ]);
 
     const rate =
@@ -132,7 +155,22 @@ export class AttendanceService {
         ? Math.round((((metrics.presentCount ?? 0) + (metrics.lateCount ?? 0)) / metrics.totalCount) * 10000) / 100
         : 100.0;
 
-    return { studentId, history, metrics: { ...metrics, rate } };
+    return {
+      student: {
+        id: student.id,
+        studentId: student.studentId,
+        studentName: student.studentName,
+        attendanceRate: student.attendanceRate,
+        status: student.status,
+        enrollmentDate: student.enrollmentDate,
+        placement: student.placement,
+        demographics: student.demographics,
+      },
+      studentId: student.id,
+      publicStudentId: student.studentId,
+      history,
+      metrics: { ...metrics, rate },
+    };
   }
 
   /**

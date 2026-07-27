@@ -58,10 +58,24 @@ export interface UniversalDataTableProps<T> {
 
 function renderCellValue(value: unknown): React.ReactNode {
   if (value === null || value === undefined) return "—"
+
+  if (React.isValidElement(value)) return value
+
+  if (Array.isArray(value)) {
+    return value.every(
+      (item) => React.isValidElement(item) || typeof item !== "object"
+    )
+      ? (value as React.ReactNode[])
+      : JSON.stringify(value)
+  }
+
   if (typeof value === "boolean") return value ? "Yes" : "No"
+
   if (typeof value === "number" || typeof value === "string") return value
+
   if (value instanceof Date) return value.toLocaleDateString()
-  // For objects/arrays, stringify safely (prevents [object Object])
+
+  // For plain objects, stringify safely (prevents [object Object])
   if (typeof value === "object") {
     try {
       return JSON.stringify(value)
@@ -69,6 +83,7 @@ function renderCellValue(value: unknown): React.ReactNode {
       return String(value)
     }
   }
+
   return String(value)
 }
 
