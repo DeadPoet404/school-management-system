@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { TrendingUp } from "lucide-react"
+import { AlertCircle, Loader2, TrendingUp } from "lucide-react"
 import {
   Bar,
   BarChart,
@@ -27,12 +27,46 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart"
 
+import { fetchWithAuth } from "@/lib/fetch-with-auth"
+
 type DashboardChartPoint = {
   date: string
   collections: number
   attendance: number
   assessments: number
   enrollment: number
+}
+
+type DashboardAnalytics = {
+  generatedAt: string
+  range: {
+    startDate: string
+    endDate: string
+    days: number
+  }
+  totals: {
+    collections: number
+    attendance: number
+    assessments: number
+    enrollment: number
+    totalStudents: number
+    activeStudents: number
+    totalTeachers: number
+    totalStaff: number
+    invoiced: number
+    invoicePayments: number
+    outstanding: number
+    openInvoices: number
+    collectionTransactions: number
+    invoices: number
+  }
+  chartData: DashboardChartPoint[]
+}
+
+type DashboardResponse = {
+  success?: boolean
+  message?: string
+  data?: DashboardAnalytics
 }
 
 const chartConfig = {
@@ -87,78 +121,45 @@ function formatDate(date: string, options?: Intl.DateTimeFormatOptions) {
   )
 }
 
-/*
-  Temporary presentation data.
-
-  This is deliberately separate from your database seed. It allows us
-  to perfect the visual dashboard first, then replace these values with
-  API analytics data without redesigning the UI.
-*/
-const chartData: DashboardChartPoint[] = Array.from(
-  { length: 90 },
-  (_, index) => {
-    const date = new Date("2026-04-24T12:00:00")
-    date.setDate(date.getDate() + index)
-
-    const weekday = date.getDay()
-    const weekendMultiplier = weekday === 0 || weekday === 6 ? 0.35 : 1
-
-    return {
-      date: date.toISOString().slice(0, 10),
-
-      collections: Math.round(
-        (2800 +
-          ((index * 431) % 9300) +
-          Math.sin(index / 4) * 1850) *
-          weekendMultiplier
-      ),
-
-      attendance: Math.round(
-        Math.max(
-          72,
-          Math.min(
-            99,
-            88 + Math.sin(index / 5) * 5 + ((index * 7) % 6)
-          )
-        )
-      ),
-
-      assessments: Math.round(
-        (12 + ((index * 19) % 44) + Math.cos(index / 3) * 7) *
-          weekendMultiplier
-      ),
-
-      enrollment: Math.max(
-        0,
-        Math.round(
-          (index % 11 === 0 ? 6 : index % 5 === 0 ? 3 : 1) *
-            weekendMultiplier
-        )
-      ),
-    }
+function formatMetricValue(
+  key: keyof typeof chartConfig,
+  value: number
+) {
+  if (key === "collections") {
+    return `GH₵${Math.round(value).toLocaleString()}`
   }
-)
+
+  if (key === "attendance") {
+    return `${Math.round(value)}%`
+  }
+
+  return Math.round(value).toLocaleString()
+}
 
 function MetricTrendCard({
   title,
   description,
   dataKey,
   footer,
+  chartData,
 }: {
   title: string
   description: string
   dataKey: keyof typeof chartConfig
   footer: string
+  chartData: DashboardChartPoint[]
 }) {
   const total = chartData.reduce(
     (sum, row) => sum + Number(row[dataKey] ?? 0),
     0
   )
 
-  const average =
+  const displayValue =
     dataKey === "attendance"
-      ? Math.round(total / chartData.length)
-      : total.toLocaleString()
+      ? `${chartData.length > 0 ? Math.round(total / chartData.length) : 0}%`
+      : dataKey === "collections"
+        ? `GH₵${Math.round(total).toLocaleString()}`
+        : total.toLocaleString()
 
   return (
     <Card className="gap-0 overflow-hidden py-0 shadow-sm">
@@ -168,7 +169,7 @@ function MetricTrendCard({
         </CardDescription>
 
         <CardTitle className="text-2xl font-semibold tracking-tight">
-          {dataKey === "attendance" ? `${average}%` : average}
+          {displayValue}
         </CardTitle>
 
         <p className="text-xs text-muted-foreground">{description}</p>
@@ -223,18 +224,97 @@ function MetricTrendCard({
 export default function DashboardPage() {
   const [activeMetric, setActiveMetric] =
     React.useState<(typeof metrics)[number]["key"]>("collections")
+  const [dashboard, setDashboard] = React.useState<DashboardAnalytics | null>(null)
+  const [isLoading, setIsLoading] = React.useState(true)
+  const [error, setError] = React.useState<string | null>(null)
 
-  const totals = React.useMemo(() => {
-    return {
-      collections: chartData.reduce((sum, row) => sum + row.collections, 0),
-      attendance: Math.round(
-        chartData.reduce((sum, row) => sum + row.attendance, 0) /
-          chartData.length
-      ),
-      assessments: chartData.reduce((sum, row) => sum + row.assessments, 0),
-      enrollment: chartData.reduce((sum, row) => sum + row.enrollment, 0),
+  React.useEffect(() => {
+    let cancelled = false
+
+    async function loadDashboard() {
+      try {
+        setIsLoading(true)
+        setError(null)
+
+        const response = await fetchWithAuth("/analytics/dashboard?days=90")
+        const json = (await response.json()) as DashboardResponse
+
+        if (!response.ok || !json.success || !json.data) {
+          throw new Error(json.message || `Unable to load dashboard analytics. HTTP ${response.status}`)
+        }
+
+        if (!cancelled) {
+          setDashboard(json.data)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Unable to load dashboard analytics.")
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    loadDashboard()
+
+    return () => {
+      cancelled = true
     }
   }, [])
+
+  if (isLoading && !dashboard) {
+    return (
+      <div className="flex flex-col gap-5 p-2 md:p-1">
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading dashboard analytics
+            </CardTitle>
+            <CardDescription>
+              Fetching live school operations data from the backend.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    )
+  }
+
+  if (error && !dashboard) {
+    return (
+      <div className="flex flex-col gap-5 p-2 md:p-1">
+        <Card className="border-destructive/30 shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base text-destructive">
+              <AlertCircle className="h-4 w-4" />
+              Dashboard analytics unavailable
+            </CardTitle>
+            <CardDescription>{error}</CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    )
+  }
+
+  const chartData = dashboard?.chartData ?? []
+  const totals = dashboard?.totals ?? {
+    collections: 0,
+    attendance: 0,
+    assessments: 0,
+    enrollment: 0,
+    totalStudents: 0,
+    activeStudents: 0,
+    totalTeachers: 0,
+    totalStaff: 0,
+    invoiced: 0,
+    invoicePayments: 0,
+    outstanding: 0,
+    openInvoices: 0,
+    collectionTransactions: 0,
+    invoices: 0,
+  }
 
   return (
     <div className="flex flex-col gap-5 p-2 md:p-1">
@@ -244,21 +324,15 @@ export default function DashboardPage() {
             <CardTitle className="text-xl">School Operations Overview</CardTitle>
 
             <CardDescription>
-              Activity across fees, attendance, academics, and student enrolment
-              over the last 90 days.
+              Live activity across fees, attendance, academics, and student enrolment
+              over the last {dashboard?.range.days ?? 90} days.
             </CardDescription>
           </div>
 
           <div className="grid grid-cols-2 border-t sm:grid-cols-4 lg:border-t-0">
             {metrics.map((metric) => {
               const isActive = activeMetric === metric.key
-
-              const displayValue =
-                metric.key === "collections"
-                  ? `GH₵${totals.collections.toLocaleString()}`
-                  : metric.key === "attendance"
-                    ? `${totals.attendance}%`
-                    : totals[metric.key].toLocaleString()
+              const displayValue = formatMetricValue(metric.key, totals[metric.key])
 
               return (
                 <button
@@ -341,41 +415,46 @@ export default function DashboardPage() {
           title="Average Attendance"
           description="Daily school-wide attendance performance"
           dataKey="attendance"
-          footer="Stable attendance across the current term"
+          footer={`${totals.activeStudents.toLocaleString()} active students in the current database`}
+          chartData={chartData}
         />
 
         <MetricTrendCard
           title="Fee Collections"
           description="Daily payments received and posted"
           dataKey="collections"
-          footer="Collections peak around fee deadlines"
+          footer={`${totals.collectionTransactions.toLocaleString()} payment transactions recorded`}
+          chartData={chartData}
         />
 
         <MetricTrendCard
           title="Assessment Activity"
           description="Recorded continuous-assessment entries"
           dataKey="assessments"
-          footer="Academic activity across all sections"
+          footer={`${totals.assessments.toLocaleString()} grade records in the selected range`}
+          chartData={chartData}
         />
 
         <MetricTrendCard
           title="New Enrolment"
           description="Student admissions and transfers recorded"
           dataKey="enrollment"
-          footer="Admissions movement over the last 90 days"
+          footer={`${totals.totalStudents.toLocaleString()} total students in the system`}
+          chartData={chartData}
         />
       </div>
 
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            School performance is trending positively
+            Live analytics are connected
             <TrendingUp className="h-4 w-4 text-emerald-600" />
           </CardTitle>
 
           <CardDescription>
-            This dashboard is currently using rich fictional presentation data
-            while we finalize the analytics API shape.
+            Dashboard values now come from /api/analytics/dashboard using students,
+            attendance records, grade records, invoices, and payment collections.
+            Outstanding invoices: GH₵{Math.round(totals.outstanding).toLocaleString()}.
           </CardDescription>
         </CardHeader>
       </Card>

@@ -58,25 +58,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const login = useCallback(async (email: string, password: string) => {
-    // Login is a public endpoint — use raw fetch, no auth wrapper needed
-    // Backend sets httpOnly cookies on success
-    const res = await fetch(`${API_URL}/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ email, password }),
-    })
+    const apiBase = API_URL.replace(/\/$/, "")
+    const loginUrl = `${apiBase}/auth/login`
+    const normalizedEmail = email.trim()
 
-    const json = await res.json()
+    let res: Response
 
-    if (!res.ok || !json.success) {
-      throw new ApiClientError(res.status, json.message || "Login failed", json)
+    try {
+      res = await fetch(loginUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email: normalizedEmail, password }),
+      })
+    } catch (error) {
+      throw new ApiClientError(
+        0,
+        "Unable to reach the authentication service. Confirm the backend is running on port 5000 and restart the frontend dev server.",
+        { cause: error instanceof Error ? error.message : String(error) }
+      )
     }
 
-    // Backend returns user metadata (no token in body — that's in the cookie)
-    if (json.data?.user) {
-      setUser(json.data.user)
+    const responseText = await res.text()
+    let json: { success?: boolean; message?: string; data?: { user?: AuthUser } } | null = null
+
+    try {
+      json = responseText ? JSON.parse(responseText) : null
+    } catch {
+      throw new ApiClientError(
+        res.status,
+        `Authentication service returned an invalid response. HTTP ${res.status}`,
+        { body: responseText }
+      )
     }
+
+    if (!res.ok || !json?.success) {
+      throw new ApiClientError(res.status, json?.message || `Login failed. HTTP ${res.status}`, json)
+    }
+
+    if (!json.data?.user) {
+      throw new ApiClientError(res.status, "Login succeeded but no user profile was returned.", json)
+    }
+
+    setUser(json.data.user)
   }, [])
 
   const logout = useCallback(async () => {

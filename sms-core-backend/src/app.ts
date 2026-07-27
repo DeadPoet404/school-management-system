@@ -25,6 +25,7 @@ import financeRoutes from './modules/finance/finance.routes';
 import attendanceRoutes from './modules/attendance/attendance.routes';
 import gradesRoutes from './modules/grades/grades.routes';
 import referenceRoutes from './modules/reference/reference.routes';
+import analyticsRoutes from './modules/analytics/analytics.routes';
 
 // ── Auth ──
 import authRoutes from './modules/auth/auth.routes';
@@ -169,6 +170,7 @@ app.use('/api/finance', authenticate, financeRoutes);
 app.use('/api/grades', authenticate, gradesRoutes);
 app.use('/api/attendance', authenticate, attendanceRoutes);
 app.use('/api/reference', authenticate, referenceRoutes);
+app.use('/api/analytics', authenticate, analyticsRoutes);
 
 // ── 404 HANDLER (Must come AFTER all valid routes) ──
 app.use((_req, res) => {

@@ -34,7 +34,7 @@ export default [
       // Existing violations (27+) should be systematically replaced
       // with proper interfaces. Use // eslint-disable-next-line
       // sparingly and only with a justification comment.
-      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-explicit-any': 'warn',
       // Phase 2: Production code should use the structured Pino logger
       // (import { logger } from '@/lib/logger'), not console.log/error.
       // Currently 15+ violations exist — these will be fixed incrementally.

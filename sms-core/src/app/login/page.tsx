@@ -22,7 +22,7 @@ export default function LoginPage() {
       await login(email, password)
       router.push("/dashboard")
     } catch (err) {
-      if (err instanceof ApiClientError) {
+      if (err instanceof ApiClientError || err instanceof Error) {
         setError(err.message)
       } else {
         setError("An unexpected error occurred.")
