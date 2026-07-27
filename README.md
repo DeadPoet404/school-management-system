@@ -54,7 +54,6 @@ Browser --> Next.js frontend (port 3000)
 | `.github/workflows/` | GitHub Actions CI (lint, build, test, Docker build) |
 | `sms-core/` | Next.js 16 frontend |
 | `sms-core-backend/` | Express REST API, Prisma schema, and all migrations |
-| `ANALYSIS/` | Architectural audit PDF (hand-off brief for AI sessions) |
 
 ## Quick start (Docker - recommended)
 
@@ -93,21 +92,24 @@ Open your browser at `localhost` on port 3000. You will be redirected to
 > report `health: starting` for up to a minute on a cold start - this is
 > expected, not a hang.
 
-## Demo accounts (seeded when `RUN_SEED` is true)
+## Demo accounts (created when `RUN_SEED` is true)
+
+The seed populates a full demo dataset for "Horizon Heights Academy". Every
+non-admin account shares the same password.
 
 | Role | Email | Password |
 | --- | --- | --- |
-| Admin | `admin@sms.local` | `AdminDev2026!` |
-| Accountant | `p.afriyie@sms-ops.edu.gh` | `SystemDefaultSecure2026!` |
-| Teacher (Maths) | `e.kojo@sms-institution.edu.gh` | `SystemDefaultSecure2026!` |
-| Teacher (Science) | `a.boateng@sms-institution.edu.gh` | `SystemDefaultSecure2026!` |
-| Student (active) | `k.mensah@sms-portal.edu.gh` | `SystemDefaultSecure2026!` |
-| Student (scholar) | `a.asare@sms-portal.edu.gh` | `SystemDefaultSecure2026!` |
+| Admin | `admin@sms.local` | `AdminDev2026!` | 
+| Faculty (30) | `faculty01@horizon.local` ... `faculty30@horizon.local` | `SystemDefaultSecure2026!` |
+| Staff (35) | `staff01@horizon.local` ... `staff35@horizon.local` | `SystemDefaultSecure2026!` |
+| Student (300) | `student001@horizon.local` ... `student300@horizon.local` | `SystemDefaultSecure2026!` |
 
-The default seed password lives in `sms-core-backend/prisma/seed.ts` as
-`hashPassword` of the string `SystemDefaultSecure2026` followed by an
-exclamation mark. Change all passwords immediately after first login,
-especially before any real deployment.
+Attendance capture and gradebook entry are FACULTY-only - ADMIN is deliberately
+rejected with 403 - so use a `faculty*` login to exercise those modules.
+
+These credentials are defined in `sms-core-backend/prisma/seed.ts` and echoed in
+the banner the seed prints when it finishes. Change them immediately after first
+login, and never run the seed against real data.
 
 ## Health check
 
@@ -197,5 +199,5 @@ or malformed.
 
 ## Project status
 
-See the architectural audit PDF in `ANALYSIS/` for the full walkthrough,
-known-bug list, and roadmap.
+Active development. See the commit history and issue tracker for the
+current state of known defects and remediation work.
