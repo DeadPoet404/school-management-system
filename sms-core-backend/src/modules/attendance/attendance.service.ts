@@ -33,6 +33,13 @@ export class AttendanceService {
       throw new AppError(400, `Invalid attendance date: ${date}`);
     }
 
+    if (requestingUser && requestingUser.role !== ROLES.FACULTY) {
+      throw new AppError(
+        403,
+        "Only FACULTY can record section attendance.",
+      );
+    }
+
     if (!classId?.trim()) {
       throw new AppError(400, "Class ID is required.");
     }
@@ -241,6 +248,17 @@ export class AttendanceService {
     const targetDate = new Date(payload.date);
     if (isNaN(targetDate.getTime())) {
       throw new AppError(400, `Invalid attendance date: ${payload.date}`);
+    }
+
+    if (
+      requestingUser &&
+      requestingUser.role !== ROLES.FACULTY &&
+      requestingUser.role !== ROLES.ADMIN
+    ) {
+      throw new AppError(
+        403,
+        "Only FACULTY or ADMIN can correct student attendance records.",
+      );
     }
 
     if (requestingUser?.role === ROLES.FACULTY && requestingUser.entityType === "TEACHER") {

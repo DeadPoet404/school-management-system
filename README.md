@@ -105,7 +105,11 @@ non-admin account shares the same password.
 | Student (300) | `student001@horizon.local` ... `student300@horizon.local` | `SystemDefaultSecure2026!` |
 
 Attendance capture and gradebook entry are FACULTY-only - ADMIN is deliberately
-rejected with 403 - so use a `faculty*` login to exercise those modules.
+rejected with 403 - so use a `faculty*` login to exercise those modules
+(corrections via PATCH allow assigned FACULTY and ADMIN per V1 correction policy).
+
+**V1 Correction Policy:**
+Initial attendance capture and gradebook entry are restricted strictly to FACULTY (`requireRole(ROLES.FACULTY)`). Corrections to existing attendance and grade records (`PATCH /api/attendance/student/:studentId` and `PATCH /api/grades/:id`) are permitted for assigned FACULTY (subject to timetable allocation checks) and ADMIN (without allocation check), with all modifications recorded in the immutable audit log.
 
 These credentials are defined in `sms-core-backend/prisma/seed.ts` and echoed in
 the banner the seed prints when it finishes. Change them immediately after first

@@ -15,19 +15,19 @@ const attendanceRepo = new AttendanceRepository();
 const attendanceService = new AttendanceService(attendanceRepo);
 const controller = new AttendanceController(attendanceService);
 
-// Submit attendance (FACULTY)
+// Submit attendance (FACULTY only per V1 policy)
 router.post(
   "/section",
-  requireRole(ROLES.FACULTY, ROLES.ADMIN, ROLES.STAFF),
+  requireRole(ROLES.FACULTY),
   validate(submitSectionAttendanceSchema),
   controller.submitSectionAttendance,
 );
 
-// Correct one existing attendance record. The global audit middleware logs
+// Correct one existing attendance record (FACULTY and ADMIN per V1 policy). The global audit middleware logs
 // every PATCH request; this handler rejects missing records rather than upserting.
 router.patch(
   "/student/:studentId",
-  requireRole(ROLES.FACULTY, ROLES.ADMIN, ROLES.STAFF),
+  requireRole(ROLES.FACULTY, ROLES.ADMIN),
   validate(correctStudentAttendanceSchema),
   controller.correctStudentAttendance,
 );

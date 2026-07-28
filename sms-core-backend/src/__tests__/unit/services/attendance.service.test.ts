@@ -211,24 +211,25 @@ describe("AttendanceService.recordBulkAttendance (PR3)", () => {
     expect(result.classId).toBe("class-uuid");
   });
 
-  it("allows ADMIN without allocation check", async () => {
-    (prisma.subjectAllocation.findFirst as any).mockResolvedValue(null);
-
-    await service.recordBulkAttendance(
-      "2026-07-28",
-      "class-uuid",
-      [{ studentId: "s1", status: "PRESENT" }],
-      {
-        sub: "a",
-        email: "a@school.com",
-        role: "ADMIN",
-        entityType: "STAFF",
-        entityInternalId: "staff-1",
-      },
-    );
-
-    expect(prisma.subjectAllocation.findFirst).not.toHaveBeenCalled();
-    expect(repo.upsertBulkAttendance).toHaveBeenCalled();
+  it("rejects ADMIN, STAFF, ACCOUNTANT, and STUDENT with 403", async () => {
+    const unauthorizedRoles = ["ADMIN", "STAFF", "ACCOUNTANT", "STUDENT"] as const;
+    for (const role of unauthorizedRoles) {
+      await expect(
+        service.recordBulkAttendance(
+          "2026-07-28",
+          "class-uuid",
+          [{ studentId: "s1", status: "PRESENT" }],
+          {
+            sub: "a",
+            email: "a@school.com",
+            role,
+            entityType: role === "STUDENT" ? "STUDENT" : "STAFF",
+            entityInternalId: "ent-1",
+          },
+        ),
+      ).rejects.toMatchObject({ statusCode: 403 });
+    }
+    expect(repo.upsertBulkAttendance).not.toHaveBeenCalled();
   });
 
   it("rejects students not in the class", async () => {
@@ -239,13 +240,7 @@ describe("AttendanceService.recordBulkAttendance (PR3)", () => {
         "2026-07-28",
         "class-uuid",
         [{ studentId: "s-bad", status: "PRESENT" }],
-        {
-          sub: "a",
-          email: "a@school.com",
-          role: "ADMIN",
-          entityType: "STAFF",
-          entityInternalId: "staff-1",
-        },
+        faculty,
       ),
     ).rejects.toMatchObject({ statusCode: 400 });
   });

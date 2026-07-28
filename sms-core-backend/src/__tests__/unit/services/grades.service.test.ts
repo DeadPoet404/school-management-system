@@ -80,15 +80,19 @@ describe('GradesService faculty allocation (PR2 canonical Class.id)', () => {
     });
   });
 
-  it('allows ADMIN without allocation check', async () => {
-    await service.submitStudentMark(payload, {
-      ...facultyUser,
-      role: 'ADMIN',
-      entityType: 'STAFF',
-      entityInternalId: 'staff-1',
-    });
-
-    expect(repo.findTeacherAllocation).not.toHaveBeenCalled();
-    expect(repo.upsertGradeRecord).toHaveBeenCalled();
+  it('rejects ADMIN, STAFF, ACCOUNTANT, and STUDENT with 403', async () => {
+    const unauthorizedRoles = ['ADMIN', 'STAFF', 'ACCOUNTANT', 'STUDENT'] as const;
+    for (const role of unauthorizedRoles) {
+      await expect(
+        service.submitStudentMark(payload, {
+          sub: 'u-1',
+          email: 'user@school.com',
+          role,
+          entityType: role === 'STUDENT' ? 'STUDENT' : 'STAFF',
+          entityInternalId: 'ent-1',
+        }),
+      ).rejects.toMatchObject({ statusCode: 403 });
+    }
+    expect(repo.upsertGradeRecord).not.toHaveBeenCalled();
   });
 });

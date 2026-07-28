@@ -13,9 +13,10 @@ const gradesRepo = new GradesRepository();
 const gradesService = new GradesService(gradesRepo);
 const gradesController = new GradesController(gradesService);
 
+// Gradebook entry is FACULTY only per V1 policy
 router.post(
   "/submit",
-  requireRole(ROLES.FACULTY, ROLES.ADMIN),
+  requireRole(ROLES.FACULTY),
   validate(submitMarkSchema),
   gradesController.submitMark
 );

@@ -26,9 +26,11 @@ export class GradesService {
   ) {
     const { studentId, subjectId, classId, termId, continuousAssessment, examination, creditHours } = payload;
 
+    if (requestingUser && requestingUser.role !== "FACULTY") {
+      throw new AppError(403, "Only FACULTY can submit student grades.");
+    }
     const finalScore = parseFloat((continuousAssessment + examination).toFixed(2));
     const { letterGrade, gradePoints } = this.calculateGradeMetrics(finalScore);
-
     return await prisma.$transaction(async (tx) => {
       // ── Authorization: FACULTY teachers must be allocated to this class+subject ──
       if (requestingUser?.role === "FACULTY" && requestingUser?.entityType === "TEACHER") {
@@ -274,6 +276,16 @@ export class GradesService {
     },
     requestingUser?: JwtPayload,
   ) {
+    if (
+      requestingUser &&
+      requestingUser.role !== "FACULTY" &&
+      requestingUser.role !== "ADMIN"
+    ) {
+      throw new AppError(
+        403,
+        "Only FACULTY or ADMIN can correct grade records.",
+      );
+    }
     return await prisma.$transaction(async (tx) => {
       const existing = await tx.gradeRecord.findUnique({
         where: { id: gradeRecordId },
