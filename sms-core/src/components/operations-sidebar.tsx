@@ -5,7 +5,8 @@ import Link from "next/link"
 import { ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { OPERATIONS_SECTIONS } from "@/lib/operations-manifest"
+import { operationsSectionsForRole } from "@/lib/operations-manifest"
+import { useAuth } from "@/lib/auth-context"
 
 interface OperationsSidebarProps {
   activeSubItem: string
@@ -13,18 +14,22 @@ interface OperationsSidebarProps {
 }
 
 export function OperationsSidebar({ activeSubItem, onSelect }: OperationsSidebarProps) {
-  // SMS-003: navigation is derived from the shared Operations manifest, so the
-  // sidebar only ever advertises implemented V1 modules (no placeholder dead ends).
-  const [openSections, setOpenSections] = React.useState<Record<string, boolean>>(
-    () => Object.fromEntries(OPERATIONS_SECTIONS.map((section) => [section.title, true]))
-  )
+  const { user } = useAuth()
+  const sections = React.useMemo(() => operationsSectionsForRole(user?.role ?? null), [user?.role])
+
+  const [openSections, setOpenSections] = React.useState<Record<string, boolean>>({})
+
+  // Default every section open once the role specific sections are known.
+  React.useEffect(() => {
+    setOpenSections(Object.fromEntries(sections.map((section) => [section.title, true])))
+  }, [sections])
 
   const prevActiveItemRef = React.useRef<string>(activeSubItem)
 
   React.useEffect(() => {
     if (!activeSubItem) return
     if (prevActiveItemRef.current !== activeSubItem) {
-      const targetSection = OPERATIONS_SECTIONS.find((section) =>
+      const targetSection = sections.find((section) =>
         section.modules.some((module) => module.id === activeSubItem)
       )
       if (targetSection) {
@@ -35,7 +40,7 @@ export function OperationsSidebar({ activeSubItem, onSelect }: OperationsSidebar
       }
       prevActiveItemRef.current = activeSubItem
     }
-  }, [activeSubItem])
+  }, [activeSubItem, sections])
 
   const toggleSection = (sectionTitle: string) => {
     setOpenSections((prev) => ({ ...prev, [sectionTitle]: !prev[sectionTitle] }))
@@ -45,7 +50,7 @@ export function OperationsSidebar({ activeSubItem, onSelect }: OperationsSidebar
     <aside className="w-64 h-full flex flex-col bg-transparent select-none shrink-0">
       <ScrollArea className="flex-1 w-full bg-transparent">
         <nav className="mt-32 px-3 pb-8 space-y-4">
-          {OPERATIONS_SECTIONS.map((section) => {
+          {sections.map((section) => {
             const Icon = section.icon
             const isOpen = !!openSections[section.title]
             const containsActiveChild = section.modules.some((module) => module.id === activeSubItem)

@@ -4,6 +4,7 @@ import { useState, FormEvent } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 import { ApiClientError } from "@/lib/fetch-with-auth"
+import { landingPathForRole } from "@/lib/role-access"
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -19,15 +20,9 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      await login(email, password)
-
+      const loggedInUser = await login(email, password)
       const from = new URLSearchParams(window.location.search).get("from")
-      const safeFrom =
-        from && from.startsWith("/") && !from.startsWith("//") && from !== "/login"
-          ? from
-          : "/dashboard"
-
-      router.push(safeFrom)
+      router.push(landingPathForRole(loggedInUser.role, from))
     } catch (err) {
       if (err instanceof ApiClientError || err instanceof Error) {
         setError(err.message)

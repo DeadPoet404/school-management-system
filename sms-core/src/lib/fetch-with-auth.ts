@@ -87,10 +87,14 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}): Pro
       });
     }
 
-    // Refresh failed — return 401 response, do NOT redirect.
-    // The middleware guards route access; ProtectedRoute and
-    // auth-context handle session state. Redirecting here
-    // causes infinite loops on /login when no cookie exists.
+    // Refresh failed: the session is gone. Send the user to the login
+    // screen so they see a real page instead of a broken one. The pathname
+    // guard prevents a redirect loop on /login itself (a cold, unauthenticated
+    // visit also reaches here with no refresh cookie and must not redirect).
+    if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+      const from = window.location.pathname + window.location.search;
+      window.location.href = "/login?from=" + encodeURIComponent(from);
+    }
     return response;
   }
 

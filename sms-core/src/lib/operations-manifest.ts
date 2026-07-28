@@ -1,4 +1,5 @@
 import type { ComponentType } from "react"
+import { isOperationAllowedForRole } from "@/lib/role-access"
 import type { LucideIcon } from "lucide-react"
 import { School, Users, GraduationCap, FileSpreadsheet, Wallet } from "lucide-react"
 import { TimetableStructureSetup } from "@/components/timetable-structure-setup"
@@ -112,3 +113,32 @@ export function findOperationsModule(id: string): OperationsModule | undefined {
 
 export const DEFAULT_OPERATIONS_MODULE_ID: string =
   OPERATIONS_MODULES.find((module) => module.action.type === "view")?.id ?? "class-gen"
+
+// SMS-005: role-scoped accessors so the Operations sidebar and page never
+// expose a module the backend would reject with 403 for the current role.
+
+export function operationsSectionsForRole(role: string | null | undefined): OperationsSection[] {
+  return OPERATIONS_SECTIONS
+    .map((section) => ({
+      ...section,
+      modules: section.modules.filter((module) => isOperationAllowedForRole(role, module.id)),
+    }))
+    .filter((section) => section.modules.length > 0)
+}
+
+export function findOperationsModuleForRole(
+  role: string | null | undefined,
+  id: string
+): OperationsModule | undefined {
+  const found = OPERATIONS_MODULES.find((m) => m.id === id)
+  if (!found) return undefined
+  return isOperationAllowedForRole(role, id) ? found : undefined
+}
+
+export function defaultOperationsModuleIdForRole(role: string | null | undefined): string | null {
+  const first = OPERATIONS_MODULES.find(
+    (module) => module.action.type === "view" && isOperationAllowedForRole(role, module.id)
+  )
+  return first ? first.id : null
+}
+

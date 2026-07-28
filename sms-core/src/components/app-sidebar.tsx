@@ -11,6 +11,7 @@ import {
 } from "lucide-react"
 
 import { DashboardIcon, BotIcon, MoneyIcon, PeopleIcon } from "./custom-icon"
+import { isPathAllowedForRole } from "@/lib/role-access"
 import {
   Sidebar,
   SidebarContent,
@@ -50,6 +51,7 @@ interface AppSidebarProps {
 }
 export function AppSidebar({ user, initials = "??", onLogout }: AppSidebarProps) {
   const pathname = usePathname()
+  const visibleItems = coreNavigationItems.filter((item) => isPathAllowedForRole(user?.role ?? null, item.url))
 
   return (
     <Sidebar variant="inset" collapsible="icon">
@@ -92,7 +94,7 @@ export function AppSidebar({ user, initials = "??", onLogout }: AppSidebarProps)
           <SidebarGroupLabel className="px-3">Core Platform</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {coreNavigationItems.map((item) => {
+              {visibleItems.map((item) => {
                 const isActive = pathname === item.url
                 return (
                   <SidebarMenuItem key={item.title}>

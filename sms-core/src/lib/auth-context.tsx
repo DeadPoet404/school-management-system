@@ -16,7 +16,7 @@ interface AuthContextType {
   user: AuthUser | null
   isAuthenticated: boolean
   isLoading: boolean
-  login: (email: string, password: string) => Promise<void>
+  login: (email: string, password: string) => Promise<AuthUser>
   logout: () => void
 }
 
@@ -100,7 +100,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new ApiClientError(res.status, "Login succeeded but no user profile was returned.", json)
     }
 
-    setUser(json.data.user)
+    const authUser = json.data.user
+    setUser(authUser)
+    return authUser
   }, [])
 
   const logout = useCallback(async () => {
