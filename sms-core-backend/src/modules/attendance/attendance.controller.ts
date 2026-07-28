@@ -1,14 +1,20 @@
-import { Request, Response, NextFunction } from "express";
+import { Response, NextFunction } from "express";
+import { AuthenticatedRequest } from "@/middleware/auth.middleware";
 import { AttendanceService } from "./attendance.service";
-import { parsePaginationQuery } from "@/utils/pagination";
+import { assertSelfOrPrivilegedStudentAccess } from "@/middleware/self-access";
 
 export class AttendanceController {
   constructor(private attendanceService: AttendanceService) {}
 
-  public submitSectionAttendance = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+  public submitSectionAttendance = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
       const { date, classId, records } = req.body;
-      const outcome = await this.attendanceService.recordBulkAttendance(date, classId, records);
+      const outcome = await this.attendanceService.recordBulkAttendance(
+        date,
+        classId,
+        records,
+        req.user,
+      );
       return res.status(200).json({
         success: true,
         message: "Attendance register committed and student metrics compiled successfully.",
@@ -19,17 +25,20 @@ export class AttendanceController {
     }
   };
 
-  public correctStudentAttendance = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+  public correctStudentAttendance = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
       const { studentId } = req.params;
       const { classId, date, status, remarks } = req.body;
-      const outcome = await this.attendanceService.correctStudentAttendance({
-        studentId: studentId!,
-        classId,
-        date,
-        status,
-        remarks,
-      });
+      const outcome = await this.attendanceService.correctStudentAttendance(
+        {
+          studentId: studentId!,
+          classId,
+          date,
+          status,
+          remarks,
+        },
+        req.user,
+      );
 
       return res.status(200).json({
         success: true,
@@ -41,7 +50,7 @@ export class AttendanceController {
     }
   };
 
-  public getClassSheet = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+  public getClassSheet = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
       const { classId } = req.params;
       const date = typeof req.query.date === "string" ? req.query.date : undefined;
@@ -52,9 +61,13 @@ export class AttendanceController {
     }
   };
 
-  public getStudentHistory = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+  public getStudentHistory = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
       const { studentId } = req.params;
+
+      // PR1 / issue 9: STUDENT may only read their own attendance history.
+      assertSelfOrPrivilegedStudentAccess(req.user, studentId!);
+
       const from = typeof req.query.from === "string" ? req.query.from : undefined;
       const to = typeof req.query.to === "string" ? req.query.to : undefined;
       const limit = Math.min(

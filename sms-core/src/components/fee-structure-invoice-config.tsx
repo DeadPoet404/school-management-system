@@ -3,6 +3,7 @@
 import * as React from "react"
 import { useMemo, useState, useCallback, useEffect } from "react"
 import { fetchWithAuth } from "@/lib/fetch-with-auth"
+import { useClasses } from "@/lib/api/reference"
 import { 
   DollarSign, 
   Plus, 
@@ -53,59 +54,49 @@ export interface SectionFeeMatrix {
   billingConfig: InvoicingControlConfig
 }
 
-const ACADEMIC_SECTIONS = [
-  { id: "pre-school", label: "Pre-School" },
-  { id: "nursery-1", label: "Nursery 1" },
-  { id: "nursery-2", label: "Nursery 2" },
-  { id: "kindergarten-1", label: "KG 1" },
-  { id: "kindergarten-2", label: "KG 2" },
-  { id: "grade-1", label: "Grade 1" },
-  { id: "grade-2", label: "Grade 2" },
-  { id: "grade-3", label: "Grade 3" },
-  { id: "grade-4", label: "Grade 4" },
-  { id: "grade-5", label: "Grade 5" },
-  { id: "grade-6", label: "Grade 6" },
-  { id: "jhs-1", label: "JHS 1" },
-  { id: "jhs-2", label: "JHS 2" },
-  { id: "jhs-3", label: "JHS 3" },
-] as const
-
 const FREQUENCY_OPTIONS = [
   "Per Term / Trimester",
   "Per Academic Year",
   "One-Time Admission Fee",
-  "Monthly Optional Cycle"
+  "Monthly Optional Cycle",
 ] as const
 
-const INITIAL_FEE_MATRIX: Record<string, SectionFeeMatrix> = {
-  "pre-school": {
-    components: [
-      { id: "ps-f1", name: "Tuition Baseline", amount: "1200", frequency: "Per Term / Trimester", isMandatory: true },
-      { id: "ps-f2", name: "Midday Catering & Snacks", amount: "450", frequency: "Per Term / Trimester", isMandatory: true }
-    ],
-    billingConfig: { issueDate: "2026-09-01", dueDate: "2026-09-30", allowInstallments: true, lateFeeRate: "5" }
-  },
-  "nursery-1": { components: [{ id: "n1-f1", name: "Tuition Baseline", amount: "1200", frequency: "Per Term / Trimester", isMandatory: true }], billingConfig: { issueDate: "2026-09-01", dueDate: "2026-09-30", allowInstallments: true, lateFeeRate: "5" } },
-  "nursery-2": { components: [{ id: "n2-f1", name: "Tuition Baseline", amount: "1200", frequency: "Per Term / Trimester", isMandatory: true }], billingConfig: { issueDate: "2026-09-01", dueDate: "2026-09-30", allowInstallments: true, lateFeeRate: "5" } },
-  "kindergarten-1": { components: [{ id: "kg1-f1", name: "Tuition Baseline", amount: "1400", frequency: "Per Term / Trimester", isMandatory: true }, { id: "kg1-f2", name: "Stationery Kit Pack", amount: "150", frequency: "Per Academic Year", isMandatory: true }], billingConfig: { issueDate: "2026-09-01", dueDate: "2026-09-30", allowInstallments: true, lateFeeRate: "5" } },
-  "kindergarten-2": { components: [{ id: "kg2-f1", name: "Tuition Baseline", amount: "1400", frequency: "Per Term / Trimester", isMandatory: true }], billingConfig: { issueDate: "2026-09-01", dueDate: "2026-09-30", allowInstallments: true, lateFeeRate: "5" } },
-  "grade-1": { components: [{ id: "g1-f1", name: "Primary Tuition Base", amount: "1800", frequency: "Per Term / Trimester", isMandatory: true }, { id: "g1-f2", name: "Computer Laboratory Access", amount: "200", frequency: "Per Academic Year", isMandatory: true }], billingConfig: { issueDate: "2026-09-01", dueDate: "2026-09-30", allowInstallments: true, lateFeeRate: "10" } },
-  "grade-2": { components: [{ id: "g2-f1", name: "Primary Tuition Base", amount: "1800", frequency: "Per Term / Trimester", isMandatory: true }], billingConfig: { issueDate: "2026-09-01", dueDate: "2026-09-30", allowInstallments: true, lateFeeRate: "10" } },
-  "grade-3": { components: [{ id: "g3-f1", name: "Primary Tuition Base", amount: "1800", frequency: "Per Term / Trimester", isMandatory: true }], billingConfig: { issueDate: "2026-09-01", dueDate: "2026-09-30", allowInstallments: true, lateFeeRate: "10" } },
-  "grade-4": { components: [{ id: "g4-f1", name: "Primary Tuition Base", amount: "1950", frequency: "Per Term / Trimester", isMandatory: true }], billingConfig: { issueDate: "2026-09-01", dueDate: "2026-09-30", allowInstallments: true, lateFeeRate: "10" } },
-  "grade-5": { components: [{ id: "g5-f1", name: "Primary Tuition Base", amount: "1950", frequency: "Per Term / Trimester", isMandatory: true }], billingConfig: { issueDate: "2026-09-01", dueDate: "2026-09-30", allowInstallments: true, lateFeeRate: "10" } },
-  "grade-6": { components: [{ id: "g6-f1", name: "Primary Tuition Base", amount: "1950", frequency: "Per Term / Trimester", isMandatory: true }], billingConfig: { issueDate: "2026-09-01", dueDate: "2026-09-30", allowInstallments: true, lateFeeRate: "10" } },
-  "jhs-1": { components: [{ id: "j1-f1", name: "JHS Tuition Core", amount: "2400", frequency: "Per Term / Trimester", isMandatory: true }, { id: "j1-f2", name: "Science Lab Equipment Levy", amount: "350", frequency: "Per Academic Year", isMandatory: true }], billingConfig: { issueDate: "2026-09-01", dueDate: "2026-09-30", allowInstallments: false, lateFeeRate: "15" } },
-  "jhs-2": { components: [{ id: "j2-f1", name: "JHS Tuition Core", amount: "2400", frequency: "Per Term / Trimester", isMandatory: true }], billingConfig: { issueDate: "2026-09-01", dueDate: "2026-09-30", allowInstallments: false, lateFeeRate: "15" } },
-  "jhs-3": { components: [{ id: "j3-f1", name: "JHS Tuition Core", amount: "2600", frequency: "Per Term / Trimester", isMandatory: true }], billingConfig: { issueDate: "2026-09-01", dueDate: "2026-09-30", allowInstallments: false, lateFeeRate: "15" } },
+const EMPTY_FEE: SectionFeeMatrix = {
+  components: [],
+  billingConfig: { issueDate: "", dueDate: "", allowInstallments: true, lateFeeRate: "" },
 }
 
 export function FeeStructureInvoiceConfig() {
-  const [activeSection, setActiveSection] = useState<string>("jhs-1")
-  const [feeMatrixState, setFeeMatrixState] = useState<Record<string, SectionFeeMatrix>>(INITIAL_FEE_MATRIX)
+  const { data: classes = [], isLoading: classesLoading } = useClasses()
+  const academicSections = useMemo(
+    () => classes.filter((c) => c.isActive !== false).map((c) => ({ id: c.id, label: c.name })),
+    [classes],
+  )
+  const [activeSection, setActiveSection] = useState<string>("")
+  const [feeMatrixState, setFeeMatrixState] = useState<Record<string, SectionFeeMatrix>>({})
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [isSaving, setIsSaving] = useState<boolean>(false)
   const [isGenerating, setIsGenerating] = useState<boolean>(false)
+
+  useEffect(() => {
+    if (academicSections.length === 0) return
+    setActiveSection((current) => {
+      if (current && academicSections.some((s) => s.id === current)) return current
+      return academicSections[0]!.id
+    })
+    setFeeMatrixState((prev) => {
+      const next = { ...prev }
+      for (const s of academicSections) {
+        if (!next[s.id]) {
+          next[s.id] = {
+            components: [],
+            billingConfig: { issueDate: "", dueDate: "", allowInstallments: true, lateFeeRate: "" },
+          }
+        }
+      }
+      return next
+    })
+  }, [academicSections])
 
   useEffect(() => {
     const fetchFeeMatrixRegistry = async () => {
@@ -115,7 +106,7 @@ export function FeeStructureInvoiceConfig() {
         const payload = await response.json()
         
         if (payload.success && payload.data && Object.keys(payload.data).length > 0) {
-          setFeeMatrixState(payload.data)
+          setFeeMatrixState((prev) => ({ ...prev, ...payload.data }))
         }
       } catch (error) {
         console.error("[Fee Matrix Sync Error]:", error)
@@ -134,9 +125,13 @@ export function FeeStructureInvoiceConfig() {
     return feeMatrixState[activeSection] || { components: [], billingConfig: { issueDate: "", dueDate: "", allowInstallments: true, lateFeeRate: "" } }
   }, [feeMatrixState, activeSection])
 
-  const lowerAcademicTier = useMemo(() => ACADEMIC_SECTIONS.slice(0, 7), [])
-  const upperAcademicTier = useMemo(() => ACADEMIC_SECTIONS.slice(7), [])
-  const activeSectionLabel = useMemo(() => ACADEMIC_SECTIONS.find(s => s.id === activeSection)?.label || "", [activeSection])
+  const mid = Math.ceil(academicSections.length / 2) || 0
+  const lowerAcademicTier = useMemo(() => academicSections.slice(0, mid), [academicSections, mid])
+  const upperAcademicTier = useMemo(() => academicSections.slice(mid), [academicSections, mid])
+  const activeSectionLabel = useMemo(
+    () => academicSections.find(s => s.id === activeSection)?.label || "",
+    [activeSection, academicSections],
+  )
 
   // --- ATOMIC MUTATION OPERATORS ---
   const addFeeComponent = useCallback(() => {
@@ -250,7 +245,7 @@ export function FeeStructureInvoiceConfig() {
     }
   }
 
-  if (isLoading) {
+  if (isLoading || classesLoading) {
     return (
       <div className="flex-1 h-full flex flex-col items-center justify-center bg-transparent gap-3 text-stone-500 dark:text-zinc-500">
         <Loader2 className="h-6 w-6 animate-spin text-stone-700 dark:text-zinc-400" />

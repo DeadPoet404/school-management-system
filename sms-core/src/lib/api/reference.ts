@@ -50,6 +50,15 @@ export interface ReferenceTerm {
   isActive: boolean;
 }
 
+export interface ReferenceTeacher {
+  id: string;
+  teacherId: string;
+  teacherName: string;
+  email: string;
+  department: string | null;
+  subject: string | null;
+}
+
 async function getReference<T>(resource: string): Promise<T[]> {
   const response = await fetchWithAuth(`/reference/${resource}`);
 
@@ -105,3 +114,12 @@ export function useTerms() {
     staleTime: REFERENCE_STALE_TIME,
   });
 }
+
+export function useTeachers() {
+  return useQuery<ReferenceTeacher[]>({
+    queryKey: ["reference", "teachers"],
+    queryFn: () => getReference<ReferenceTeacher>("teachers"),
+    staleTime: REFERENCE_STALE_TIME,
+  });
+}
+

@@ -102,7 +102,33 @@ describe('AuthService', () => {
 
       await expect(service.login('student@school.com', 'pw')).rejects.toMatchObject({
         statusCode: 403,
+        message: 'Account is departed. Contact administration.',
+      });
+    });
+
+    it('should throw 403 when account status is INACTIVE', async () => {
+      (prisma.studentAccount.findUnique as any).mockResolvedValue({
+        ...STUDENT_ACCOUNT,
+        student: { id: 'stu-inactive', status: 'INACTIVE' },
+      });
+      mockedComparePassword.mockResolvedValue(true);
+
+      await expect(service.login('student@school.com', 'pw')).rejects.toMatchObject({
+        statusCode: 403,
         message: 'Account is inactive. Contact administration.',
+      });
+    });
+
+    it('should throw 403 when account status is SUSPENDED', async () => {
+      (prisma.staffAccount.findUnique as any).mockResolvedValue({
+        ...STAFF_ACCOUNT,
+        staff: { id: 'staff-suspended', status: 'SUSPENDED' },
+      });
+      mockedComparePassword.mockResolvedValue(true);
+
+      await expect(service.login('staff@school.com', 'pw')).rejects.toMatchObject({
+        statusCode: 403,
+        message: 'Account is suspended. Contact administration.',
       });
     });
 
@@ -213,9 +239,15 @@ describe('AuthService', () => {
       });
     });
 
-    it('should rotate token and return new pair', async () => {
+    it('should rotate token and return new pair from live account state', async () => {
       const validToken = jwt.sign(
-        { sub: 'id', email: 'a@b.com', role: 'ADMIN', entityType: 'STAFF', entityInternalId: 'staff-1' },
+        {
+          sub: 'acc-staff-1',
+          email: 'staff@school.com',
+          role: 'STAFF', // stale claim — live account is ADMIN
+          entityType: 'STAFF',
+          entityInternalId: 'staff-internal-1',
+        },
         process.env.JWT_REFRESH_SECRET!,
         { expiresIn: '7d' }
       );
@@ -225,19 +257,111 @@ describe('AuthService', () => {
         revokedAt: null,
       });
       (prisma.refreshToken.delete as any).mockResolvedValue({});
+      (prisma.staffAccount.findUnique as any).mockResolvedValue(STAFF_ACCOUNT);
 
       const result = await service.refresh(validToken);
 
       // Old token was deleted (rotation)
       expect(prisma.refreshToken.delete).toHaveBeenCalledWith({ where: { id: 'rt-old' } });
 
-      // New tokens issued
+      // New tokens issued using current DB role, not stale JWT claim
       expect(result.accessToken).toBeDefined();
       expect(result.refreshToken).toBeDefined();
       expect(result.user.role).toBe('ADMIN');
+      expect(result.user.email).toBe('staff@school.com');
 
       // New refresh token stored in DB
       expect(prisma.refreshToken.create).toHaveBeenCalled();
+    });
+
+    it('should throw 403 and consume token when account is SUSPENDED', async () => {
+      const validToken = jwt.sign(
+        {
+          sub: 'acc-staff-1',
+          email: 'staff@school.com',
+          role: 'ADMIN',
+          entityType: 'STAFF',
+          entityInternalId: 'staff-internal-1',
+        },
+        process.env.JWT_REFRESH_SECRET!,
+        { expiresIn: '7d' }
+      );
+      (prisma.refreshToken.findUnique as any).mockResolvedValue({
+        id: 'rt-suspended',
+        token: validToken,
+        revokedAt: null,
+      });
+      (prisma.refreshToken.delete as any).mockResolvedValue({});
+      (prisma.staffAccount.findUnique as any).mockResolvedValue({
+        ...STAFF_ACCOUNT,
+        staff: { id: 'staff-internal-1', status: 'SUSPENDED' },
+      });
+
+      await expect(service.refresh(validToken)).rejects.toMatchObject({
+        statusCode: 403,
+        message: 'Account is suspended. Contact administration.',
+      });
+      expect(prisma.refreshToken.delete).toHaveBeenCalledWith({ where: { id: 'rt-suspended' } });
+      expect(prisma.refreshToken.create).not.toHaveBeenCalled();
+    });
+
+    it('should throw 403 and consume token when account is INACTIVE', async () => {
+      const validToken = jwt.sign(
+        {
+          sub: 'acc-stu-1',
+          email: 'student@school.com',
+          role: 'STUDENT',
+          entityType: 'STUDENT',
+          entityInternalId: 'stu-internal-1',
+        },
+        process.env.JWT_REFRESH_SECRET!,
+        { expiresIn: '7d' }
+      );
+      (prisma.refreshToken.findUnique as any).mockResolvedValue({
+        id: 'rt-inactive',
+        token: validToken,
+        revokedAt: null,
+      });
+      (prisma.refreshToken.delete as any).mockResolvedValue({});
+      (prisma.studentAccount.findUnique as any).mockResolvedValue({
+        ...STUDENT_ACCOUNT,
+        student: { id: 'stu-internal-1', status: 'INACTIVE' },
+      });
+
+      await expect(service.refresh(validToken)).rejects.toMatchObject({
+        statusCode: 403,
+        message: 'Account is inactive. Contact administration.',
+      });
+      expect(prisma.refreshToken.delete).toHaveBeenCalledWith({ where: { id: 'rt-inactive' } });
+      expect(prisma.refreshToken.create).not.toHaveBeenCalled();
+    });
+
+    it('should throw 403 and consume token when account is DEPARTED', async () => {
+      const validToken = jwt.sign(
+        {
+          sub: 'acc-stu-1',
+          email: 'student@school.com',
+          role: 'STUDENT',
+          entityType: 'STUDENT',
+          entityInternalId: 'stu-departed',
+        },
+        process.env.JWT_REFRESH_SECRET!,
+        { expiresIn: '7d' }
+      );
+      (prisma.refreshToken.findUnique as any).mockResolvedValue({
+        id: 'rt-departed',
+        token: validToken,
+        revokedAt: null,
+      });
+      (prisma.refreshToken.delete as any).mockResolvedValue({});
+      (prisma.studentAccount.findUnique as any).mockResolvedValue(DEPARTED_STUDENT);
+
+      await expect(service.refresh(validToken)).rejects.toMatchObject({
+        statusCode: 403,
+        message: 'Account is departed. Contact administration.',
+      });
+      expect(prisma.refreshToken.delete).toHaveBeenCalledWith({ where: { id: 'rt-departed' } });
+      expect(prisma.refreshToken.create).not.toHaveBeenCalled();
     });
   });
 

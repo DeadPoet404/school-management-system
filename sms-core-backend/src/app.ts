@@ -8,6 +8,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import pino from 'pino';
 import pinoHttp from 'pino-http';
 import { createId } from '@paralleldrive/cuid2';
 import cookieParser from 'cookie-parser';
@@ -65,6 +66,31 @@ app.use(pinoHttp({
     if (err || res.statusCode >= 500) return 'error';
     if (res.statusCode >= 400) return 'warn';
     return 'info';
+  },
+  // Defense in depth: strip secrets in the req serializer before redact paths run.
+  // Logger-level redact (see lib/logger.ts) still covers body fields and ad-hoc logs.
+  serializers: {
+    req(req) {
+      const base = pino.stdSerializers.req(req) as unknown as {
+        headers?: Record<string, unknown>;
+        [key: string]: unknown;
+      };
+      if (base.headers) {
+        for (const header of [
+          'cookie',
+          'authorization',
+          'Authorization',
+          'set-cookie',
+          'Set-Cookie',
+        ]) {
+          if (Object.prototype.hasOwnProperty.call(base.headers, header)) {
+            base.headers[header] = '[Redacted]';
+          }
+        }
+      }
+      return base;
+    },
+    res: pino.stdSerializers.res,
   },
 }));
 

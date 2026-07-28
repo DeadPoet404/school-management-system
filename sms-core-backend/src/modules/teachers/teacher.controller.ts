@@ -1,7 +1,12 @@
-import { Request, Response, NextFunction } from "express";
+import { Response, NextFunction } from "express";
+import { AuthenticatedRequest } from "@/middleware/auth.middleware";
 import { TeacherService } from "./teacher.service";
 import { parsePaginationQuery, buildPaginationResponse } from "@/utils/pagination";
 import { toCSV, respondCSV } from "@/utils/export";
+import {
+  toTeacherDtoForRole,
+  toTeacherListDtoForRole,
+} from "@/lib/role-dtos";
 
 type UploadedTeacherImportFile = {
   buffer: Buffer;
@@ -12,9 +17,10 @@ type UploadedTeacherImportFile = {
 
 export class TeacherController {
   constructor(private teacherService: TeacherService) {}
-  
-  public getAllTeachers = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+
+  public getAllTeachers = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
+      const role = req.user?.role;
       const { page, limit, skip } = parsePaginationQuery(req.query);
       const filters = {
         search: typeof req.query.search === 'string' ? req.query.search : undefined,
@@ -25,31 +31,34 @@ export class TeacherController {
         gender: typeof req.query.gender === 'string' ? req.query.gender : undefined,
       };
       const { data, total } = await this.teacherService.getFilteredPaginated(filters, skip, limit);
+      const safeData = toTeacherListDtoForRole(data, role);
 
       if (req.query.format === "csv") {
         const allData = await this.teacherService.getAllFiltered(filters);
-        return respondCSV(res, toCSV(allData), "teachers");
+        const safeAll = toTeacherListDtoForRole(allData, role) as Record<string, unknown>[];
+        return respondCSV(res, toCSV(safeAll), "teachers");
       }
 
-      return res.status(200).json(buildPaginationResponse(data, total, page, limit));
+      return res.status(200).json(buildPaginationResponse(safeData, total, page, limit));
     } catch (error) {
       next(error);
     }
   };
 
-  public getTeacherById = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+  public getTeacherById = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
       const { id } = req.params;
       const teacher = await this.teacherService.getById(id!);
-      return res.status(200).json({ success: true, data: teacher });
+      const safe = toTeacherDtoForRole(teacher, req.user?.role);
+      return res.status(200).json({ success: true, data: safe });
     } catch (error) {
       next(error);
     }
   };
 
-  public importTeachers = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+  public importTeachers = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
-      const file = (req as Request & { file?: UploadedTeacherImportFile }).file;
+      const file = (req as AuthenticatedRequest & { file?: UploadedTeacherImportFile }).file;
 
       if (!file) {
         return res.status(400).json({ success: false, message: "A CSV, XLSX, or XLS file is required." });
@@ -67,12 +76,12 @@ export class TeacherController {
     }
   };
 
-  public createTeacher = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+  public createTeacher = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
       const { account, placement, demographics, compliance, payroll } = req.body;
 
       if (!account?.fullName || !account?.email) {
-        return res.status(400).json({ success: false, message: "Missing core identity payloads (fullName and email are required)." });
+        return res.status(400).json({ success: false, message: "Missing core identity payloads (fullName and email are required)."});
       }
 
       // Defense-in-depth: reject missing demographics even if validation
@@ -106,9 +115,9 @@ export class TeacherController {
 
       // Surface auto-generated temporary password to the enrolling admin
       // so they can deliver it to the new teacher out-of-band.
-      if ((newTeacher as any)._temporaryPassword) {
-        response.temporaryPassword = (newTeacher as any)._temporaryPassword;
-        response.warning = (newTeacher as any)._warning ?? "Communicate this password to the teacher immediately.";
+      if ((newTeacher as { _temporaryPassword?: string })._temporaryPassword) {
+        response.temporaryPassword = (newTeacher as { _temporaryPassword?: string })._temporaryPassword;
+        response.warning = (newTeacher as { _warning?: string })._warning ?? "Communicate this password to the teacher immediately.";
       }
 
       return res.status(201).json(response);
@@ -117,7 +126,7 @@ export class TeacherController {
     }
   };
 
-  public executeDeparture = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+  public executeDeparture = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
       const { teacherId, departureType, effectiveDate, clearance, remarks } = req.body;
 
@@ -137,11 +146,12 @@ export class TeacherController {
     }
   };
 
-  public updateTeacher = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+  public updateTeacher = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
       const { id } = req.params;
       const updated = await this.teacherService.update(id!, req.body);
-      return res.status(200).json({ success: true, data: updated });
+      const safe = toTeacherDtoForRole(updated, req.user?.role);
+      return res.status(200).json({ success: true, data: safe });
     } catch (error) {
       next(error);
     }

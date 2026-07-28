@@ -43,14 +43,11 @@ export class GradesService {
         if (!klass) {
           throw new AppError(400, `Class with ID "${classId}" does not exist.`);
         }
-        if (!klass.section) {
-          throw new AppError(400, `Class "${classId}" has no section assigned. Configure the timetable first.`);
-        }
-
+        // PR2: TimetableConfiguration.sectionId stores Class.id (UUID), not Class.section (A/B).
         const isAllocated = await this.repo.findTeacherAllocation(
           requestingUser.entityInternalId,
           subject.name,
-          klass.section,
+          classId,
           tx,
         );
 
@@ -294,17 +291,18 @@ export class GradesService {
           tx.class.findUnique({ where: { id: existing.classId } }),
         ]);
 
-        if (!subject || !klass || !klass.section) {
+        if (!subject || !klass) {
           throw new AppError(
             400,
             "This grade record references a subject or class that is no longer configured.",
           );
         }
 
+        // PR2: allocation is keyed by Class.id via TimetableConfiguration.sectionId
         const isAllocated = await this.repo.findTeacherAllocation(
           requestingUser.entityInternalId,
           subject.name,
-          klass.section,
+          existing.classId,
           tx,
         );
 

@@ -1,7 +1,12 @@
-import { Request, Response, NextFunction } from "express";
+import { Response, NextFunction } from "express";
+import { AuthenticatedRequest } from "@/middleware/auth.middleware";
 import { StudentService } from "./student.service";
 import { parsePaginationQuery, buildPaginationResponse } from "@/utils/pagination";
 import { toCSV, respondCSV } from "@/utils/export";
+import {
+  toStudentDtoForRole,
+  toStudentListDtoForRole,
+} from "@/lib/role-dtos";
 
 type UploadedStudentImportFile = {
   buffer: Buffer;
@@ -13,8 +18,9 @@ type UploadedStudentImportFile = {
 export class StudentController {
   constructor(private studentService: StudentService) {}
 
-  public getAllStudents = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+  public getAllStudents = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
+      const role = req.user?.role;
       const { page, limit, skip } = parsePaginationQuery(req.query);
       const filters = {
         search: typeof req.query.search === 'string' ? req.query.search : undefined,
@@ -24,29 +30,32 @@ export class StudentController {
         boardingStatus: typeof req.query.boardingStatus === 'string' ? req.query.boardingStatus : undefined,
       };
       const { data, total } = await this.studentService.getFilteredPaginated(filters, skip, limit);
+      const safeData = toStudentListDtoForRole(data, role);
 
       if (req.query.format === "csv") {
         const allData = await this.studentService.getAllFiltered(filters);
-        return respondCSV(res, toCSV(allData), "students");
+        const safeAll = toStudentListDtoForRole(allData, role) as Record<string, unknown>[];
+        return respondCSV(res, toCSV(safeAll), "students");
       }
 
-      return res.status(200).json(buildPaginationResponse(data, total, page, limit));
+      return res.status(200).json(buildPaginationResponse(safeData, total, page, limit));
     } catch (error) {
       next(error);
     }
   };
 
-  public getStudentById = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+  public getStudentById = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
       const { id } = req.params;
       const student = await this.studentService.getById(id!);
-      return res.status(200).json({ success: true, data: student });
+      const safe = toStudentDtoForRole(student, req.user?.role);
+      return res.status(200).json({ success: true, data: safe });
     } catch (error) {
       next(error);
     }
   };
 
-  public getFinancialMatrix = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+  public getFinancialMatrix = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
       const financialLedger = await this.studentService.getFinancialMatrix();
       return res.status(200).json({ success: true, data: financialLedger });
@@ -55,12 +64,12 @@ export class StudentController {
     }
   };
 
-  public enrollStudent = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+  public enrollStudent = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
       const { account, demographics, placement, compliance, billing, payroll, guardian, parent } = req.body;
 
       if (!account?.fullName || !account?.email) {
-        return res.status(400).json({ success: false, message: "Missing core identity payloads (fullName and email are required)." });
+        return res.status(400).json({ success: false, message: "Missing core identity payloads (fullName and email are required)."});
       }
 
       const newStudent = await this.studentService.createStudent({
@@ -81,9 +90,9 @@ export class StudentController {
     }
   };
 
-  public importStudents = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+  public importStudents = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
-      const file = (req as Request & { file?: UploadedStudentImportFile }).file;
+      const file = (req as AuthenticatedRequest & { file?: UploadedStudentImportFile }).file;
 
       if (!file) {
         return res.status(400).json({ success: false, message: "A CSV, XLSX, or XLS file is required." });
@@ -101,7 +110,7 @@ export class StudentController {
     }
   };
 
-  public executeDeparture = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+  public executeDeparture = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
       const { studentId, departureType, effectiveDate, disposition, remarks } = req.body;
 
@@ -121,11 +130,13 @@ export class StudentController {
     }
   };
 
-  public updateStudent = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+  public updateStudent = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
       const { id } = req.params;
       const updated = await this.studentService.update(id!, req.body);
-      return res.status(200).json({ success: true, data: updated });
+      // Updates are staff/admin-only; still project in case role matrix expands later.
+      const safe = toStudentDtoForRole(updated, req.user?.role);
+      return res.status(200).json({ success: true, data: safe });
     } catch (error) {
       next(error);
     }

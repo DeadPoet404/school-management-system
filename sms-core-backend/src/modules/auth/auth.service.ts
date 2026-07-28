@@ -20,9 +20,9 @@ export class AuthService {
       throw new AppError(401, 'Invalid email or password');
     }
 
-    if (account.status === 'DEPARTED') {
-      throw new AppError(403, 'Account is inactive. Contact administration.');
-    }
+    // Only ACTIVE accounts may authenticate. INACTIVE, SUSPENDED, and
+    // DEPARTED must not receive tokens (PR1 / issue 11).
+    this.assertAccountActive(account.status);
 
     const payload: JwtPayload = {
       sub: account.accountId,
@@ -65,16 +65,38 @@ export class AuthService {
       throw new AppError(401, 'Invalid refresh token. Please log in again.');
     }
 
+    // Re-read live account state. Do not trust role/status claims on the
+    // old refresh token — they may be stale after suspension/departure/role change.
+    const email = decoded.email as string | undefined;
+    if (!email) {
+      await prisma.refreshToken.delete({ where: { id: stored.id } });
+      throw new AppError(401, 'Invalid refresh token. Please log in again.');
+    }
+
+    const account = await this.findAccountByEmail(email);
+    if (!account || account.accountId !== (decoded.sub as string)) {
+      await prisma.refreshToken.delete({ where: { id: stored.id } });
+      throw new AppError(401, 'Invalid refresh token. Please log in again.');
+    }
+
+    try {
+      this.assertAccountActive(account.status);
+    } catch (err) {
+      // Consume the refresh token so a suspended/departed session cannot retry.
+      await prisma.refreshToken.delete({ where: { id: stored.id } });
+      throw err;
+    }
+
     // Delete old token (rotation — single use)
     await prisma.refreshToken.delete({ where: { id: stored.id } });
 
-    // Issue new pair
+    // Issue new pair from current DB identity (role/status/ids), not stale JWT claims
     const payload: JwtPayload = {
-      sub: decoded.sub as string,
-      email: decoded.email as string,
-      role: decoded.role as string,
-      entityType: decoded.entityType as 'STUDENT' | 'STAFF' | 'TEACHER',
-      entityInternalId: decoded.entityInternalId as string,
+      sub: account.accountId,
+      email: account.email,
+      role: account.role,
+      entityType: account.entityType,
+      entityInternalId: account.userId,
     };
 
     return this.signTokenPair(payload);
@@ -105,6 +127,24 @@ export class AuthService {
   }
 
   // ── PRIVATE HELPERS ──
+
+  /**
+   * Enforce ACTIVE-only authentication for login and refresh.
+   * EntityStatus: ACTIVE | INACTIVE | SUSPENDED | DEPARTED
+   */
+  private assertAccountActive(status: string): void {
+    if (status === 'ACTIVE') return;
+
+    if (status === 'SUSPENDED') {
+      throw new AppError(403, 'Account is suspended. Contact administration.');
+    }
+    if (status === 'DEPARTED') {
+      throw new AppError(403, 'Account is departed. Contact administration.');
+    }
+    // INACTIVE and any unexpected status
+    throw new AppError(403, 'Account is inactive. Contact administration.');
+  }
+
 
   /**
    * P1-1 fix: Look up an account by email across all 3 account tables

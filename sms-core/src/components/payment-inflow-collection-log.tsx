@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { fetchWithAuth } from "@/lib/fetch-with-auth"
+import { useClasses } from "@/lib/api/reference"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -61,23 +62,6 @@ interface DbStudent {
   }
 }
 
-const ACADEMIC_SECTIONS = [
-  { id: "pre-school", label: "Pre-School" },
-  { id: "nursery-1", label: "Nursery 1" },
-  { id: "nursery-2", label: "Nursery 2" },
-  { id: "kindergarten-1", label: "KG 1" },
-  { id: "kindergarten-2", label: "KG 2" },
-  { id: "grade-1", label: "Grade 1" },
-  { id: "grade-2", label: "Grade 2" },
-  { id: "grade-3", label: "Grade 3" },
-  { id: "grade-4", label: "Grade 4" },
-  { id: "grade-5", label: "Grade 5" },
-  { id: "grade-6", label: "Grade 6" },
-  { id: "jhs-1", label: "JHS 1" },
-  { id: "jhs-2", label: "JHS 2" },
-  { id: "jhs-3", label: "JHS 3" },
-] as const
-
 const PAYMENT_METHODS = [
   "Cash Settlement",
   "Bank Wire Transfer",
@@ -103,13 +87,27 @@ const DEFAULT_FORM_STATE = (): IntakeFormState => ({
 })
 
 export function PaymentInflowCollectionLog() {
-  const [activeSection, setActiveSection] = useState<string>("jhs-1")
+  const { data: classes = [], isLoading: classesLoading } = useClasses()
+  const academicSections = useMemo(
+    () => classes.filter((c) => c.isActive !== false).map((c) => ({ id: c.id, label: c.name })),
+    [classes],
+  )
+  const [activeSection, setActiveSection] = useState<string>("")
   const [history, setHistory] = useState<ReceiptRecord[]>([])
   const [dbStudents, setDbStudents] = useState<DbStudent[]>([])
   const [loading, setLoading] = useState<boolean>(false)
   const [submitting, setSubmitting] = useState<boolean>(false)
   
   const [formState, setFormState] = useState<IntakeFormState>(DEFAULT_FORM_STATE())
+
+  useEffect(() => {
+    if (academicSections.length === 0) return
+    setActiveSection((current) => {
+      if (current && academicSections.some((s) => s.id === current)) return current
+      return academicSections[0]!.id
+    })
+  }, [academicSections])
+
 
   // Memoized System Partitions
   const targetSectionStudents = useMemo(() => {
@@ -120,12 +118,17 @@ export function PaymentInflowCollectionLog() {
     return dbStudents.find(s => s.studentName === formState.studentName)
   }, [dbStudents, formState.studentName])
 
-  const lowerAcademicTier = useMemo(() => ACADEMIC_SECTIONS.slice(0, 7), [])
-  const upperAcademicTier = useMemo(() => ACADEMIC_SECTIONS.slice(7), [])
-  const activeSectionLabel = useMemo(() => ACADEMIC_SECTIONS.find(s => s.id === activeSection)?.label || "", [activeSection])
+  const mid = Math.ceil(academicSections.length / 2) || 0
+  const lowerAcademicTier = useMemo(() => academicSections.slice(0, mid), [academicSections, mid])
+  const upperAcademicTier = useMemo(() => academicSections.slice(mid), [academicSections, mid])
+  const activeSectionLabel = useMemo(
+    () => academicSections.find(s => s.id === activeSection)?.label || "",
+    [activeSection, academicSections],
+  )
 
   // --- UNIFIED DATA RECOVERY MATRIX ---
   const fetchSectionData = useCallback(async (sectionId: string) => {
+    if (!sectionId) return
     setLoading(true)
     try {
       const [studentRes, ledgerRes] = await Promise.all([

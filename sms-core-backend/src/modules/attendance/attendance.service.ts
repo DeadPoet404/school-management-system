@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { AttendanceStatus } from "@prisma/client";
 import { AttendanceRepository } from "./attendance.repository";
 import { AppError } from "@/middleware/error.handler";
+import { JwtPayload } from "@/types/auth.types";
+import { ROLES } from "@/middleware/rbac.middleware";
 
 interface AttendanceSubmission {
   studentId: string;
@@ -15,23 +17,58 @@ export class AttendanceService {
 
   /**
    * Commits a complete class attendance sheet atomically.
-   * 1. Verifies every submitted studentId is actually placed in classId.
-   * 2. Upserts each row in a single transaction.
-   * 3. Recomputes + persists attendanceRate for every touched student.
+   * 1. Rejects duplicate studentIds in the payload.
+   * 2. Verifies every submitted studentId is placed in classId.
+   * 3. FACULTY must have a timetable allocation for this Class.id.
+   * 4. Upserts rows + recomputes attendanceRate inside one transaction.
    */
   async recordBulkAttendance(
     date: string,
     classId: string,
     records: AttendanceSubmission[],
+    requestingUser?: JwtPayload,
   ) {
     const targetDate = new Date(date);
     if (isNaN(targetDate.getTime())) {
       throw new AppError(400, `Invalid attendance date: ${date}`);
     }
 
-    // Validate class membership before any writes
+    if (!classId?.trim()) {
+      throw new AppError(400, "Class ID is required.");
+    }
+
     const submittedIds = records.map((r) => r.studentId);
     const uniqueIds = Array.from(new Set(submittedIds));
+    if (uniqueIds.length !== submittedIds.length) {
+      throw new AppError(400, "Duplicate student IDs in attendance submission are not allowed.");
+    }
+
+    // Ensure class exists (canonical Class.id)
+    const klass = await prisma.class.findFirst({
+      where: { id: classId, deletedAt: null },
+      select: { id: true, name: true },
+    });
+    if (!klass) {
+      throw new AppError(400, `Unknown class id: ${classId}`);
+    }
+
+    // FACULTY must be allocated to this class via timetable (sectionId === Class.id)
+    if (requestingUser?.role === ROLES.FACULTY && requestingUser.entityType === "TEACHER") {
+      const allocation = await prisma.subjectAllocation.findFirst({
+        where: {
+          teacherId: requestingUser.entityInternalId,
+          configuration: { sectionId: classId },
+        },
+        select: { id: true },
+      });
+      if (!allocation) {
+        throw new AppError(
+          403,
+          "You are not assigned to teach this class. Attendance can only be marked for your timetable allocations.",
+        );
+      }
+    }
+
     const mismatched = await this.attendanceRepo.findMismatchedStudents(uniqueIds, classId);
     if (mismatched.length > 0) {
       throw new AppError(
@@ -47,16 +84,22 @@ export class AttendanceService {
       remarks: record.remarks ?? null,
     }));
 
-    // Upsert rows and then recompute rates for each affected student
-    const result = await this.attendanceRepo.upsertBulkAttendance(upsertPayload);
+    // Single transaction: all upserts + rate recompute, or none
+    const result = await prisma.$transaction(async (tx) => {
+      const written = await this.attendanceRepo.upsertBulkAttendance(upsertPayload, tx);
 
-    for (const sid of uniqueIds) {
-      const { presentCount, lateCount, totalCount } =
-        await this.attendanceRepo.getStudentAttendanceCounts(sid);
-      const rate =
-        totalCount > 0 ? Math.round((((presentCount ?? 0) + (lateCount ?? 0)) / totalCount) * 10000) / 100 : 100.0;
-      await this.attendanceRepo.updateStudentAttendanceRate(sid, rate);
-    }
+      for (const sid of uniqueIds) {
+        const { presentCount, lateCount, totalCount } =
+          await this.attendanceRepo.getStudentAttendanceCounts(sid, tx);
+        const rate =
+          totalCount > 0
+            ? Math.round((((presentCount ?? 0) + (lateCount ?? 0)) / totalCount) * 10000) / 100
+            : 100.0;
+        await this.attendanceRepo.updateStudentAttendanceRate(sid, rate, tx);
+      }
+
+      return written;
+    });
 
     return { processedCount: result.length, date: targetDate, classId };
   }
@@ -95,6 +138,14 @@ export class AttendanceService {
       throw new AppError(400, `Invalid date: ${date}`);
     }
 
+    const klass = await prisma.class.findFirst({
+      where: { id: classId, deletedAt: null },
+      select: { id: true, name: true },
+    });
+    if (!klass) {
+      throw new AppError(404, `Class not found: ${classId}`);
+    }
+
     const [students, records] = await Promise.all([
       this.attendanceRepo.findStudentsInClass(classId),
       this.attendanceRepo.findByClassAndDate(classId, targetDate),
@@ -113,7 +164,7 @@ export class AttendanceService {
       };
     });
 
-    return { classId, date: targetDate, roster };
+    return { classId, className: klass.name, date: targetDate, roster };
   }
 
   async getStudentHistory(studentId: string, params: { from?: string; to?: string; limit: number }) {
@@ -177,16 +228,35 @@ export class AttendanceService {
    * Corrects one existing attendance record without allowing PATCH to create
    * a new one. The global audit middleware records this write request.
    */
-  async correctStudentAttendance(payload: {
-    studentId: string;
-    classId: string;
-    date: string;
-    status: AttendanceStatus;
-    remarks?: string | null;
-  }) {
+  async correctStudentAttendance(
+    payload: {
+      studentId: string;
+      classId: string;
+      date: string;
+      status: AttendanceStatus;
+      remarks?: string | null;
+    },
+    requestingUser?: JwtPayload,
+  ) {
     const targetDate = new Date(payload.date);
     if (isNaN(targetDate.getTime())) {
       throw new AppError(400, `Invalid attendance date: ${payload.date}`);
+    }
+
+    if (requestingUser?.role === ROLES.FACULTY && requestingUser.entityType === "TEACHER") {
+      const allocation = await prisma.subjectAllocation.findFirst({
+        where: {
+          teacherId: requestingUser.entityInternalId,
+          configuration: { sectionId: payload.classId },
+        },
+        select: { id: true },
+      });
+      if (!allocation) {
+        throw new AppError(
+          403,
+          "You are not assigned to teach this class. Attendance can only be corrected for your timetable allocations.",
+        );
+      }
     }
 
     return prisma.$transaction(async (tx) => {
@@ -239,11 +309,14 @@ export class AttendanceService {
   /**
    * Section-attendance endpoint entry — preserved for backwards compat.
    */
-  async processSectionAttendance(payload: {
-    date: string;
-    classId: string;
-    records: AttendanceSubmission[];
-  }) {
+  async processSectionAttendance(
+    payload: {
+      date: string;
+      classId: string;
+      records: AttendanceSubmission[];
+    },
+    requestingUser?: JwtPayload,
+  ) {
     const { date, classId, records } = payload;
 
     logger.info(
@@ -251,6 +324,6 @@ export class AttendanceService {
       '[Attendance] Processing section attendance submission'
     );
 
-    return this.recordBulkAttendance(date, classId, records);
+    return this.recordBulkAttendance(date, classId, records, requestingUser);
   }
 }

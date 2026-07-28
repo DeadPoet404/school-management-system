@@ -253,6 +253,22 @@ export class FinanceService {
 
   async replaceGlobalMatrix(matrixData: Record<string, MatrixSectionData>): Promise<void> {
     await prisma.$transaction(async (tx) => {
+      const feeSectionIds = Object.keys(matrixData);
+      if (feeSectionIds.length > 0) {
+        const existingClasses = await tx.class.findMany({
+          where: { id: { in: feeSectionIds }, deletedAt: null },
+          select: { id: true },
+        });
+        const existingClassSet = new Set(existingClasses.map((c) => c.id));
+        const unknownFeeSections = feeSectionIds.filter((id) => !existingClassSet.has(id));
+        if (unknownFeeSections.length > 0) {
+          throw new AppError(
+            400,
+            `Unknown class id(s) in fee matrix (sectionId must equal Class.id): ${unknownFeeSections.join(', ')}`,
+          );
+        }
+      }
+
       for (const [sectionId, sectionData] of Object.entries(matrixData)) {
         const { components, billingConfig } = sectionData;
 

@@ -81,7 +81,7 @@ router.get("/terms", requireRole(ROLES.STAFF, ROLES.ADMIN, ROLES.FACULTY, ROLES.
  * GET /api/reference/teachers/lookup
  * Lightweight teacher lookup used by the timetable config UI (assigns subjects to teachers).
  */
-router.get("/teachers", requireRole(ROLES.STAFF, ROLES.ADMIN), async (_req, res, next) => {
+router.get("/teachers", requireRole(ROLES.STAFF, ROLES.ADMIN, ROLES.FACULTY), async (_req, res, next) => {
   try {
     const rows = await prisma.teacher.findMany({
       where: { status: "ACTIVE" },

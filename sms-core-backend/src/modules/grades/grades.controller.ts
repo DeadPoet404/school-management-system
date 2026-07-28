@@ -5,6 +5,7 @@ import {
   parsePaginationQuery,
   buildPaginationResponse,
 } from "@/utils/pagination";
+import { assertSelfOrPrivilegedStudentAccess } from "@/middleware/self-access";
 
 export class GradesController {
   constructor(private gradesService: GradesService) {}
@@ -74,6 +75,10 @@ export class GradesController {
   ): Promise<Response | void> => {
     try {
       const { studentId } = req.params;
+
+      // PR1 / issue 9: STUDENT may only read their own gradebook/transcript.
+      assertSelfOrPrivilegedStudentAccess(req.user, studentId!);
+
       const termId =
         typeof req.query.termId === "string" ? req.query.termId : undefined;
 

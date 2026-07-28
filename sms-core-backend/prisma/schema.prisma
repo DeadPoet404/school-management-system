@@ -72,6 +72,8 @@ model Class {
   id        String    @id @default(uuid())
   deletedAt DateTime?
   name      String    @unique
+  /// Display/grouping letter or label only (e.g. "A"). NOT a foreign key.
+  /// Canonical class identifier everywhere else is Class.id (UUID).
   section   String?
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
@@ -79,6 +81,11 @@ model Class {
 
   placements   Placement[]
   gradeRecords GradeRecord[]
+
+  // PR2 invariant: timetable/fee/collection "sectionId" columns store Class.id
+  timetableConfigurations    TimetableConfiguration[]
+  feeStructureConfigurations FeeStructureConfiguration[]
+  paymentCollections         PaymentCollection[]
 }
 
 model Subject {
@@ -462,7 +469,9 @@ model StaffPayroll {
 
 model TimetableConfiguration {
   id           String   @id @default(uuid())
+  /// Canonical class key: MUST equal Class.id (not Class.section / not jhs-1 tokens).
   sectionId    String   @unique
+  class        Class    @relation(fields: [sectionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   periodsCount Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -510,7 +519,9 @@ model SubjectAllocation {
 model FeeStructureConfiguration {
   id                String    @id @default(uuid())
   deletedAt         DateTime?
+  /// Canonical class key: MUST equal Class.id (not Class.section / not jhs-1 tokens).
   sectionId         String    @unique
+  class             Class     @relation(fields: [sectionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   issueDate         DateTime
   dueDate           DateTime
   allowInstallments Boolean   @default(true)
@@ -537,7 +548,9 @@ model PaymentCollection {
   id               String    @id @default(uuid())
   deletedAt        DateTime?
   receiptNumber    String    @unique
+  /// Canonical class key: MUST equal Class.id (not Class.section / not jhs-1 tokens).
   sectionId        String
+  class            Class     @relation(fields: [sectionId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   studentName      String
   amountPaid       Decimal   @db.Decimal(10, 2)
   paymentMethod    String
