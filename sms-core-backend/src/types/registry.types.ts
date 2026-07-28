@@ -1,16 +1,22 @@
 import { z } from "zod";
 
-// Base account component found in all variants
+// Base account component found in all variants.
+// SMS-002: account date fields are domain-specific, so the shared base
+// declares only identity credentials. Students extend it with
+// `enrollmentDate`; teachers and staff extend it with `employmentDate`,
+// matching the frontend onboarding payloads and the persisted columns
+// (Student.enrollmentDate / Staff.appointmentDate).
 const baseAccountSchema = z.object({
   fullName: z.string().min(1, "Full legal name is required."),
   email: z.string().email("A valid portal access email layout is mandatory."),
   password: z.string().min(6, "Temporary security token must be at least 6 characters."),
-  enrollmentDate: z.string().min(1, "Official date assignment tag is required."),
 });
 
 // Student Enrollment Shape
 export const studentEnrollmentSchema = z.object({
-  account: baseAccountSchema,
+account: baseAccountSchema.extend({
+    enrollmentDate: z.string().min(1, "Official date assignment tag is required."),
+  }),
   demographics: z.object({
     dateOfBirth: z.string().min(1, "Date of birth is required."),
     gender: z.string().min(1, "Gender identity selection is required."),
@@ -53,7 +59,9 @@ export const studentEnrollmentSchema = z.object({
 
 // Teacher Enrollment Shape
 export const teacherEnrollmentSchema = z.object({
-  account: baseAccountSchema,
+account: baseAccountSchema.extend({
+    employmentDate: z.string().min(1, "Employment date is required."),
+  }),
   demographics: z.object({
     dateOfBirth: z.string().min(1),
     gender: z.string().min(1),
@@ -86,7 +94,10 @@ export const teacherEnrollmentSchema = z.object({
 
 // Staff Enrollment Shape
 export const staffEnrollmentSchema = z.object({
-  account: baseAccountSchema.extend({ role: z.literal("STAFF") }),
+account: baseAccountSchema.extend({
+    employmentDate: z.string().min(1, "Employment date is required."),
+    role: z.literal("STAFF"),
+  }),
   demographics: z.object({
     dateOfBirth: z.string().min(1),
     gender: z.string().min(1),
