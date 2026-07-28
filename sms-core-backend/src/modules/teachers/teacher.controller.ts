@@ -96,7 +96,7 @@ export class TeacherController {
       }
 
       const newTeacher = await this.teacherService.createTeacher({
-        account: { fullName: account.fullName, email: account.email, password: account.password },
+        account: { fullName: account.fullName, email: account.email, password: account.password, employmentDate: account.employmentDate },
         placement: placement ? { departmentId: placement.departmentId, jobTitle: placement.jobTitle, employmentType: placement.employmentType } : undefined,
         demographics,
         compliance,

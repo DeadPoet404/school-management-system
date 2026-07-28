@@ -163,6 +163,7 @@ export class TeacherService {
       fullName: string;
       email: string;
       password?: string;
+      employmentDate?: string;
     };
     placement?: {
       departmentId?: string;
@@ -235,6 +236,7 @@ export class TeacherService {
           ? { connect: { id: placement.departmentId } }
           : undefined,
         employmentType: placement?.employmentType || "Full-Time",
+        employmentDate: account.employmentDate ? new Date(account.employmentDate) : null,
         status: EntityStatus.ACTIVE,
         yearsOfExperience: 0,
 
