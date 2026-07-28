@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
+import { Pencil } from "lucide-react"
 import { UniversalDataTable, type DataTableColumn } from "@/components/universal-data-table"
 import { fetchWithAuth } from "@/lib/fetch-with-auth"
 
@@ -18,6 +20,7 @@ export type TeacherOverviewRow = {
   formerSchool: string              
   salaryStatus: React.ReactNode     
   status: React.ReactNode
+  actions: React.ReactNode
 }
 
 interface TeacherOverviewTableProps {
@@ -80,6 +83,7 @@ export function TeacherOverviewTable({ data: initialData }: TeacherOverviewTable
     const rawPriorSchool = item.demographics?.formerSchool || item.formerSchool || "—"
     const rawSalaryStatus = item.payroll?.salaryStatus || item.salaryStatus || "PENDING"
 
+    const rawTeacherRecordId = item.id || item.teacherId
     return {
       id: item.teacherId || item.id || `TCH-${Math.floor(Math.random() * 90000)}`,
       facultyMeta: (
@@ -104,6 +108,18 @@ export function TeacherOverviewTable({ data: initialData }: TeacherOverviewTable
           {currentStatus}
         </div>
       ),
+      actions: rawTeacherRecordId ? (
+        <Link
+          href={`/teachers/${encodeURIComponent(String(rawTeacherRecordId))}/edit`}
+          aria-label={`Edit ${rawName}`}
+          title="Edit teacher"
+          className="inline-flex h-7 w-7 items-center justify-center rounded border border-zinc-200 text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </Link>
+      ) : (
+        "—"
+      ),
     }
   })
 
@@ -119,6 +135,12 @@ export function TeacherOverviewTable({ data: initialData }: TeacherOverviewTable
     { key: "yearsOfExperience", header: "Experience", className: "w-[85px]", cellClassName: "font-mono text-zinc-600 dark:text-zinc-400 text-center" },
     { key: "salaryStatus", header: "Salary Status", className: "w-[110px]" },
     { key: "status", header: "Status", className: "w-[110px]" },
+    {
+      key: "actions",
+      header: "",
+      className: "sticky right-0 z-10 w-[56px] bg-zinc-50/95 dark:bg-zinc-900/95 text-center backdrop-blur-sm",
+      cellClassName: "sticky right-0 z-10 bg-white dark:bg-zinc-950 text-center",
+    },
   ]
 
   if (isLoading) {

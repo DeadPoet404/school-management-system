@@ -2,8 +2,9 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { Pencil } from "lucide-react"
 import { UniversalDataTable, type DataTableColumn } from "@/components/universal-data-table"
-import { fetchWithAuth } from "@/lib/fetch-with-auth";
+import { fetchWithAuth } from "@/lib/fetch-with-auth"
 
 type StudentOverviewRow = {
   id: string
@@ -18,6 +19,7 @@ type StudentOverviewRow = {
   feesStatus: "Paid" | "Partial" | "Unpaid"
   enrollmentDate: string
   attendanceLink: React.ReactNode
+  actions: React.ReactNode
 }
 
 interface StudentOverviewTableProps {
@@ -56,7 +58,7 @@ export function StudentOverviewTable({ data: initialData }: StudentOverviewTable
           throw new Error(`HTTP Error: ${response.status}`)
         }
         const json = await response.json()
-        
+
         if (json && json.success && Array.isArray(json.data)) {
           setStudents(json.data)
         } else {
@@ -73,7 +75,7 @@ export function StudentOverviewTable({ data: initialData }: StudentOverviewTable
   }, []) // Empty deps — runs once on mount only
 
   const normalizedData: StudentOverviewRow[] = students.map((student) => {
-    const formattedDate = student.enrollmentDate 
+    const formattedDate = student.enrollmentDate
       ? new Date(student.enrollmentDate).toLocaleDateString('en-US', {
           year: 'numeric',
           month: 'short',
@@ -93,8 +95,8 @@ export function StudentOverviewTable({ data: initialData }: StudentOverviewTable
 
     const rawClass = student.placement?.classId || student.class
     const rawTrack = student.placement?.academicTrack || student.grade
-    const assignedClass = (rawClass && rawClass !== "N/A") 
-      ? `${rawTrack || ""} ${rawClass}`.trim() 
+    const assignedClass = (rawClass && rawClass !== "N/A")
+      ? `${rawTrack || ""} ${rawClass}`.trim()
       : rawTrack || "Unassigned"
 
     const attendanceRouteId = student.id || student.studentId
@@ -107,7 +109,7 @@ export function StudentOverviewTable({ data: initialData }: StudentOverviewTable
       parentName: student.guardians?.[0]?.name || student.guardian?.name || "Not Specified",
       parentContact: student.guardians?.[0]?.phone || student.guardian?.phone || "—",
       gpa: student.currentGpa?.toFixed(2) || "0.00",
-      attendanceRate: student.attendanceRate != null ? `${student.attendanceRate}%` : "—", 
+      attendanceRate: student.attendanceRate != null ? `${student.attendanceRate}%` : "—",
       status: student.status || "ACTIVE",
       feesStatus: financialStatus,
       enrollmentDate: formattedDate,
@@ -117,6 +119,18 @@ export function StudentOverviewTable({ data: initialData }: StudentOverviewTable
           className="inline-flex rounded border border-zinc-200 px-2 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
         >
           View
+        </Link>
+      ) : (
+        "—"
+      ),
+      actions: attendanceRouteId ? (
+        <Link
+          href={`/students/${encodeURIComponent(String(attendanceRouteId))}/edit`}
+          aria-label={`Edit ${student.studentName || "student"}`}
+          title="Edit student"
+          className="inline-flex h-7 w-7 items-center justify-center rounded border border-zinc-200 text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+        >
+          <Pencil className="h-3.5 w-3.5" />
         </Link>
       ) : (
         "—"
@@ -144,12 +158,12 @@ export function StudentOverviewTable({ data: initialData }: StudentOverviewTable
       cell: (row) => {
         const isMale = row.gender === "Male"
         const isFemale = row.gender === "Female"
-        
+
         return (
           <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium tracking-tight ${
-            isMale 
-              ? "bg-blue-50 text-blue-700 dark:bg-blue-950/20 dark:text-blue-400" 
-              : isFemale 
+            isMale
+              ? "bg-blue-50 text-blue-700 dark:bg-blue-950/20 dark:text-blue-400"
+              : isFemale
               ? "bg-purple-50 text-purple-700 dark:bg-purple-950/20 dark:text-purple-400"
               : "bg-zinc-50 text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400"
           }`}>
@@ -207,8 +221,8 @@ export function StudentOverviewTable({ data: initialData }: StudentOverviewTable
         const isActive = row.status.toLowerCase() === "active"
         return (
           <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold ${
-            isActive 
-              ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400" 
+            isActive
+              ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400"
               : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
           }`}>
             {row.status}
@@ -226,13 +240,20 @@ export function StudentOverviewTable({ data: initialData }: StudentOverviewTable
           Partial: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30",
           Unpaid: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/30",
         }
-
         return (
           <span className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium ${colorMap[row.feesStatus]}`}>
             {row.feesStatus}
           </span>
         )
       }
+    },
+    {
+      // Pinned to the right edge of the scroll container so it is always
+      // visible without having to scroll through the other 11 columns.
+      key: "actions",
+      header: "",
+      className: "sticky right-0 z-10 w-[56px] bg-zinc-50/95 dark:bg-zinc-900/95 text-center backdrop-blur-sm",
+      cellClassName: "sticky right-0 z-10 bg-white dark:bg-zinc-950 text-center",
     },
   ]
 
