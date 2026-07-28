@@ -10,7 +10,7 @@ import {
   GraduationCap,
 } from "lucide-react"
 
-import { DashboardIcon, BotIcon, MoneyIcon, PeopleIcon, MessageIcon, ReportIcon } from "./custom-icon"
+import { DashboardIcon, BotIcon, MoneyIcon, PeopleIcon } from "./custom-icon"
 import {
   Sidebar,
   SidebarContent,
@@ -42,11 +42,6 @@ const coreNavigationItems = [
   { title: "Finance", url: "/finance", icon: MoneyIcon },
 ]
 
-// SECTION 2: Advanced automation engines
-const advancedNavigationItems = [
-  { title: "Communications", url: "/communication", icon: MessageIcon },
-  { title: "Reports", url: "/reporting", icon: ReportIcon },
-]
 
 interface AppSidebarProps {
   user?: { email: string; role: string } | null;
@@ -135,42 +130,6 @@ export function AppSidebar({ user, initials = "??", onLogout }: AppSidebarProps)
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* GROUP B: Advanced Operations */}
-        <SidebarGroup className="mt-6">
-          <SidebarGroupLabel className="px-3">Advanced</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {advancedNavigationItems.map((item) => {
-                const isActive = pathname === item.url
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton 
-                      asChild 
-                      isActive={isActive} 
-                      tooltip={item.title}
-                      className="data-[active=true]:bg-neutral-100 dark:data-[active=true]:bg-neutral-900/50 text-black dark:text-white transition-all duration-200"
-                    >
-                      <Link href={item.url} className="flex items-center gap-3">
-                        <item.icon 
-                          className={`
-                            shrink-0 size-[18px] text-black dark:text-white transition-all duration-200
-                            ${isActive ? "stroke-[2]" : "stroke-[1.5]"}
-                          `} 
-                        />
-                        <span className={`
-                          tracking-wide text-black dark:text-white transition-all duration-200 group-data-[collapsible=icon]:hidden
-                          ${isActive ? "font-normal" : "font-light"}
-                        `}>
-                          {item.title}
-                        </span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
       </SidebarContent>
 
       {/* 3. STICKY FOOTER - User Account Profile Panel */}
