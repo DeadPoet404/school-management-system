@@ -6,10 +6,16 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { Separator } from "@/components/ui/separator"
 import { useAuth } from "@/lib/auth-context"
 import { ProtectedRoute } from "@/components/protected-route"
+import { usePathname } from "next/navigation"
+import { isPathAllowedForRole } from "@/lib/role-access"
+import { AccessDeniedPanel } from "@/components/access-denied-panel"
 
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth()
   const initials = user?.email?.charAt(0).toUpperCase() || "??"
+  const pathname = usePathname()
+  const role = user?.role ?? null
+  const pathAllowed = role === null || isPathAllowedForRole(role, pathname)
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -28,7 +34,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           </header>
 
           <main className="flex-1 overflow-y-auto p-1">
-            {children}
+            {pathAllowed ? children : <AccessDeniedPanel role={role} onLogout={logout} />}
           </main>
         </SidebarInset>
       </SidebarProvider>

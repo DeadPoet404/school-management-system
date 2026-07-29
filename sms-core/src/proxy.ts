@@ -12,7 +12,7 @@ import type { NextRequest } from "next/server"
  * rendering for unauthenticated users.
  *
  * Protected routes: /dashboard, /staff, /teachers, /students,
- *                   /operations, /finance and all sub-paths.
+ *                   /operations, /finance, /no-access and all sub-paths.
  * Public routes: /, /login, /api/*, /_next/* (static assets)
  */
 
@@ -23,6 +23,7 @@ const PROTECTED_PATHS = [
   "/students",
   "/operations",
   "/finance",
+  "/no-access",
 ]
 
 function isProtectedPath(pathname: string): boolean {

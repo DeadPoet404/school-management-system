@@ -41,7 +41,9 @@ const SUBPATH_OVERRIDES: { prefix: string; roles: Role[] }[] = [
 
 const LANDING_PRIORITY: TopLevelModule[] = ["/dashboard", "/students", "/teachers", "/staff", "/finance", "/operations"]
 
-const FALLBACK_LANDING: TopLevelModule = "/dashboard"
+const NO_ACCESS_PATH = "/no-access"
+
+const FALLBACK_LANDING: string = NO_ACCESS_PATH
 
 function normalizeRole(role: string | null | undefined): Role | null {
   if (!role) return null
@@ -58,6 +60,7 @@ export function roleHasAnyModule(role: string | null | undefined): boolean {
 }
 
 export function isPathAllowedForRole(role: string | null | undefined, pathname: string | null | undefined): boolean {
+  if (pathname === NO_ACCESS_PATH || pathname.startsWith(NO_ACCESS_PATH + "/")) return true
   const r = normalizeRole(role)
   if (!r || !pathname) return false
   const override = SUBPATH_OVERRIDES.find((o) => pathname === o.prefix || pathname.startsWith(o.prefix + "/"))
@@ -73,6 +76,7 @@ export function landingPathForRole(role: string | null | undefined, requested?: 
     requested.startsWith("/") &&
     !requested.startsWith("//") &&
     requested !== "/login" &&
+    requested !== NO_ACCESS_PATH &&
     isPathAllowedForRole(r, requested)
       ? requested
       : null
