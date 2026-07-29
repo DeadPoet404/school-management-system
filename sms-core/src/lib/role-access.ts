@@ -60,9 +60,10 @@ export function roleHasAnyModule(role: string | null | undefined): boolean {
 }
 
 export function isPathAllowedForRole(role: string | null | undefined, pathname: string | null | undefined): boolean {
+  if (!pathname) return false
   if (pathname === NO_ACCESS_PATH || pathname.startsWith(NO_ACCESS_PATH + "/")) return true
   const r = normalizeRole(role)
-  if (!r || !pathname) return false
+  if (!r) return false
   const override = SUBPATH_OVERRIDES.find((o) => pathname === o.prefix || pathname.startsWith(o.prefix + "/"))
   if (override) return override.roles.includes(r)
   return allowedTopLevel(r).some((mod) => pathname === mod || pathname.startsWith(mod + "/"))
