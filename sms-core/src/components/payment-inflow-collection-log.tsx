@@ -2,15 +2,15 @@
 
 import * as React from "react"
 import { useMemo, useState, useCallback, useEffect } from "react"
-import { 
-  Layers, 
-  DollarSign, 
-  User, 
-  CreditCard, 
-  FileText, 
-  Printer, 
-  Plus, 
-  CheckCircle, 
+import {
+  Layers,
+  DollarSign,
+  User,
+  CreditCard,
+  FileText,
+  Printer,
+  Plus,
+  CheckCircle,
   ArrowRight,
   History,
   Wallet
@@ -97,7 +97,9 @@ export function PaymentInflowCollectionLog() {
   const [dbStudents, setDbStudents] = useState<DbStudent[]>([])
   const [loading, setLoading] = useState<boolean>(false)
   const [submitting, setSubmitting] = useState<boolean>(false)
-  
+  const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+
   const [formState, setFormState] = useState<IntakeFormState>(DEFAULT_FORM_STATE())
 
   useEffect(() => {
@@ -135,7 +137,7 @@ export function PaymentInflowCollectionLog() {
         fetchWithAuth(`/finance/students-by-section/${sectionId}`),
         fetchWithAuth(`/finance/collections/${sectionId}`)
       ])
-      
+
       const studentPayload = await studentRes.json()
       const ledgerPayload = await ledgerRes.json()
 
@@ -166,6 +168,8 @@ export function PaymentInflowCollectionLog() {
 
     const selectedStudent = dbStudents.find(s => s.studentName === formState.studentName)
 
+    setError(null)
+    setSuccessMessage(null)
     setSubmitting(true)
     try {
       // ✅ FIXED: removed the outer fetch() wrapper — fetchWithAuth IS the fetch
@@ -177,7 +181,7 @@ export function PaymentInflowCollectionLog() {
         body: JSON.stringify({
           sectionId: activeSection,
           ...formState,
-          studentInternalId: selectedStudent?.id || undefined 
+          studentInternalId: selectedStudent?.id || undefined
         })
       })
 
@@ -186,9 +190,13 @@ export function PaymentInflowCollectionLog() {
         setHistory(prev => [payload.data, ...prev])
         setFormState(DEFAULT_FORM_STATE())
         fetchSectionData(activeSection)
+        setSuccessMessage(payload.message || "Payment collection recorded successfully.")
+      } else {
+        setError(payload.message || "Failed to process collection inflow.")
       }
     } catch (error) {
       console.error("[Collection Pipeline Ingress Write Error]:", error)
+      setError(error instanceof Error ? error.message : "Network error while processing collection inflow.")
     } finally {
       setSubmitting(false)
     }
@@ -196,13 +204,13 @@ export function PaymentInflowCollectionLog() {
 
   return (
     <main className="flex-1 h-full flex flex-col bg-transparent px-8 py-6 overflow-hidden">
-      
+
       {/* Dynamic Main Header Block */}
       <div className="flex flex-col gap-2 shrink-0">
         <div className="inline-flex items-center gap-1.5 text-xs text-muted-foreground tracking-wide uppercase font-bold text-stone-400">
           Core Finance Operations / Collections & Receipting Engine
         </div>
-        
+
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl tracking-tight font-semibold text-foreground capitalize">
@@ -220,7 +228,7 @@ export function PaymentInflowCollectionLog() {
         <Label className="text-[11px] font-bold text-stone-400 uppercase tracking-wider flex items-center gap-1">
           <Layers className="h-3 w-3" /> Select Institutional Grade Tier
         </Label>
-        
+
         <div className="w-full flex flex-col gap-2.5">
           {/* Lower Tier Block */}
           <div className="w-full flex items-center bg-stone-100 dark:bg-zinc-900/50 p-1.5 rounded-lg border border-stone-200/40 dark:border-zinc-800/40">
@@ -270,11 +278,23 @@ export function PaymentInflowCollectionLog() {
       </div>
 
       <hr className="border-stone-200 dark:border-zinc-800 shrink-0 mt-5 mb-6" />
+      {error && (
+        <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-xs font-medium flex items-center justify-between">
+          <span>{error}</span>
+          <button type="button" onClick={() => setError(null)} className="text-red-500 hover:text-red-700 font-bold ml-2">×</button>
+        </div>
+      )}
+      {successMessage && (
+        <div className="mb-4 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400 text-xs font-medium flex items-center justify-between">
+          <span>{successMessage}</span>
+          <button type="button" onClick={() => setSuccessMessage(null)} className="text-emerald-500 hover:text-emerald-700 font-bold ml-2">×</button>
+        </div>
+      )}
 
       {/* Core Ledger Processing Workspace */}
       <ScrollArea className="flex-1 w-full max-w-3xl rounded-none border-none shadow-none bg-transparent">
         <form onSubmit={handleProcessCollection} className="space-y-12 pr-4 pb-12 bg-transparent">
-          
+
           {/* TRACK STEP 1: TRANSACTION INTAKE METRICS NODE */}
           <div className="relative pl-10 group">
             <div className="absolute left-0 top-0 flex flex-col items-center h-full">
@@ -298,14 +318,14 @@ export function PaymentInflowCollectionLog() {
                   <Label className="text-xs font-semibold text-stone-700 dark:text-zinc-300 flex items-center gap-1">
                     <User className="h-3 w-3 text-stone-400 dark:text-zinc-500" /> Active Student Target <span className="text-red-500">*</span>
                   </Label>
-                  <Combobox 
+                  <Combobox
                     items={targetSectionStudents}
                     value={formState.studentName}
                     onValueChange={(val) => updateFormField("studentName", val ?? "")}
                   >
-                    <ComboboxInput 
-                      placeholder={loading ? "Fetching students..." : "Select Enrolled Student"} 
-                      className="h-9 text-xs w-full rounded-md border border-stone-200 dark:border-zinc-800 bg-background px-3 outline-none" 
+                    <ComboboxInput
+                      placeholder={loading ? "Fetching students..." : "Select Enrolled Student"}
+                      className="h-9 text-xs w-full rounded-md border border-stone-200 dark:border-zinc-800 bg-background px-3 outline-none"
                     />
                     <ComboboxContent>
                       <ComboboxEmpty>No student profiles found in this tier.</ComboboxEmpty>
@@ -334,7 +354,7 @@ export function PaymentInflowCollectionLog() {
                   </Label>
                   <div className="relative w-full">
                     <DollarSign className="absolute left-2.5 top-3 h-3 w-3 text-stone-400 dark:text-zinc-500" />
-                    <Input 
+                    <Input
                       id="amount-paid"
                       type="number"
                       min="1"
@@ -352,14 +372,14 @@ export function PaymentInflowCollectionLog() {
                   <Label className="text-xs font-semibold text-stone-700 dark:text-zinc-300 flex items-center gap-1">
                     <CreditCard className="h-3 w-3 text-stone-400 dark:text-zinc-500" /> Verified Payment Protocol
                   </Label>
-                  <Combobox 
+                  <Combobox
                     items={PAYMENT_METHODS}
                     value={formState.paymentMethod}
                     onValueChange={(val) => updateFormField("paymentMethod", val ?? "Cash Settlement")}
                   >
-                    <ComboboxInput 
-                      placeholder="Select Payment Method" 
-                      className="h-9 text-xs w-full rounded-md border border-stone-200 dark:border-zinc-800 bg-background px-3 outline-none" 
+                    <ComboboxInput
+                      placeholder="Select Payment Method"
+                      className="h-9 text-xs w-full rounded-md border border-stone-200 dark:border-zinc-800 bg-background px-3 outline-none"
                     />
                     <ComboboxContent>
                       <ComboboxEmpty>Protocol match anomaly.</ComboboxEmpty>
@@ -378,8 +398,8 @@ export function PaymentInflowCollectionLog() {
                 <div className="space-y-1.5">
                   <Label htmlFor="reference-no" className="text-xs font-semibold text-stone-700 dark:text-zinc-300 flex items-center gap-1">
                     <FileText className="h-3 w-3 text-stone-400 dark:text-zinc-500" /> External Reference / Audit Key
-                  </Label>  
-                  <Input 
+                  </Label>
+                  <Input
                     id="reference-no"
                     type="text"
                     value={formState.referenceNo}
@@ -413,14 +433,14 @@ export function PaymentInflowCollectionLog() {
                 <Label className="text-xs font-semibold text-stone-700 dark:text-zinc-300 flex items-center gap-1">
                   <ArrowRight className="h-3 w-3 text-stone-400 dark:text-zinc-500" /> Destination Accounting Field
                 </Label>
-                <Combobox 
+                <Combobox
                   items={ALLOCATION_TARGETS}
                   value={formState.allocationTarget}
                   onValueChange={(val) => updateFormField("allocationTarget", val ?? "Tuition Baseline Core")}
                 >
-                  <ComboboxInput 
-                    placeholder="Route Allocation Target" 
-                    className="h-9 text-xs w-full rounded-md border border-stone-200 dark:border-zinc-800 bg-background px-3 outline-none" 
+                  <ComboboxInput
+                    placeholder="Route Allocation Target"
+                    className="h-9 text-xs w-full rounded-md border border-stone-200 dark:border-zinc-800 bg-background px-3 outline-none"
                   />
                   <ComboboxContent>
                     <ComboboxEmpty>Ledger field target mismatch.</ComboboxEmpty>
@@ -468,13 +488,13 @@ export function PaymentInflowCollectionLog() {
                       <div className="h-8 w-8 rounded-lg bg-stone-200/50 dark:bg-zinc-800 flex items-center justify-center shrink-0">
                         <CheckCircle className="h-4 w-4 text-stone-600 dark:text-zinc-400" />
                       </div>
-                      
+
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-semibold text-stone-900 dark:text-zinc-100 truncate">{rcpt.studentName}</span>
                           <span className="text-[10px] px-1.5 py-0.5 bg-stone-200 dark:bg-zinc-800 text-stone-700 dark:text-zinc-300 font-bold rounded tracking-tight shrink-0">{rcpt.receiptNumber}</span>
                         </div>
-                        
+
                         <p className="text-[11px] text-stone-400 dark:text-zinc-500 mt-0.5 truncate">
                           Allocated: {rcpt.allocationTarget} via <strong className="text-stone-600 dark:text-zinc-300 font-medium">{rcpt.paymentMethod}</strong>
                         </p>
@@ -489,12 +509,12 @@ export function PaymentInflowCollectionLog() {
                         </span>
                       </div>
 
-                      <Button 
+                      <Button
                         type="button"
                         variant="outline"
                         className="h-8 w-8 p-0 border-stone-200 dark:border-zinc-800 hover:bg-stone-100 dark:hover:bg-zinc-900 text-stone-500 dark:text-zinc-400 hover:text-stone-900 dark:hover:text-zinc-50 rounded-lg"
                         title="Print Physical Statement Receipt"
-                        onClick={() => alert(`Triggering System Print Protocol pipeline for statement token serial: ${rcpt.receiptNumber}`)}
+                        onClick={() => setSuccessMessage(`Print protocol triggered for statement token serial: ${rcpt.receiptNumber}`)}
                       >
                         <Printer className="h-3.5 w-3.5" />
                       </Button>
@@ -511,12 +531,12 @@ export function PaymentInflowCollectionLog() {
 
           {/* Processing and Dispatch Action Controls */}
           <div className="flex items-center justify-end gap-3 pt-5 border-t border-stone-200 dark:border-zinc-800 bg-transparent max-w-2xl">
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={!formState.studentName || !formState.amountPaid || submitting}
               className="h-9 text-xs font-medium px-4 bg-stone-900 dark:bg-zinc-50 text-white dark:text-zinc-950 hover:bg-stone-800 dark:hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg flex items-center gap-1.5 shadow-none"
             >
-              <Plus className="h-3.5 w-3.5" /> 
+              <Plus className="h-3.5 w-3.5" />
               {submitting ? "Processing Ledger Entry..." : "Commit Inflow & Generate Receipt"}
             </Button>
           </div>

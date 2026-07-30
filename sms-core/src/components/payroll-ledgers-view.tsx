@@ -2,14 +2,14 @@
 
 import * as React from "react"
 import { useState, useMemo, useCallback, useEffect } from "react"
-import { 
-  Building, 
-  CreditCard, 
-  FileSpreadsheet, 
-  Plus, 
-  UserCheck, 
-  ArrowUpRight, 
-  ArrowDownRight, 
+import {
+  Building,
+  CreditCard,
+  FileSpreadsheet,
+  Plus,
+  UserCheck,
+  ArrowUpRight,
+  ArrowDownRight,
   Scale,
   Loader2,
   AlertCircle
@@ -42,24 +42,25 @@ interface LedgerAccountRecord {
 
 export function PayrollLedgersView() {
   const [activeTab, setActiveTab] = useState<"payroll" | "ledgers">("payroll")
-  
+
   // Real-Time API State Engines
   const [payrollRegistry, setPayrollRegistry] = useState<StaffPayrollRecord[]>([])
   const [ledgerRegistry, setLedgerRegistry] = useState<LedgerAccountRecord[]>([])
-  
+
   // Operational Pipeline Hydration State
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [submitting, setSubmitting] = useState<boolean>(false)
   const [disbursingId, setDisbursingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   // Dynamic Journal Node Context
-  const [newJournal, setNewJournal] = useState({ 
-    code: "", 
-    accountName: "", 
-    category: "Expense" as const, 
-    amount: "", 
-    type: "debit" as "debit" | "credit" 
+  const [newJournal, setNewJournal] = useState({
+    code: "",
+    accountName: "",
+    category: "Expense" as const,
+    amount: "",
+    type: "debit" as "debit" | "credit"
   })
 
   // --- CORE DATABASE DATA RECOVERY MATRIX ---
@@ -71,13 +72,13 @@ export function PayrollLedgersView() {
         fetchWithAuth("/finance/payroll"),
         fetchWithAuth("/finance/ledgers")
       ])
-      
+
       const payrollData = await payrollResponse.json()
       const ledgerData = await ledgerResponse.json()
 
       if (payrollData.success) setPayrollRegistry(payrollData.data)
       if (ledgerData.success) setLedgerRegistry(ledgerData.data)
-      
+
       if (!payrollResponse.ok || !ledgerResponse.ok) {
         setError("Failed to fetch complete financial data.")
       }
@@ -121,6 +122,8 @@ export function PayrollLedgersView() {
 
   // --- ATOMIC MUTATION INTERACTION RUNTIMES ---
   const handleDisbursePayroll = useCallback(async (id: string) => {
+    setError(null)
+    setSuccessMessage(null)
     setDisbursingId(id)
     try {
       const response = await fetchWithAuth("/finance/payroll", {
@@ -135,15 +138,19 @@ export function PayrollLedgersView() {
           fetchWithAuth("/finance/payroll"),
           fetchWithAuth("/finance/ledgers")
         ])
-        
+
         const payrollData = await payrollRes.json()
         const ledgerData = await ledgerRes.json()
-        
+
         if (payrollData.success) setPayrollRegistry(payrollData.data)
         if (ledgerData.success) setLedgerRegistry(ledgerData.data)
+        setSuccessMessage("Payroll disbursed successfully.")
+      } else {
+        setError("Failed to disburse payroll.")
       }
     } catch (error) {
       console.error("[Disbursal Mutation Transmission Exception]:", error)
+      setError(error instanceof Error ? error.message : "Network error while disbursing payroll.")
     } finally {
       setDisbursingId(null)
     }
@@ -153,6 +160,8 @@ export function PayrollLedgersView() {
     e.preventDefault()
     if (!newJournal.code || !newJournal.accountName || !newJournal.amount || submitting) return
 
+    setError(null)
+    setSuccessMessage(null)
     setSubmitting(true)
     try {
       const response = await fetchWithAuth("/finance/ledgers", {
@@ -162,17 +171,19 @@ export function PayrollLedgersView() {
       })
 
       const payload = await response.json()
-      
+
       if (payload.success) {
         // Append the newly created node directly to local state
         setLedgerRegistry(prev => [...prev, payload.data])
         // Purge Form Context fields
         setNewJournal({ code: "", accountName: "", category: "Expense", amount: "", type: "debit" })
+        setSuccessMessage(payload.message || "Ledger entry created successfully.")
       } else {
-        alert(payload.message || "Failed to create ledger node.")
+        setError(payload.message || "Failed to create ledger node.")
       }
     } catch (error) {
       console.error("[Ledger Write Exception]:", error)
+      setError(error instanceof Error ? error.message : "Network error while creating ledger entry.")
     } finally {
       setSubmitting(false)
     }
@@ -204,13 +215,13 @@ export function PayrollLedgersView() {
 
   return (
     <main className="flex-1 h-full flex flex-col bg-transparent px-8 py-6 overflow-hidden">
-      
+
       {/* Dynamic Module Header Block */}
       <div className="flex flex-col gap-2 shrink-0">
         <div className="inline-flex items-center gap-1.5 text-xs tracking-wide uppercase font-bold text-stone-400 dark:text-zinc-500">
           Core Finance Operations / Disbursals & General Ledger
         </div>
-        
+
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl tracking-tight font-semibold text-foreground">
@@ -223,6 +234,18 @@ export function PayrollLedgersView() {
         </div>
       </div>
 
+      {error && (
+        <div className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-xs font-medium flex items-center justify-between">
+          <span>{error}</span>
+          <button type="button" onClick={() => setError(null)} className="text-red-500 hover:text-red-700 font-bold ml-2">×</button>
+        </div>
+      )}
+      {successMessage && (
+        <div className="mt-4 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400 text-xs font-medium flex items-center justify-between">
+          <span>{successMessage}</span>
+          <button type="button" onClick={() => setSuccessMessage(null)} className="text-emerald-500 hover:text-emerald-700 font-bold ml-2">×</button>
+        </div>
+      )}
       {/* CORE FRAME TAB FILTER NAVIGATION TOGGLE */}
       <div className="mt-5 shrink-0 flex items-center bg-stone-100 dark:bg-zinc-900/50 p-1.5 rounded-lg border border-stone-200/40 dark:border-zinc-800/40 max-w-sm">
         <button
@@ -260,7 +283,7 @@ export function PayrollLedgersView() {
           {activeTab === "payroll" ? (
             /* --- SUB INTERFACE MODULE 1: STAFF PAYROLL PANEL --- */
             <div className="space-y-6">
-              
+
               {/* Financial Metrics Cards Overview Grid */}
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-stone-50 dark:bg-zinc-900/30 p-4 rounded-xl border border-stone-200/50 dark:border-zinc-800/50">
@@ -344,10 +367,10 @@ export function PayrollLedgersView() {
           ) : (
             /* --- SUB INTERFACE MODULE 2: MASTER GENERAL LEDGER MATRIX --- */
             <div className="grid grid-cols-3 gap-6 items-start">
-              
+
               {/* Left Column Ledger List View Dashboard */}
               <div className="col-span-2 space-y-4">
-                
+
                 {/* Double Entry Balancing Indicator Panel */}
                 <div className="bg-stone-50 dark:bg-zinc-900/30 p-4 border border-stone-200/60 dark:border-zinc-800/60 rounded-xl flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -436,9 +459,9 @@ export function PayrollLedgersView() {
                 <form onSubmit={handleCreateLedgerNode} className="space-y-3.5">
                   <div className="space-y-1">
                     <Label htmlFor="ledger-code" className="text-[11px] font-semibold text-stone-600 dark:text-zinc-400">Account Code ID</Label>
-                    <Input 
-                      id="ledger-code" 
-                      type="text" 
+                    <Input
+                      id="ledger-code"
+                      type="text"
                       placeholder="e.g. 1020 or 5035"
                       value={newJournal.code}
                       onChange={(e) => setNewJournal(prev => ({ ...prev, code: e.target.value }))}
@@ -449,9 +472,9 @@ export function PayrollLedgersView() {
 
                   <div className="space-y-1">
                     <Label htmlFor="ledger-name" className="text-[11px] font-semibold text-stone-600 dark:text-zinc-400">Account Descriptive Label</Label>
-                    <Input 
-                      id="ledger-name" 
-                      type="text" 
+                    <Input
+                      id="ledger-name"
+                      type="text"
                       placeholder="e.g. Stationery Asset Reserve"
                       value={newJournal.accountName}
                       onChange={(e) => setNewJournal(prev => ({ ...prev, accountName: e.target.value }))}
@@ -468,9 +491,9 @@ export function PayrollLedgersView() {
                         disabled={submitting}
                         onClick={() => setNewJournal(prev => ({ ...prev, type: "debit" }))}
                         className={cn(
-                          "py-1 text-[11px] rounded text-center font-medium transition-colors", 
-                          newJournal.type === "debit" 
-                            ? "bg-white dark:bg-zinc-800 text-stone-900 dark:text-zinc-50 shadow-xs" 
+                          "py-1 text-[11px] rounded text-center font-medium transition-colors",
+                          newJournal.type === "debit"
+                            ? "bg-white dark:bg-zinc-800 text-stone-900 dark:text-zinc-50 shadow-xs"
                             : "text-stone-500 dark:text-zinc-400"
                         )}
                       >
@@ -481,9 +504,9 @@ export function PayrollLedgersView() {
                         disabled={submitting}
                         onClick={() => setNewJournal(prev => ({ ...prev, type: "credit" }))}
                         className={cn(
-                          "py-1 text-[11px] rounded text-center font-medium transition-colors", 
-                          newJournal.type === "credit" 
-                            ? "bg-white dark:bg-zinc-800 text-stone-900 dark:text-zinc-50 shadow-xs" 
+                          "py-1 text-[11px] rounded text-center font-medium transition-colors",
+                          newJournal.type === "credit"
+                            ? "bg-white dark:bg-zinc-800 text-stone-900 dark:text-zinc-50 shadow-xs"
                             : "text-stone-500 dark:text-zinc-400"
                         )}
                       >
@@ -494,9 +517,9 @@ export function PayrollLedgersView() {
 
                   <div className="space-y-1">
                     <Label htmlFor="ledger-amount" className="text-[11px] font-semibold text-stone-600 dark:text-zinc-400">Starting Balance Value</Label>
-                    <Input 
-                      id="ledger-amount" 
-                      type="number" 
+                    <Input
+                      id="ledger-amount"
+                      type="number"
                       placeholder="0.00"
                       value={newJournal.amount}
                       onChange={(e) => setNewJournal(prev => ({ ...prev, amount: e.target.value }))}
