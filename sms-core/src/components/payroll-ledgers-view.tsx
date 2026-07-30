@@ -214,7 +214,7 @@ export function PayrollLedgersView() {
   }
 
   return (
-    <main className="flex-1 h-full flex flex-col bg-transparent px-8 py-6">
+    <main className="flex-1 h-full min-h-0 flex flex-col overflow-hidden bg-transparent px-8 py-6">
 
       {/* Dynamic Module Header Block */}
       <div className="flex flex-col gap-2 shrink-0">
@@ -277,7 +277,7 @@ export function PayrollLedgersView() {
       <hr className="border-stone-200 dark:border-zinc-800 shrink-0 mt-5 mb-6" />
 
       {/* RENDER VIEW WINDOW CONTAINER */}
-      <ScrollArea className="flex-1 w-full max-w-4xl rounded-none border-none shadow-none bg-transparent">
+      <ScrollArea className="flex-1 min-h-0 w-full max-w-4xl rounded-none border-none shadow-none bg-transparent">
         <div className="pr-4 pb-12 space-y-6">
 
           {activeTab === "payroll" ? (

@@ -255,7 +255,7 @@ export function FeeStructureInvoiceConfig() {
   }
 
   return (
-    <main className="flex-1 h-full flex flex-col bg-transparent px-8 py-6">
+  <main className="flex-1 h-full min-h-0 flex flex-col overflow-hidden bg-transparent px-8 py-6">
       
       {/* Structural Header Block */}
       <div className="flex flex-col gap-2 shrink-0">
@@ -333,7 +333,7 @@ export function FeeStructureInvoiceConfig() {
       <hr className="border-stone-200 dark:border-zinc-800 shrink-0 mt-5 mb-6" />
 
       {/* Main Structural Layout Form Node Scroll Area */}
-      <ScrollArea className="flex-1 w-full max-w-3xl rounded-none border-none shadow-none bg-transparent">
+      <ScrollArea className="flex-1 min-h-0 w-full max-w-3xl rounded-none border-none shadow-none bg-transparent">
         <div className="space-y-12 pr-4 pb-12 bg-transparent">
           
           {/* STEP 1: FEE LINE ITEMS DESIGN SYSTEM GRID */}

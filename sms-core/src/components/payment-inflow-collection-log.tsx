@@ -203,7 +203,7 @@ export function PaymentInflowCollectionLog() {
   }
 
   return (
-    <main className="flex-1 h-full flex flex-col bg-transparent px-8 py-6">
+    <main className="flex-1 h-full min-h-0 flex flex-col overflow-hidden bg-transparent px-8 py-6">
 
       {/* Dynamic Main Header Block */}
       <div className="flex flex-col gap-2 shrink-0">
@@ -292,7 +292,7 @@ export function PaymentInflowCollectionLog() {
       )}
 
       {/* Core Ledger Processing Workspace */}
-      <ScrollArea className="flex-1 w-full max-w-3xl rounded-none border-none shadow-none bg-transparent">
+      <ScrollArea className="flex-1 min-h-0 w-full max-w-3xl rounded-none border-none shadow-none bg-transparent">
         <form onSubmit={handleProcessCollection} className="space-y-12 pr-4 pb-12 bg-transparent">
 
           {/* TRACK STEP 1: TRANSACTION INTAKE METRICS NODE */}
