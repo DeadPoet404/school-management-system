@@ -1,12 +1,11 @@
 import type { ComponentType } from "react"
 import { isOperationAllowedForRole } from "@/lib/role-access"
 import type { LucideIcon } from "lucide-react"
-import { School, Users, GraduationCap, FileSpreadsheet, Wallet } from "lucide-react"
+import { School, GraduationCap, FileSpreadsheet, Wallet } from "lucide-react"
 import { TimetableStructureSetup } from "@/components/timetable-structure-setup"
 import { FeeStructureInvoiceConfig } from "@/components/fee-structure-invoice-config"
 import { PaymentInflowCollectionLog } from "@/components/payment-inflow-collection-log"
 import { PayrollLedgersView } from "@/components/payroll-ledgers-view"
-import { StaffContractsGovernance } from "@/components/staff-contracts-governance"
 
 // SMS-003: single source of truth for the Operations workspace.
 // The sidebar renders exactly these modules and the page resolves exactly
@@ -62,18 +61,6 @@ export const OPERATIONS_SECTIONS: OperationsSection[] = [
         id: "payroll-ledgers",
         title: "Payroll & Ledgers",
         action: { type: "view", component: PayrollLedgersView },
-      },
-    ],
-  },
-  {
-    title: "HR & Staff Operations",
-    icon: Users,
-    group: "Workforce Management",
-    modules: [
-      {
-        id: "staff-registry",
-        title: "Staff Contracts & Tenures",
-        action: { type: "view", component: StaffContractsGovernance },
       },
     ],
   },
