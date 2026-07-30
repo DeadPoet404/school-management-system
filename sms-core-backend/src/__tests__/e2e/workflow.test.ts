@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import supertest from 'supertest';
 import app from '@/app';
@@ -5,6 +6,13 @@ import { prisma } from '@/lib/prisma';
 import { hashPassword } from '@/utils/hash';
 
 const request = supertest(app);
+
+function getCookies(res: any): string[] {
+  const c = res.headers['set-cookie'];
+  if (Array.isArray(c)) return c;
+  if (typeof c === 'string') return [c];
+  return [];
+}
 
 describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
   let isDbAvailable = false;
@@ -68,7 +76,6 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
       create: {
         name: 'E2E Math',
         code: 'E2E_MATH',
-        departmentId: testDept.id,
       },
     });
     testSubjectId = testSubject.id;
@@ -118,19 +125,34 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
       update: {},
       create: {
         studentId: 'STD-E2E-STUDENT',
-        fullName: 'E2E Student Test',
+        studentName: 'E2E Student Test',
         enrollmentDate: new Date('2026-01-01'),
         status: 'ACTIVE',
-        gender: 'Female',
-        dateOfBirth: new Date('2010-01-01'),
-        residentialAddress: '123 E2E Street',
-        classId: testClass.id,
-        feeTierId: testFeeTier.id,
+        demographics: {
+          create: {
+            gender: 'FEMALE',
+            dateOfBirth: new Date('2010-01-01'),
+            residentialAddress: '123 E2E Street',
+          },
+        },
+        placement: {
+          create: {
+            classId: testClass.id,
+            academicTrack: 'GENERAL_SCIENCE',
+            boardingStatus: 'DAY_STUDENT',
+          },
+        },
+        billing: {
+          create: {
+            feeTierId: testFeeTier.id,
+            initialDeposit: 100,
+            currentBalance: 0,
+          },
+        },
         account: {
           create: {
-            email: 'student.e2e@sms.local',
+            portalEmail: 'student.e2e@sms.local',
             passwordHash: studentHash,
-            role: 'STUDENT',
           },
         },
       },
@@ -160,7 +182,7 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.user.role).toBe('ADMIN');
-      adminCookies = res.headers['set-cookie'] || [];
+      adminCookies = getCookies(res);
       expect(adminCookies.length).toBeGreaterThan(0);
     });
 
@@ -178,7 +200,7 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       if (res.headers['set-cookie']) {
-        adminCookies = res.headers['set-cookie'];
+        adminCookies = getCookies(res);
       }
     });
 
@@ -190,7 +212,7 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
       });
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      facultyCookies = res.headers['set-cookie'] || [];
+      facultyCookies = getCookies(res);
     });
 
     it('POST /api/auth/login authenticates STUDENT', async () => {
@@ -201,7 +223,7 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
       });
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      studentCookies = res.headers['set-cookie'] || [];
+      studentCookies = getCookies(res);
     });
   });
 
