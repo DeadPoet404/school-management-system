@@ -49,6 +49,23 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
       return;
     }
 
+    const staleClass = await prisma.class.findUnique({ where: { name: 'E2E Class 1A' } });
+    if (staleClass) {
+      const staleConfigs = await prisma.timetableConfiguration.findMany({
+        where: { sectionId: staleClass.id }, select: { id: true },
+      });
+      const staleConfigIds = staleConfigs.map((c) => c.id);
+      if (staleConfigIds.length > 0) {
+        await prisma.subjectAllocation.deleteMany({ where: { configurationId: { in: staleConfigIds } } });
+        await prisma.timetablePeriod.deleteMany({ where: { configurationId: { in: staleConfigIds } } });
+        await prisma.timetableConfiguration.deleteMany({ where: { id: { in: staleConfigIds } } });
+      }
+    }
+    await prisma.teacherAccount.deleteMany({ where: { email: { contains: '.e2e@sms.local' } } });
+    await prisma.teacher.deleteMany({ where: { email: { contains: '.e2e@sms.local' } } });
+    await prisma.staffAccount.deleteMany({ where: { email: { contains: '.e2e@sms.local' } } });
+    await prisma.studentAccount.deleteMany({ where: { portalEmail: { contains: '.e2e@sms.local' } } });
+
     const testClass = await prisma.class.upsert({
       where: { name: 'E2E Class 1A' },
       update: {},
@@ -205,11 +222,22 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
   afterAll(async () => {
     if (isDbAvailable) {
       await prisma.studentAccount.deleteMany({ where: { portalEmail: { contains: '.e2e@sms.local' } } });
-      await prisma.student.deleteMany({ where: { studentId: { startsWith: 'STD-E2E-' } } });
       await prisma.teacherAccount.deleteMany({ where: { email: { contains: '.e2e@sms.local' } } });
-      await prisma.teacher.deleteMany({ where: { teacherId: { startsWith: 'TCH-E2E-' } } });
       await prisma.staffAccount.deleteMany({ where: { email: { contains: '.e2e@sms.local' } } });
+      await prisma.student.deleteMany({ where: { studentId: { startsWith: 'STD-E2E-' } } });
+      await prisma.teacher.deleteMany({ where: { email: { contains: '.e2e@sms.local' } } });
       await prisma.staff.deleteMany({ where: { staffId: { startsWith: 'STF-E2E-' } } });
+      if (testClassId) {
+        const configs = await prisma.timetableConfiguration.findMany({
+          where: { sectionId: testClassId }, select: { id: true },
+        });
+        const configIds = configs.map((c) => c.id);
+        if (configIds.length > 0) {
+          await prisma.subjectAllocation.deleteMany({ where: { configurationId: { in: configIds } } });
+          await prisma.timetablePeriod.deleteMany({ where: { configurationId: { in: configIds } } });
+          await prisma.timetableConfiguration.deleteMany({ where: { id: { in: configIds } } });
+        }
+      }
       await prisma.$disconnect();
     }
   });
@@ -233,7 +261,8 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
       const res = await request.get('/api/auth/me').set('Cookie', adminCookie);
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.data.email).toBe('admin.e2e@sms.local');
+      // GET /api/auth/me responds with { success, data: { user: {...} } }
+      expect(res.body.data.user.email).toBe('admin.e2e@sms.local');
     });
 
     it('POST /api/auth/refresh rotates tokens', async () => {
@@ -461,7 +490,7 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
       if (!isDbAvailable) return;
       const payload = saveFeeMatrixSchema.parse({
         data: {
-          DAY: {
+          [testClassId]: {
             components: [
               { name: 'Tuition', amount: 1000, frequency: 'TERM', isMandatory: true },
             ],
