@@ -203,7 +203,7 @@ export function PaymentInflowCollectionLog() {
   }
 
   return (
-    <main className="flex-1 h-full flex flex-col bg-transparent px-8 py-6 overflow-hidden">
+    <main className="flex-1 h-full flex flex-col bg-transparent px-8 py-6">
 
       {/* Dynamic Main Header Block */}
       <div className="flex flex-col gap-2 shrink-0">
