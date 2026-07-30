@@ -45,3 +45,6 @@ backups/*.sql.gz
 *.corrupt
 _legacy_bak/
 _*_backup/
+
+# Runtime/debug log artifacts must not be committed
+*.log
