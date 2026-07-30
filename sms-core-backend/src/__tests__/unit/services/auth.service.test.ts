@@ -184,6 +184,19 @@ describe('AuthService', () => {
       const decoded = jwt.verify(result.accessToken, process.env.JWT_SECRET!);
       expect(decoded).toMatchObject({ sub: 'acc-tch-1', role: 'FACULTY', entityType: 'TEACHER' });
     });
+
+    it('should issue a unique refresh token on every issuance, even within the same second', async () => {
+      (prisma.staffAccount.findUnique as any).mockResolvedValue(STAFF_ACCOUNT);
+      mockedComparePassword.mockResolvedValue(true);
+      const first = await service.login('staff@school.com', 'pw');
+      const second = await service.login('staff@school.com', 'pw');
+      expect(first.refreshToken).not.toBe(second.refreshToken);
+      const firstDecoded = jwt.decode(first.refreshToken) as { jti?: string };
+      const secondDecoded = jwt.decode(second.refreshToken) as { jti?: string };
+      expect(firstDecoded.jti).toBeDefined();
+      expect(secondDecoded.jti).toBeDefined();
+      expect(firstDecoded.jti).not.toBe(secondDecoded.jti);
+    });
   });
 
   // ── REFRESH ──

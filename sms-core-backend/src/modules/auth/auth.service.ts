@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import jwt, { SignOptions, JwtPayload as JsonWebTokenPayload } from 'jsonwebtoken';
 import { prisma } from '@/lib/prisma';
 import { comparePassword } from '@/utils/hash';
@@ -261,6 +262,11 @@ export class AuthService {
     const options: SignOptions = {
       expiresIn: (process.env.JWT_REFRESH_EXPIRES_IN || '7d') as SignOptions['expiresIn'],
       algorithm: 'HS256',
+      // A unique jti per token is REQUIRED for single-use rotation: without it,
+      // two issuances in the same second are byte-identical and rotation
+      // re-creates the exact token value it just deleted. With a random jti
+      // every issuance differs, the deleted value stays dead, replay -> 401.
+      jwtid: randomUUID(),
     };
 
     const token = jwt.sign(payload, secret, options);
