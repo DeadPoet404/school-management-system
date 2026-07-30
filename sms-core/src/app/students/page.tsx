@@ -1,5 +1,6 @@
 "use client"
 
+import { useAuth } from "@/lib/auth-context"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { FileSpreadsheet, LogOut, Plus, RefreshCw } from "lucide-react"
@@ -41,6 +42,9 @@ const studentTabs = [
 type StudentRecord = Record<string, any>
 
 const StudentsPage = () => {
+  const { user } = useAuth()
+  const canWrite = user?.role === "ADMIN" || user?.role === "STAFF"
+
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -284,41 +288,55 @@ const StudentsPage = () => {
 
           <StudentRegistryFilter onApplyFilters={setAdvancedFilters} />
 
-          <ActionDropdown
-            label="Import"
-            menuLabel="Import Options"
-            items={[
-              {
-                label: importing ? "Importing..." : "Upload CSV / XLSX",
-                icon: FileSpreadsheet,
-                onClick: handleImportClick,
-              },
-              {
-                label: "Sync Student Data",
-                icon: RefreshCw,
-                onClick: () => void loadStudents(),
-              },
-            ]}
-          />
+          {canWrite ? (
+            <>
+              <ActionDropdown
+                label="Import"
+                menuLabel="Import Options"
+                items={[
+                  {
+                    label: importing ? "Importing..." : "Upload CSV / XLSX",
+                    icon: FileSpreadsheet,
+                    onClick: handleImportClick,
+                  },
+                  {
+                    label: "Sync Student Data",
+                    icon: RefreshCw,
+                    onClick: () => void loadStudents(),
+                  },
+                ]}
+              />
 
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => router.push("/students/departure")}
-            className="h-9 gap-1.5 border-zinc-200 px-3 text-xs font-medium tracking-wide text-zinc-700 shadow-none transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900/60"
-          >
-            <LogOut className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
-            <span>Record Departure</span>
-          </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push("/students/departure")}
+                className="h-9 gap-1.5 border-zinc-200 px-3 text-xs font-medium tracking-wide text-zinc-700 shadow-none transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900/60"
+              >
+                <LogOut className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
+                <span>Record Departure</span>
+              </Button>
 
-          <Button
-            type="button"
-            onClick={() => router.push("/students/add")}
-            className="h-9 gap-1.5 bg-zinc-900 px-3 text-xs font-medium tracking-wide text-zinc-50 shadow-none transition-colors hover:bg-zinc-800/90 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-200/90"
-          >
-            <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
-            <span>Add Student</span>
-          </Button>
+              <Button
+                type="button"
+                onClick={() => router.push("/students/add")}
+                className="h-9 gap-1.5 bg-zinc-900 px-3 text-xs font-medium tracking-wide text-zinc-50 shadow-none transition-colors hover:bg-zinc-800/90 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-200/90"
+              >
+                <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
+                <span>Add Student</span>
+              </Button>
+            </>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void loadStudents()}
+              className="h-9 gap-1.5 border-zinc-200 px-3 text-xs font-medium tracking-wide text-zinc-700 shadow-none transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900/60"
+            >
+              <RefreshCw className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
+              <span>Sync Student Data</span>
+            </Button>
+          )}
         </div>
       </div>
 

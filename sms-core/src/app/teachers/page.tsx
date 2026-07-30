@@ -1,5 +1,6 @@
 "use client"
 
+import { useAuth } from "@/lib/auth-context"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { FileSpreadsheet, Plus, RefreshCw, UserMinus } from "lucide-react"
@@ -88,6 +89,9 @@ type TeacherRow = {
 }
 
 export default function TeachersPage() {
+  const { user } = useAuth()
+  const canWrite = user?.role === "ADMIN" || user?.role === "STAFF"
+
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -353,41 +357,55 @@ export default function TeachersPage() {
 
           <TeacherRegistryFilter onApplyFilters={setAdvancedFilters} />
 
-          <ActionDropdown
-            label="Import"
-            menuLabel="Import Options"
-            items={[
-              {
-                label: importing ? "Importing..." : "Upload CSV / XLSX",
-                icon: FileSpreadsheet,
-                onClick: handleUploadClick,
-              },
-              {
-                label: "Sync HR Data",
-                icon: RefreshCw,
-                onClick: () => void loadTeachers(),
-              },
-            ]}
-          />
+          {canWrite ? (
+            <>
+              <ActionDropdown
+                label="Import"
+                menuLabel="Import Options"
+                items={[
+                  {
+                    label: importing ? "Importing..." : "Upload CSV / XLSX",
+                    icon: FileSpreadsheet,
+                    onClick: handleUploadClick,
+                  },
+                  {
+                    label: "Sync HR Data",
+                    icon: RefreshCw,
+                    onClick: () => void loadTeachers(),
+                  },
+                ]}
+              />
 
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => router.push("/teachers/departure")}
-            className="h-9 gap-1.5 border-zinc-200 px-3 text-xs font-medium tracking-wide text-zinc-700 shadow-none transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900/60"
-          >
-            <UserMinus className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
-            <span>Record Exit</span>
-          </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push("/teachers/departure")}
+                className="h-9 gap-1.5 border-zinc-200 px-3 text-xs font-medium tracking-wide text-zinc-700 shadow-none transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900/60"
+              >
+                <UserMinus className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
+                <span>Record Exit</span>
+              </Button>
 
-          <Button
-            type="button"
-            onClick={() => router.push("/teachers/add")}
-            className="h-9 gap-1.5 bg-zinc-900 px-3 text-xs font-medium tracking-wide text-zinc-50 shadow-none transition-colors hover:bg-zinc-800/90 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-200/90"
-          >
-            <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
-            <span>Add Teacher</span>
-          </Button>
+              <Button
+                type="button"
+                onClick={() => router.push("/teachers/add")}
+                className="h-9 gap-1.5 bg-zinc-900 px-3 text-xs font-medium tracking-wide text-zinc-50 shadow-none transition-colors hover:bg-zinc-800/90 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-200/90"
+              >
+                <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
+                <span>Add Teacher</span>
+              </Button>
+            </>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void loadTeachers()}
+              className="h-9 gap-1.5 border-zinc-200 px-3 text-xs font-medium tracking-wide text-zinc-700 shadow-none transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900/60"
+            >
+              <RefreshCw className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
+              <span>Sync HR Data</span>
+            </Button>
+          )}
         </div>
       </div>
 

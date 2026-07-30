@@ -1,5 +1,6 @@
 "use client"
 
+import { useAuth } from "@/lib/auth-context"
 import * as React from "react"
 import Link from "next/link"
 import { Pencil } from "lucide-react"
@@ -28,6 +29,8 @@ interface TeacherOverviewTableProps {
 }
 
 export function TeacherOverviewTable({ data: initialData }: TeacherOverviewTableProps) {
+  const { user } = useAuth()
+  const canWrite = user?.role === "ADMIN" || user?.role === "STAFF"
   const [teachers, setTeachers] = React.useState<any[]>(initialData || [])
   const [isLoading, setIsLoading] = React.useState(!initialData)
   const [error, setError] = React.useState<string | null>(null)
@@ -108,7 +111,7 @@ export function TeacherOverviewTable({ data: initialData }: TeacherOverviewTable
           {currentStatus}
         </div>
       ),
-      actions: rawTeacherRecordId ? (
+      actions: canWrite && rawTeacherRecordId ? (
         <Link
           href={`/teachers/${encodeURIComponent(String(rawTeacherRecordId))}/edit`}
           aria-label={`Edit ${rawName}`}
