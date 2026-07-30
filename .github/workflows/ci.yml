@@ -10,9 +10,28 @@ jobs:
   backend-ci:
     name: Backend (Lint + Build + Test)
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: sms_user
+          POSTGRES_PASSWORD: ci_strong_password_123456
+          POSTGRES_DB: sms_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     defaults:
       run:
         working-directory: sms-core-backend
+    env:
+      DATABASE_URL: postgresql://sms_user:ci_strong_password_123456@localhost:5432/sms_db?schema=public
+      JWT_SECRET: ci-secret-that-is-at-least-sixteen-characters
+      JWT_REFRESH_SECRET: ci-refresh-secret-at-least-sixteen-chars
+      COOKIE_SECRET: ci-cookie-secret-at-least-sixteen-chars
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -22,6 +41,8 @@ jobs:
           cache-dependency-path: sms-core-backend/package-lock.json
       - run: npm ci
       - run: npx prisma generate
+      - name: Run Prisma migrations
+        run: npx prisma migrate deploy
       - run: npm run lint
       - run: npm run build
       - run: npm run test
