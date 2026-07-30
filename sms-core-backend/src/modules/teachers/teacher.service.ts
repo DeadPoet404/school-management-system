@@ -26,7 +26,7 @@ export class TeacherService {
         fullName: teacher.teacherName,
         email: teacher.email,
         role: "FACULTY",
-      },
+      }, 
       placement: {
         departmentId: teacher.department,
         jobTitle: teacher.subject,

@@ -4,21 +4,33 @@ import supertest from 'supertest';
 import app from '@/app';
 import { prisma } from '@/lib/prisma';
 import { hashPassword } from '@/utils/hash';
+import {
+  studentEnrollmentSchema,
+  teacherEnrollmentSchema,
+  staffEnrollmentSchema,
+} from '@/types/registry.types';
+import {
+  saveFeeMatrixSchema,
+  commitInflowSchema,
+  generateInvoicesSchema,
+} from '@/modules/finance/finance.validation';
+import { submitSectionAttendanceSchema } from '@/modules/attendance/attendance.validation';
+import { submitMarkSchema } from '@/modules/grades/grades.validation';
 
 const request = supertest(app);
 
-function getCookies(res: any): string[] {
-  const c = res.headers['set-cookie'];
-  if (Array.isArray(c)) return c;
-  if (typeof c === 'string') return [c];
-  return [];
+function getCookieString(res: any): string {
+  const cookies = res.headers['set-cookie'];
+  if (!cookies) return '';
+  const arr = Array.isArray(cookies) ? cookies : [cookies];
+  return arr.map((c: string) => c.split(';')[0]).join('; ');
 }
 
 describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
   let isDbAvailable = false;
-  let adminCookies: string[] = [];
-  let facultyCookies: string[] = [];
-  let studentCookies: string[] = [];
+  let adminCookie = '';
+  let facultyCookie = '';
+  let studentCookie = '';
 
   let testClassId = '';
   let testDeptId = '';
@@ -100,7 +112,7 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
     });
 
     const facultyHash = await hashPassword('FacultyDev2026!');
-    await prisma.teacher.upsert({
+    const testFaculty = await prisma.teacher.upsert({
       where: { teacherId: 'TCH-E2E-FACULTY' },
       update: {},
       create: {
@@ -119,6 +131,36 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
       },
     });
 
+    await prisma.timetableConfiguration.upsert({
+      where: { sectionId: testClass.id },
+      update: {},
+      create: {
+        sectionId: testClass.id,
+        periodsCount: 1,
+        periods: {
+          create: [
+            {
+              periodNumber: 1,
+              dayOfWeek: 'MONDAY',
+              startTime: '08:00',
+              endTime: '08:45',
+            },
+          ],
+        },
+        subjects: {
+          create: [
+            {
+              subjectName: testSubject.name,
+              teacherId: testFaculty.id,
+              dayOfWeek: 'MONDAY',
+            },
+          ],
+        },
+      },
+    });
+
+
+
     const studentHash = await hashPassword('StudentDev2026!');
     const testStudent = await prisma.student.upsert({
       where: { studentId: 'STD-E2E-STUDENT' },
@@ -128,13 +170,6 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
         studentName: 'E2E Student Test',
         enrollmentDate: new Date('2026-01-01'),
         status: 'ACTIVE',
-        demographics: {
-          create: {
-            gender: 'FEMALE',
-            dateOfBirth: new Date('2010-01-01'),
-            residentialAddress: '123 E2E Street',
-          },
-        },
         placement: {
           create: {
             classId: testClass.id,
@@ -147,6 +182,13 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
             feeTierId: testFeeTier.id,
             initialDeposit: 100,
             currentBalance: 0,
+          },
+        },
+        demographics: {
+          create: {
+            gender: 'FEMALE',
+            dateOfBirth: new Date('2010-01-01'),
+            residentialAddress: '123 E2E Street',
           },
         },
         account: {
@@ -182,13 +224,13 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.user.role).toBe('ADMIN');
-      adminCookies = getCookies(res);
-      expect(adminCookies.length).toBeGreaterThan(0);
+      adminCookie = getCookieString(res);
+      expect(adminCookie.length).toBeGreaterThan(0);
     });
 
     it('GET /api/auth/me returns current authenticated user', async () => {
       if (!isDbAvailable) return;
-      const res = await request.get('/api/auth/me').set('Cookie', adminCookies);
+      const res = await request.get('/api/auth/me').set('Cookie', adminCookie);
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.email).toBe('admin.e2e@sms.local');
@@ -196,11 +238,11 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
 
     it('POST /api/auth/refresh rotates tokens', async () => {
       if (!isDbAvailable) return;
-      const res = await request.post('/api/auth/refresh').set('Cookie', adminCookies);
+      const res = await request.post('/api/auth/refresh').set('Cookie', adminCookie);
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       if (res.headers['set-cookie']) {
-        adminCookies = getCookies(res);
+        adminCookie = getCookieString(res);
       }
     });
 
@@ -212,7 +254,7 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
       });
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      facultyCookies = getCookies(res);
+      facultyCookie = getCookieString(res);
     });
 
     it('POST /api/auth/login authenticates STUDENT', async () => {
@@ -223,14 +265,14 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
       });
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      studentCookies = getCookies(res);
+      studentCookie = getCookieString(res);
     });
   });
 
   describe('2. Onboarding Workflows (student add, teacher add, staff add)', () => {
     it('POST /api/students enrolls a new student', async () => {
       if (!isDbAvailable) return;
-      const payload = {
+      const payload = studentEnrollmentSchema.parse({
         account: {
           fullName: 'New E2E Student',
           email: 'new.student.e2e@sms.local',
@@ -266,8 +308,8 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
           feeTierId: testFeeTierId,
           initialDeposit: 100,
         },
-      };
-      const res = await request.post('/api/students').set('Cookie', adminCookies).send(payload);
+      });
+      const res = await request.post('/api/students').set('Cookie', adminCookie).send(payload);
       expect([200, 201]).toContain(res.status);
       expect(res.body.success).toBe(true);
       const inDb = await prisma.studentAccount.findUnique({ where: { portalEmail: 'new.student.e2e@sms.local' } });
@@ -276,7 +318,7 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
 
     it('POST /api/teachers enrolls a new teacher', async () => {
       if (!isDbAvailable) return;
-      const payload = {
+      const payload = teacherEnrollmentSchema.parse({
         account: {
           fullName: 'New E2E Teacher',
           email: 'new.teacher.e2e@sms.local',
@@ -308,8 +350,8 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
           bankName: 'Test Bank',
           bankAccount: '1234567890',
         },
-      };
-      const res = await request.post('/api/teachers').set('Cookie', adminCookies).send(payload);
+      });
+      const res = await request.post('/api/teachers').set('Cookie', adminCookie).send(payload);
       expect([200, 201]).toContain(res.status);
       expect(res.body.success).toBe(true);
       const inDb = await prisma.teacherAccount.findUnique({ where: { email: 'new.teacher.e2e@sms.local' } });
@@ -318,7 +360,7 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
 
     it('POST /api/staff enrolls a new staff member', async () => {
       if (!isDbAvailable) return;
-      const payload = {
+      const payload = staffEnrollmentSchema.parse({
         account: {
           fullName: 'New E2E Staff',
           email: 'new.staff.e2e@sms.local',
@@ -355,8 +397,8 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
           bankName: 'Test Bank',
           bankAccount: '0987654321',
         },
-      };
-      const res = await request.post('/api/staff').set('Cookie', adminCookies).send(payload);
+      });
+      const res = await request.post('/api/staff').set('Cookie', adminCookie).send(payload);
       expect([200, 201]).toContain(res.status);
       expect(res.body.success).toBe(true);
       const inDb = await prisma.staffAccount.findUnique({ where: { email: 'new.staff.e2e@sms.local' } });
@@ -367,7 +409,7 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
   describe('3. Authorization Workflows (attendance authorization, grade authorization)', () => {
     it('POST /api/attendance/section rejects ADMIN (FACULTY-only)', async () => {
       if (!isDbAvailable) return;
-      const res = await request.post('/api/attendance/section').set('Cookie', adminCookies).send({
+      const res = await request.post('/api/attendance/section').set('Cookie', adminCookie).send({
         date: '2026-01-20',
         classId: testClassId,
         records: [{ studentId: testStudentId, status: 'PRESENT' }],
@@ -377,7 +419,7 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
 
     it('POST /api/grades/submit rejects ADMIN (FACULTY-only)', async () => {
       if (!isDbAvailable) return;
-      const res = await request.post('/api/grades/submit').set('Cookie', adminCookies).send({
+      const res = await request.post('/api/grades/submit').set('Cookie', adminCookie).send({
         studentId: testStudentId,
         subjectId: testSubjectId,
         classId: testClassId,
@@ -388,19 +430,20 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
       expect(res.status).toBe(403);
     });
 
-    it('POST /api/attendance/section allows FACULTY', async () => {
+    it('POST /api/attendance/section allows assigned FACULTY', async () => {
       if (!isDbAvailable) return;
-      const res = await request.post('/api/attendance/section').set('Cookie', facultyCookies).send({
+      const payload = submitSectionAttendanceSchema.parse({
         date: '2026-01-20',
         classId: testClassId,
         records: [{ studentId: testStudentId, status: 'PRESENT' }],
       });
-      expect([200, 201, 400, 403]).toContain(res.status);
+      const res = await request.post('/api/attendance/section').set('Cookie', facultyCookie).send(payload);
+      expect([200, 201]).toContain(res.status);
     });
 
-    it('POST /api/grades/submit allows FACULTY', async () => {
+    it('POST /api/grades/submit allows assigned FACULTY', async () => {
       if (!isDbAvailable) return;
-      const res = await request.post('/api/grades/submit').set('Cookie', facultyCookies).send({
+      const payload = submitMarkSchema.parse({
         studentId: testStudentId,
         subjectId: testSubjectId,
         classId: testClassId,
@@ -408,14 +451,15 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
         continuousAssessment: 25,
         examination: 65,
       });
-      expect([200, 201, 400, 403]).toContain(res.status);
+      const res = await request.post('/api/grades/submit').set('Cookie', facultyCookie).send(payload);
+      expect([200, 201]).toContain(res.status);
     });
   });
 
   describe('4. Finance Workflow (fee matrix, generate invoices, collection happy path)', () => {
     it('POST /api/finance/fee-structures saves fee matrix', async () => {
       if (!isDbAvailable) return;
-      const res = await request.post('/api/finance/fee-structures').set('Cookie', adminCookies).send({
+      const payload = saveFeeMatrixSchema.parse({
         data: {
           DAY: {
             components: [
@@ -430,22 +474,24 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
           },
         },
       });
+      const res = await request.post('/api/finance/fee-structures').set('Cookie', adminCookie).send(payload);
       expect([200, 201]).toContain(res.status);
       expect(res.body.success).toBe(true);
     });
 
     it('POST /api/finance/generate-invoices generates invoices for class', async () => {
       if (!isDbAvailable) return;
-      const res = await request.post('/api/finance/generate-invoices').set('Cookie', adminCookies).send({
+      const payload = generateInvoicesSchema.parse({
         sectionId: testClassId,
       });
+      const res = await request.post('/api/finance/generate-invoices').set('Cookie', adminCookie).send(payload);
       expect([200, 201]).toContain(res.status);
       expect(res.body.success).toBe(true);
     });
 
     it('POST /api/finance/collections commits payment inflow', async () => {
       if (!isDbAvailable) return;
-      const res = await request.post('/api/finance/collections').set('Cookie', adminCookies).send({
+      const payload = commitInflowSchema.parse({
         sectionId: testClassId,
         studentName: 'E2E Student Test',
         amountPaid: 500,
@@ -454,6 +500,7 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
         allocationTarget: 'Tuition',
         studentInternalId: testStudentId,
       });
+      const res = await request.post('/api/finance/collections').set('Cookie', adminCookie).send(payload);
       expect([200, 201]).toContain(res.status);
       expect(res.body.success).toBe(true);
     });
@@ -467,13 +514,13 @@ describe('Release-Representative Real-DB Workflows (SMS-010)', () => {
 
     it('GET /api/finance/invoices returns 403 for STUDENT role', async () => {
       if (!isDbAvailable) return;
-      const res = await request.get('/api/finance/invoices').set('Cookie', studentCookies);
+      const res = await request.get('/api/finance/invoices').set('Cookie', studentCookie);
       expect(res.status).toBe(403);
     });
 
     it('POST /api/auth/logout invalidates session', async () => {
       if (!isDbAvailable) return;
-      const res = await request.post('/api/auth/logout').set('Cookie', adminCookies);
+      const res = await request.post('/api/auth/logout').set('Cookie', adminCookie);
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
     });
