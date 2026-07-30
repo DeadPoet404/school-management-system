@@ -21,7 +21,7 @@ Written in TypeScript, uses Prisma ORM (via Prisma) against PostgreSQL 16.
 
   cd ~/sms-monorepo/sms-core-backend
   cp .env.example .env
-    # set DATABASE_URL, JWT_SECRET, JWT_REFRESH_SECRET, COOTIE_SECRET
+    # set DATABASE_URL, JWT_SECRET, JWT_REFRESH_SECRET, COOKIE_SECRET
   npm install
   npx prisma generate
   npx prisma migrate dev
@@ -43,18 +43,19 @@ boot if any are missing or malformed):
   JWT_SECRET        access token signing key (min 16 chars)
   JWT_REFRESH_SECRET  refresh token signing key (min 16 chars, MUST
                       differ from JWT_SECRET)
-  COOTIE_SECRET       cookie signing secret (min 16 chars)
 
 Optional (with safe defaults):
 
+  COOKIE_SECRET           cookie signing secret (min 16 chars, optional)
   NODE_ENV                development | production | test
   PORT                   TCP port (default 5000)
+  ENABLE_API_DOCS         enable Swagger UI at /api/docs (default false)
   JWT_ACCESS_EXPIRES_IN    access token lifetime (default 15m)
   JWT_REFRESH_EXPIRES_IN   refresh token lifetime (default 7d)
   COOKIE_DOMAIN            leave EMPTY for localhost
-  COOTIE_SECURE            true only over HTTPS (default false)
-  COOKIE_SAME_SITE        lax | strict | one (default lax)
-  CORS_ORIGINS             comma-separated origins (default localhost:3000)
+  COOKIE_SECURE            true only over HTTPS (default false)
+  COOKIE_SAME_SITE        lax | strict | none (default lax)
+  CORS_ORIGINS             comma-separated origins (default http://localhost:3000,http://localhost:3001)
   RATE_LIMIT_WINDOW_MS     global rate limit window (default 60000)
   RATE_LIMIT_MAX_REQUESTS  global rate limit (default 100/window)
   AUTH_RATE_LIMIT_MAX_REQUESTS  /api/auth/* stricter limit (default 5)

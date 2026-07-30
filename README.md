@@ -143,7 +143,7 @@ docker compose down -v                                    # stop AND wipe Postgr
 
 ```bash
 cd ~/sms-monorepo/sms-core-backend
-cp .env.example .env       # set DATABASE_URL and the three secrets
+cp .env.example .env       # set DATABASE_URL, JWT_SECRET, JWT_REFRESH_SECRET (and optionally COOKIE_SECRET)
 npm install
 npx prisma migrate dev
 npx prisma db seed         # only on an empty DB
@@ -190,11 +190,11 @@ or malformed.
 | `POSTGRES_PASSWORD` | DB password for `sms_user` (required) |
 | `JWT_SECRET` | Signs access tokens, at least 16 chars (required) |
 | `JWT_REFRESH_SECRET` | Signs refresh tokens, at least 16 chars, MUST differ (required) |
-| `COOKIE_SECRET` | Signs httpOnly cookies, at least 16 chars (required) |
+| `COOKIE_SECRET` | Signs httpOnly cookies, at least 16 chars (optional) |
 | `COOKIE_DOMAIN` | Cookie Domain attribute - LEAVE EMPTY for localhost |
 | `COOKIE_SECURE` | `true` only over HTTPS; use `false` for local dev |
 | `COOKIE_SAME_SITE` | `lax` (default), `strict`, or `none` |
-| `CORS_ORIGINS` | Comma-separated allowed browser origins (default `http://localhost:3000`) |
+| `CORS_ORIGINS` | Comma-separated allowed browser origins (default `http://localhost:3000,http://localhost:3001`) |
 | `RUN_SEED` | Run seed on container boot; set `true` only on first launch |
 
 ## Node version
