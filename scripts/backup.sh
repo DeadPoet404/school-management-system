@@ -14,14 +14,26 @@ set -euo pipefail
 
 COMPOSE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKUP_DIR="${COMPOSE_DIR}/backups"
-CONTAINER_NAME="sms-monorepo-postgres-1"
 
-# Fallback: try docker-compose v1 container naming
-if ! docker inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
-    CONTAINER_NAME="sms-monorepo_postgres_1"
+# Resolve running postgres container via docker compose, honoring COMPOSE_PROJECT_NAME if set
+PROJECT_NAME="${COMPOSE_PROJECT_NAME:-$(basename "$COMPOSE_DIR" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]//g')}"
+CONTAINER_NAME=""
+if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+    CONTAINER_NAME="$(cd "$COMPOSE_DIR" && docker compose ps -q postgres 2>/dev/null || true)"
+elif command -v docker-compose >/dev/null 2>&1; then
+    CONTAINER_NAME="$(cd "$COMPOSE_DIR" && docker-compose ps -q postgres 2>/dev/null || true)"
 fi
 
-if ! docker inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
+if [ -z "$CONTAINER_NAME" ]; then
+    for candidate in "${PROJECT_NAME}-postgres-1" "${PROJECT_NAME}_postgres_1"; do
+        if docker inspect "$candidate" >/dev/null 2>&1; then
+            CONTAINER_NAME="$candidate"
+            break
+        fi
+    done
+fi
+
+if [ -z "$CONTAINER_NAME" ] || ! docker inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
     echo "ERROR: PostgreSQL container not found. Start it with: docker compose up -d postgres" >&2
     exit 1
 fi
