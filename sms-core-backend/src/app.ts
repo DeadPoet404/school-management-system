@@ -75,20 +75,20 @@ app.use(pinoHttp({
         headers?: Record<string, unknown>;
         [key: string]: unknown;
       };
-      if (base.headers) {
-        for (const header of [
-          'cookie',
-          'authorization',
-          'Authorization',
-          'set-cookie',
-          'Set-Cookie',
-        ]) {
-          if (Object.prototype.hasOwnProperty.call(base.headers, header)) {
-            base.headers[header] = '[Redacted]';
-          }
+      // Copy headers BEFORE redacting. pino's standard serializer aliases the
+      // live req.headers object by reference - assigning into base.headers
+      // mutates the in-flight request and destroys the Cookie header before
+      // cookie-parser runs (401 'No access token cookie'). Never modify the
+      // live request from logging code.
+      const headers: Record<string, unknown> = {
+        ...(base.headers ?? (req.headers as Record<string, unknown> | undefined)),
+      };
+      for (const header of ['cookie','authorization','Authorization','set-cookie','Set-Cookie']) {
+        if (Object.prototype.hasOwnProperty.call(headers, header)) {
+          headers[header] = '[Redacted]';
         }
       }
-      return base;
+      return { ...base, headers };
     },
     res: pino.stdSerializers.res,
   },

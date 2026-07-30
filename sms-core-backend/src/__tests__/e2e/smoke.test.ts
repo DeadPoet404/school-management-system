@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-function-type -- test mocking requires loose types */
 import { describe, it, expect, vi, beforeAll } from 'vitest';
+import jwt from 'jsonwebtoken';
 import supertest from 'supertest';
 import type { PrismaClient } from '@prisma/client';
 
@@ -129,6 +130,22 @@ describe('E2E Smoke Tests', () => {
       expect(res.status).toBe(404);
       expect(res.body.success).toBe(false);
       expect(res.body.message).toContain('not found');
+    });
+  });
+
+  describe('Auth cookie pipeline (SMS-001)', () => {
+    it('GET /api/auth/me accepts a valid access_token via the Cookie header', async () => {
+      const token = jwt.sign(
+        { sub: 'smoke-test-subject', email: 'admin@sms.local', role: 'ADMIN',
+          entityType: 'STAFF', entityInternalId: 'smoke-test-entity' },
+        process.env.JWT_SECRET as string,
+        { algorithm: 'HS256', expiresIn: '15m' },
+      );
+      const res = await request.get('/api/auth/me').set('Cookie', [`access_token=${token}`]);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.user.email).toBe('admin@sms.local');
+      expect(res.body.data.user.role).toBe('ADMIN');
     });
   });
 });
