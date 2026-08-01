@@ -50,6 +50,22 @@ enum InvoiceStatus {
   PAID
 }
 
+/// Payment provider is intentionally an enum so each gateway adapter is
+/// explicit and auditable. PAYSTACK is the first implementation.
+enum PaymentProvider {
+  PAYSTACK
+}
+
+/// Lifecycle is driven by verified provider evidence — never a browser claim.
+enum PaymentIntentStatus {
+  INITIALIZED
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  EXPIRED
+}
+
 enum ClearanceStatus {
   PENDING
   CLEARED
@@ -165,6 +181,7 @@ model Student {
 
   invoices          Invoice[]
   payments          Payment[]
+  paymentIntents    PaymentIntent[]
   paymentLogs       PaymentCollection[]
   attendanceRecords AttendanceRecord[]
   grades            GradeRecord[]
@@ -255,18 +272,65 @@ model Invoice {
 }
 
 model Payment {
-  id          String    @id @default(uuid())
-  deletedAt   DateTime?
-  receiptNo   String    @unique
-  studentId   String
-  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  description String    @default("Fee Payment Clearance")
-  amount      Decimal   @db.Decimal(10, 2)
-  paymentType String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id              String         @id @default(uuid())
+  deletedAt       DateTime?
+  receiptNo       String         @unique
+  studentId       String
+  student         Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  paymentIntentId String?        @unique
+  paymentIntent   PaymentIntent? @relation(fields: [paymentIntentId], references: [id], onDelete: SetNull)
+  description     String         @default("Fee Payment Clearance")
+  amount          Decimal        @db.Decimal(10, 2)
+  paymentType     String
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   @@index([studentId])
+}
+
+/// A server-created request for a digital payment. The amount, student,
+/// currency, and reference are fixed here before Paystack is contacted.
+model PaymentIntent {
+  id                    String              @id @default(uuid())
+  provider              PaymentProvider
+  status                PaymentIntentStatus @default(INITIALIZED)
+  studentId             String
+  student               Student             @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  amount                Decimal             @db.Decimal(10, 2)
+  currency              String              @default("GHS") @db.VarChar(3)
+  reference             String              @unique
+  providerTransactionId String?             @unique
+  authorizationUrl      String?
+  accessCode            String?
+  channel               String?
+  metadata              Json?
+  failureReason         String?             @db.Text
+  expiresAt             DateTime?
+  paidAt                DateTime?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  payment    Payment?
+  collection PaymentCollection?
+
+  @@index([studentId, status])
+  @@index([status])
+}
+
+/// An immutable record of a provider callback. The provider/event key unique
+/// constraint is the first idempotency barrier for duplicate webhooks.
+model PaymentWebhookEvent {
+  id              String          @id @default(uuid())
+  provider        PaymentProvider
+  eventType       String
+  eventKey        String
+  payload         Json
+  receivedAt      DateTime        @default(now())
+  processedAt     DateTime?
+  processingError String?         @db.Text
+
+  @@unique([provider, eventKey])
+  @@index([eventType])
 }
 
 model StudentDeparture {
@@ -561,7 +625,9 @@ model PaymentCollection {
 
   // ── NEW: SMART PAYMENT ROUTING ──
   studentInternalId String?
-  student           Student? @relation(fields: [studentInternalId], references: [id], onDelete: SetNull)
+  student           Student?        @relation(fields: [studentInternalId], references: [id], onDelete: SetNull)
+  paymentIntentId   String?         @unique
+  paymentIntent     PaymentIntent?  @relation(fields: [paymentIntentId], references: [id], onDelete: SetNull)
 
   @@index([sectionId])
   @@index([studentInternalId])
