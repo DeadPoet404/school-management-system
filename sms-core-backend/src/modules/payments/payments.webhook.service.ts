@@ -3,6 +3,7 @@ import { createHash } from 'crypto';
 import { AppError } from '@/middleware/error.handler';
 import { prisma } from '@/lib/prisma';
 import { PaystackClient } from './paystack.client';
+import { PaymentsReconciliationService } from './payments.reconciliation.service';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -16,13 +17,11 @@ function asNonEmptyString(value: unknown): string | null {
   return null;
 }
 
-/**
- * Receives provider evidence but deliberately does not settle a payment yet.
- * Reconciliation in the next step will verify the transaction against
- * Paystack's REST API before internal financial records are changed.
- */
 export class PaymentsWebhookService {
-  constructor(private readonly paystack = new PaystackClient()) {}
+  constructor(
+    private readonly paystack = new PaystackClient(),
+    private readonly reconciliation = new PaymentsReconciliationService(),
+  ) {}
 
   async recordPaystackEvent(rawBody: Buffer, signature: unknown) {
     if (!this.paystack.isConfigured()) {
@@ -40,44 +39,45 @@ export class PaymentsWebhookService {
       throw new AppError(400, 'Invalid Paystack webhook payload.');
     }
 
-    if (!isRecord(event)) {
-      throw new AppError(400, 'Invalid Paystack webhook payload.');
-    }
-
-    const eventType = asNonEmptyString(event.event);
-    const data = event.data;
-    if (!eventType || !isRecord(data)) {
+    if (!isRecord(event) || !isRecord(event.data)) {
       throw new AppError(400, 'Invalid Paystack webhook event shape.');
     }
 
-    // Other Paystack events may be sent to the configured endpoint. They are
-    // acknowledged so Paystack does not retry them, but are not persisted.
+    const eventType = asNonEmptyString(event.event);
+    if (!eventType) {
+      throw new AppError(400, 'Invalid Paystack webhook event shape.');
+    }
+
+    // Acknowledge Paystack events that are outside the collection workflow.
     if (eventType !== 'charge.success') {
       return { duplicate: false, ignored: true };
     }
 
-    const reference = asNonEmptyString(data.reference);
+    const reference = asNonEmptyString(event.data.reference);
     if (!reference) {
       throw new AppError(400, 'Paystack charge.success event has no reference.');
     }
 
-    // Ignore transactions that do not belong to this application rather than
-    // creating arbitrary provider data in the school database.
     const intent = await prisma.paymentIntent.findUnique({
       where: { reference },
-      select: { id: true, provider: true },
+      select: { provider: true },
     });
+
+    // Ignore a valid Paystack event that belongs to another product/workflow.
     if (!intent || intent.provider !== PaymentProvider.PAYSTACK) {
       return { duplicate: false, ignored: true };
     }
 
-    const transactionId = asNonEmptyString(data.id);
+    const transactionId = asNonEmptyString(event.data.id);
     const eventKey = transactionId
       ? `${eventType}:${transactionId}`
       : `${eventType}:${createHash('sha256').update(rawBody).digest('hex')}`;
 
+    let webhookEventId: string;
+    let duplicate = false;
+
     try {
-      await prisma.paymentWebhookEvent.create({
+      const webhookEvent = await prisma.paymentWebhookEvent.create({
         data: {
           provider: PaymentProvider.PAYSTACK,
           eventType,
@@ -85,12 +85,44 @@ export class PaymentsWebhookService {
           payload: event as Prisma.InputJsonValue,
         },
       });
-      return { duplicate: false, ignored: false };
+
+      webhookEventId = webhookEvent.id;
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        return { duplicate: true, ignored: false };
+      if (
+        !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+        error.code !== 'P2002'
+      ) {
+        throw error;
       }
-      throw error;
+
+      const existingEvent = await prisma.paymentWebhookEvent.findUnique({
+        where: {
+          provider_eventKey: {
+            provider: PaymentProvider.PAYSTACK,
+            eventKey,
+          },
+        },
+        select: { id: true },
+      });
+
+      if (!existingEvent) {
+        throw error;
+      }
+
+      webhookEventId = existingEvent.id;
+      duplicate = true;
     }
+
+    // New and duplicate webhooks both enter reconciliation. A processed event
+    // is an idempotent no-op; a previously failed event is retried safely.
+    const reconciliation = await this.reconciliation.reconcileWebhookEvent(
+      webhookEventId,
+    );
+
+    return {
+      duplicate,
+      ignored: false,
+      ...reconciliation,
+    };
   }
 }
