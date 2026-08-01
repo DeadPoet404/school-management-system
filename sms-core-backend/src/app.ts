@@ -27,6 +27,7 @@ import attendanceRoutes from './modules/attendance/attendance.routes';
 import gradesRoutes from './modules/grades/grades.routes';
 import referenceRoutes from './modules/reference/reference.routes';
 import analyticsRoutes from './modules/analytics/analytics.routes';
+import paymentRoutes from './modules/payments/payments.routes';
 
 // ── Auth ──
 import authRoutes from './modules/auth/auth.routes';
@@ -193,6 +194,7 @@ app.use('/api/teachers', authenticate, teacherRoutes);
 app.use('/api/staff', authenticate, staffRoutes);
 app.use('/api/timetable', authenticate, timetableRoutes);
 app.use('/api/finance', authenticate, financeRoutes);
+app.use('/api/payments', authenticate, paymentRoutes);
 app.use('/api/grades', authenticate, gradesRoutes);
 app.use('/api/attendance', authenticate, attendanceRoutes);
 app.use('/api/reference', authenticate, referenceRoutes);
