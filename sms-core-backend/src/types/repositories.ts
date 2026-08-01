@@ -46,6 +46,7 @@ export interface CollectionCreateData {
   referenceNo: string;
   allocationTarget: string;
   studentInternalId?: string;
+  paymentIntentId?: string;
 }
 
 export interface InvoiceCreateData {
@@ -64,6 +65,7 @@ export interface StudentPaymentCreateData {
   description: string;
   amount: number;
   paymentType: string;
+  paymentIntentId?: string;
 }
 
 export interface LedgerAccountCreateData {

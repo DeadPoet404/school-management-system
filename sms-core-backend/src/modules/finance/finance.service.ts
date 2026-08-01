@@ -2,7 +2,7 @@ import { AppError } from '@/middleware/error.handler';
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { parseDecimal, generateSerial } from "@/utils";
-import { IFinanceRepository } from "@/types/repositories";
+import { IFinanceRepository, TransactionClient } from "@/types/repositories";
 import { FinanceRepository } from "./finance.repository";
 
 type FeeConfigRow = Prisma.FeeStructureConfigurationGetPayload<{ include: { components: true } }>;
@@ -309,25 +309,26 @@ export class FinanceService {
   async processInflowCollection(data: {
     sectionId: string;
     studentName: string;
-    amountPaid: string;
+    amountPaid: string | number;
     paymentMethod: string;
     referenceNo?: string;
     allocationTarget: string;
     studentInternalId?: string;
-  }) {
-    return await prisma.$transaction(async (tx) => {
+  }, options: { tx?: TransactionClient; paymentIntentId?: string } = {}) {
+    const process = async (tx: TransactionClient) => {
       const count = await this.repo.countCollections(tx);
       const uniqueSerial = generateSerial(`REC-${new Date().getFullYear()}`, count);
-      
+
       const collectionRecord = await this.repo.createCollection({
         receiptNumber: uniqueSerial,
         sectionId: data.sectionId,
         studentName: data.studentName,
-        amountPaid: data.amountPaid,
+        amountPaid: String(data.amountPaid),
         paymentMethod: data.paymentMethod,
         referenceNo: data.referenceNo || 'N/A (Direct)',
         allocationTarget: data.allocationTarget,
         ...(data.studentInternalId ? { studentInternalId: data.studentInternalId } : {}),
+        ...(options.paymentIntentId ? { paymentIntentId: options.paymentIntentId } : {}),
       }, tx);
 
       if (data.studentInternalId) {
@@ -343,21 +344,28 @@ export class FinanceService {
           description: `${data.allocationTarget} - ${data.paymentMethod}`,
           amount: numericAmount,
           paymentType: data.paymentMethod,
+          ...(options.paymentIntentId ? { paymentIntentId: options.paymentIntentId } : {}),
         }, tx);
 
-        // Apply payment across oldest-outstanding invoices until amount is exhausted
+        // Apply payment across oldest-outstanding invoices until amount is exhausted.
         let remaining = numericAmount;
         while (remaining > 0) {
           const unpaidInvoice = await this.repo.findOldestUnpaidInvoice(data.studentInternalId, tx);
           if (!unpaidInvoice) break;
+
           const result = await this.repo.applyPaymentToInvoice(unpaidInvoice.id, remaining, tx);
           if (!result || !result.invoice) break;
+
           remaining = result.overage;
         }
       }
 
       return collectionRecord;
-    });
+    };
+
+    // Existing manual collections keep their own transaction. Digital
+    // reconciliation will supply its own outer transaction.
+    return options.tx ? process(options.tx) : prisma.$transaction(process);
   }
 
   async getStudentsBySection(sectionId: string) {
