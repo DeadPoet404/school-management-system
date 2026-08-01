@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from 'crypto';
 import { AppError } from '@/middleware/error.handler';
 
 const DEFAULT_PAYSTACK_API_BASE_URL = 'https://api.paystack.co';
@@ -139,6 +140,22 @@ export class PaystackClient {
       ...(channel ? { channel } : {}),
       ...(paidAt ? { paidAt } : {}),
     };
+  }
+
+  verifyWebhookSignature(rawBody: Buffer, signature: unknown): boolean {
+    if (!this.isConfigured() || typeof signature !== 'string') {
+      return false;
+    }
+
+    const normalizedSignature = signature.trim();
+    if (!/^[a-fA-F0-9]{128}$/.test(normalizedSignature)) {
+      return false;
+    }
+
+    const expected = createHmac('sha512', this.secretKey).update(rawBody).digest();
+    const supplied = Buffer.from(normalizedSignature, 'hex');
+
+    return supplied.length === expected.length && timingSafeEqual(supplied, expected);
   }
 
   private async request(

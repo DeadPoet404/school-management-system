@@ -28,6 +28,7 @@ import gradesRoutes from './modules/grades/grades.routes';
 import referenceRoutes from './modules/reference/reference.routes';
 import analyticsRoutes from './modules/analytics/analytics.routes';
 import paymentRoutes from './modules/payments/payments.routes';
+import paymentWebhookRoutes from './modules/payments/payments.webhook.routes';
 
 // ── Auth ──
 import authRoutes from './modules/auth/auth.routes';
@@ -103,7 +104,12 @@ app.use((req, res, next) => {
   next();
 });
 
-// ── AUDIT: Log all write operations to database ──
+// ── PAYSTACK WEBHOOK: Public raw-body route ──
+// Must be mounted before auditLog and express.json. Paystack has no SMS
+// session cookie; HMAC verification in this route is its trust boundary.
+app.use('/api/payments/webhooks', paymentWebhookRoutes);
+
+// ── AUDIT: Log all authenticated write operations to database ──
 app.use(auditLog);
 
 // ── CORS — env-driven ──
