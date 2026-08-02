@@ -41,6 +41,7 @@ const coreNavigationItems = [
   { title: "Teachers", url: "/teachers", icon: GraduationCap },
   { title: "Operations", url: "/operations", icon: Sliders },
   { title: "Finance", url: "/finance", icon: MoneyIcon },
+  { title: "My Fees", url: "/portal", icon: MoneyIcon },
 ]
 
 

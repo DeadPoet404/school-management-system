@@ -18,13 +18,14 @@ export type TopLevelModule =
   | "/staff"
   | "/finance"
   | "/operations"
+  | "/portal"
 
 const TOP_LEVEL_BY_ROLE: Record<Role, TopLevelModule[]> = {
   ADMIN: ["/dashboard", "/students", "/teachers", "/staff", "/finance", "/operations"],
   ACCOUNTANT: ["/dashboard", "/students", "/staff", "/finance", "/operations"],
   STAFF: ["/dashboard", "/students", "/teachers", "/operations"],
   FACULTY: ["/students", "/teachers", "/operations"],
-  STUDENT: [],
+  STUDENT: ["/portal"],
 }
 
 const OPERATIONS_BY_ROLE: Record<Role, string[]> = {

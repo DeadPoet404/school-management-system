@@ -29,6 +29,7 @@ import referenceRoutes from './modules/reference/reference.routes';
 import analyticsRoutes from './modules/analytics/analytics.routes';
 import paymentRoutes from './modules/payments/payments.routes';
 import paymentWebhookRoutes from './modules/payments/payments.webhook.routes';
+import { PaymentsSweeper } from './modules/payments/payments.sweeper';
 
 // ── Auth ──
 import authRoutes from './modules/auth/auth.routes';
@@ -218,15 +219,19 @@ app.use(globalErrorHandler);
 // ── GRACEFUL SHUTDOWN: Drain connections on SIGTERM/SIGINT ──
 // Only start the HTTP server when run directly (not when imported by tests)
 if (require.main === module) {
+  let paymentSweeper: PaymentsSweeper | undefined;
   const server = app.listen(port, () => {
     logger.info({ port }, '[SMS-Core-Backend] Pipeline online.');
     startBlocklistCleanup();
+    paymentSweeper = new PaymentsSweeper();
+    paymentSweeper.start();
   });
 
   async function gracefulShutdown(signal: string) {
     logger.info({ signal }, '[SMS-Core-Backend] Received shutdown signal. Draining connections...');
     server.close(() => {
       logger.info('[SMS-Core-Backend] HTTP server closed. No longer accepting connections.');
+    paymentSweeper?.stop();
     });
     try {
       const { prisma } = await import('./lib/prisma');

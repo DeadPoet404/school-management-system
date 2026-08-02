@@ -23,6 +23,7 @@ const PROTECTED_PATHS = [
   "/students",
   "/operations",
   "/finance",
+  "/portal",
   "/no-access",
 ]
 

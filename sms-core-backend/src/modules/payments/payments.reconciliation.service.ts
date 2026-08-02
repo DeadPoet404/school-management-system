@@ -23,12 +23,20 @@ function getReference(payload: unknown): string {
   return reference;
 }
 
+export interface SettleResult {
+  settled: boolean;
+  alreadyReconciled: boolean;
+  status: PaymentIntentStatus;
+}
+
 /**
  * A webhook is evidence, not settlement authority by itself.
  *
- * This service independently verifies the transaction with Paystack, then
- * performs intent status transition plus all internal accounting operations in
- * one serializable PostgreSQL transaction.
+ * The shared core (`verifyAndReconcileByReference`) independently verifies a
+ * transaction with Paystack, then performs the intent status transition plus
+ * all internal accounting operations in one serializable PostgreSQL
+ * transaction. It is idempotent, so any trigger — webhook, sweeper, status
+ * endpoint, or staff manual re-check — may safely call it.
  */
 export class PaymentsReconciliationService {
   constructor(
@@ -51,108 +59,7 @@ export class PaymentsReconciliationService {
 
     try {
       const reference = getReference(webhookEvent.payload);
-
-      // Independent server-to-server verification: never trust only a webhook.
-      const verified = await this.paystack.verifyTransaction(reference);
-      this.assertVerified(reference, verified);
-
-      const result = await prisma.$transaction(
-        async (tx) => {
-          const intent = await tx.paymentIntent.findUnique({
-            where: { reference },
-            include: {
-              student: {
-                include: { placement: true },
-              },
-            },
-          });
-
-          if (!intent) {
-            throw new AppError(404, 'Payment intent not found for verified transaction.');
-          }
-
-          const providerTransactionId = String(verified.id);
-
-          // Idempotency: once settled, the same transaction is a no-op.
-          if (intent.status === PaymentIntentStatus.SUCCEEDED) {
-            if (intent.providerTransactionId !== providerTransactionId) {
-              throw new AppError(
-                409,
-                'Payment intent was already settled by a different transaction.',
-              );
-            }
-
-            return { alreadyReconciled: true };
-          }
-
-          if (
-            intent.status !== PaymentIntentStatus.PENDING &&
-            intent.status !== PaymentIntentStatus.INITIALIZED
-          ) {
-            throw new AppError(
-              409,
-              `Payment intent cannot be settled from ${intent.status} status.`,
-            );
-          }
-
-          const expectedSubunit = Math.round(Number(intent.amount.toString()) * 100);
-
-          if (verified.amount !== expectedSubunit) {
-            throw new AppError(
-              409,
-              'Verified Paystack amount does not match the payment intent.',
-            );
-          }
-
-          if (verified.currency !== intent.currency || verified.currency !== 'GHS') {
-            throw new AppError(
-              409,
-              'Verified Paystack currency does not match the payment intent.',
-            );
-          }
-
-          if (!intent.student.placement?.classId) {
-            throw new AppError(
-              400,
-              'Student class placement is required for collection routing.',
-            );
-          }
-
-          // This transition and all financial records commit together or roll
-          // back together. A retry can safely happen after any failure.
-          await tx.paymentIntent.update({
-            where: { id: intent.id },
-            data: {
-              status: PaymentIntentStatus.SUCCEEDED,
-              providerTransactionId,
-              channel: verified.channel ?? null,
-              paidAt: verified.paidAt ? new Date(verified.paidAt) : new Date(),
-              failureReason: null,
-            },
-          });
-
-          await this.finance.processInflowCollection(
-            {
-              sectionId: intent.student.placement.classId,
-              studentName: intent.student.studentName,
-              amountPaid: Number(intent.amount.toString()),
-              paymentMethod: 'PAYSTACK',
-              referenceNo: reference,
-              allocationTarget: 'Digital fee payment',
-              studentInternalId: intent.studentId,
-            },
-            {
-              tx,
-              paymentIntentId: intent.id,
-            },
-          );
-
-          return { alreadyReconciled: false };
-        },
-        {
-          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-        },
-      );
+      const result = await this.verifyAndReconcileByReference(reference);
 
       await prisma.paymentWebhookEvent.update({
         where: { id: webhookEvent.id },
@@ -178,6 +85,122 @@ export class PaymentsReconciliationService {
 
       throw error;
     }
+  }
+
+  /**
+   * Verify a reference server-to-server with Paystack and, if successful,
+   * settle it through the shared idempotent transaction. Safe to call from any
+   * trigger. Throws AppError if the transaction is not verifiably successful.
+   */
+  async verifyAndReconcileByReference(reference: string): Promise<SettleResult> {
+    const verified = await this.paystack.verifyTransaction(reference);
+    this.assertVerified(reference, verified);
+
+    const result = await prisma.$transaction(
+      async (tx) => this.settleVerifiedTransaction(tx, reference, verified),
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      },
+    );
+
+    return result;
+  }
+
+  private async settleVerifiedTransaction(
+    tx: Prisma.TransactionClient,
+    reference: string,
+    verified: VerifiedPaystackTransaction,
+  ): Promise<SettleResult> {
+    const intent = await tx.paymentIntent.findUnique({
+      where: { reference },
+      include: {
+        student: {
+          include: { placement: true },
+        },
+      },
+    });
+
+    if (!intent) {
+      throw new AppError(404, 'Payment intent not found for verified transaction.');
+    }
+
+    const providerTransactionId = String(verified.id);
+
+    // Idempotency: once settled, the same transaction is a no-op.
+    if (intent.status === PaymentIntentStatus.SUCCEEDED) {
+      if (intent.providerTransactionId !== providerTransactionId) {
+        throw new AppError(
+          409,
+          'Payment intent was already settled by a different transaction.',
+        );
+      }
+
+      return { settled: false, alreadyReconciled: true, status: PaymentIntentStatus.SUCCEEDED };
+    }
+
+    if (
+      intent.status !== PaymentIntentStatus.PENDING &&
+      intent.status !== PaymentIntentStatus.INITIALIZED
+    ) {
+      throw new AppError(
+        409,
+        `Payment intent cannot be settled from ${intent.status} status.`,
+      );
+    }
+
+    const expectedSubunit = Math.round(Number(intent.amount.toString()) * 100);
+
+    if (verified.amount !== expectedSubunit) {
+      throw new AppError(
+        409,
+        'Verified Paystack amount does not match the payment intent.',
+      );
+    }
+
+    if (verified.currency !== intent.currency || verified.currency !== 'GHS') {
+      throw new AppError(
+        409,
+        'Verified Paystack currency does not match the payment intent.',
+      );
+    }
+
+    if (!intent.student.placement?.classId) {
+      throw new AppError(
+        400,
+        'Student class placement is required for collection routing.',
+      );
+    }
+
+    // This transition and all financial records commit together or roll
+    // back together. A retry can safely happen after any failure.
+    await tx.paymentIntent.update({
+      where: { id: intent.id },
+      data: {
+        status: PaymentIntentStatus.SUCCEEDED,
+        providerTransactionId,
+        channel: verified.channel ?? null,
+        paidAt: verified.paidAt ? new Date(verified.paidAt) : new Date(),
+        failureReason: null,
+      },
+    });
+
+    await this.finance.processInflowCollection(
+      {
+        sectionId: intent.student.placement.classId,
+        studentName: intent.student.studentName,
+        amountPaid: Number(intent.amount.toString()),
+        paymentMethod: 'PAYSTACK',
+        referenceNo: reference,
+        allocationTarget: 'Digital fee payment',
+        studentInternalId: intent.studentId,
+      },
+      {
+        tx,
+        paymentIntentId: intent.id,
+      },
+    );
+
+    return { settled: true, alreadyReconciled: false, status: PaymentIntentStatus.SUCCEEDED };
   }
 
   private assertVerified(reference: string, transaction: VerifiedPaystackTransaction) {
