@@ -7,14 +7,6 @@ import { PaymentsReconciliationService } from './payments.reconciliation.service
 import { ROLES } from '@/middleware/rbac.middleware';
 import { JwtPayload } from '@/types/auth.types';
 
-export interface CreatePaymentIntentInput {
-  studentId: string;
-  payerEmail: string;
-  amount: number;
-  /** Optional channel restriction (e.g. ['mobile_money'] or ['bank_transfer']). */
-  channels?: string[];
-}
-
 export interface CreateSelfPaymentIntentInput {
   payerEmail: string;
   amount: number;
@@ -39,23 +31,6 @@ export class PaymentsService {
     private readonly paystack = new PaystackClient(),
     private readonly reconciliation = new PaymentsReconciliationService(),
   ) {}
-
-  async createPaystackIntent(input: CreatePaymentIntentInput, requestedBy: string) {
-    const amount = this.assertConfiguredAndNormalize(input.amount);
-    const student = await prisma.student.findUnique({
-      where: { id: input.studentId },
-      include: { placement: true, billing: true },
-    });
-    this.assertStudentEligible(student);
-    this.assertAmountWithinBalance(student, amount);
-    return this.createIntentForStudent(
-      student,
-      amount,
-      input.payerEmail,
-      requestedBy,
-      input.channels,
-    );
-  }
 
   async createSelfPaystackIntent(
     studentId: string,

@@ -4,7 +4,6 @@ import { validate } from '@/middleware/validate';
 import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
 import {
-  createPaymentIntentSchema,
   createSelfPaymentIntentSchema,
 } from './payments.validation';
 
@@ -12,13 +11,8 @@ const router = Router();
 const service = new PaymentsService();
 const controller = new PaymentsController(service);
 
-// ── Staff-operated collection flow ──
-router.post(
-  '/intents',
-  requireRole(ROLES.ADMIN, ROLES.ACCOUNTANT),
-  validate(createPaymentIntentSchema),
-  controller.createPaystackIntent,
-);
+// SMS-003: the staff-operated POST /intents flow was retired. Paystack checkout
+// is initiated exclusively by students via POST /intents/me (portal/website).
 
 // ── Student self-service flow ──
 // `authenticate` (mounted globally on /api/payments) runs first; requireRole

@@ -25,7 +25,9 @@ export const commitInflowSchema = z.object({
   sectionId: z.string().min(1, "Section ID is required"),
   studentName: z.string().min(1, "Student name is required"),
   amountPaid: z.coerce.number({ message: "Amount paid must be a valid number" }).min(0, "Amount paid cannot be negative"),
-  paymentMethod: z.string().min(1, "Payment method is required"),
+  // SMS-002: manual counter collections are cash-only. Digital channels
+  // (MoMo / card / bank transfer) arrive exclusively via Paystack reconciliation.
+  paymentMethod: z.literal("CASH", { message: "Only CASH payments can be recorded manually" }),
   referenceNo: z.string().optional(),
   allocationTarget: z.string().min(1, "Allocation target is required"),
   studentInternalId: z.string().optional(),

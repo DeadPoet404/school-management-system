@@ -62,13 +62,6 @@ interface DbStudent {
   }
 }
 
-const PAYMENT_METHODS = [
-  "Cash Settlement",
-  "Bank Wire Transfer",
-  "Mobile Money (MoMo)",
-  "Bank Cheque / Draft"
-] as const
-
 const ALLOCATION_TARGETS = [
   "Tuition Baseline Core",
   "Midday Catering & Snacks",
@@ -81,7 +74,7 @@ const ALLOCATION_TARGETS = [
 const DEFAULT_FORM_STATE = (): IntakeFormState => ({
   studentName: "",
   amountPaid: "",
-  paymentMethod: "Cash Settlement",
+  paymentMethod: "CASH",
   referenceNo: "",
   allocationTarget: "Tuition Baseline Core"
 })
@@ -97,8 +90,6 @@ export function PaymentInflowCollectionLog() {
   const [dbStudents, setDbStudents] = useState<DbStudent[]>([])
   const [loading, setLoading] = useState<boolean>(false)
   const [submitting, setSubmitting] = useState<boolean>(false)
-  const [digitalSubmitting, setDigitalSubmitting] = useState<boolean>(false)
-  const [payerEmail, setPayerEmail] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
@@ -183,6 +174,7 @@ export function PaymentInflowCollectionLog() {
         body: JSON.stringify({
           sectionId: activeSection,
           ...formState,
+          paymentMethod: "CASH",
           studentInternalId: selectedStudent?.id || undefined
         })
       })
@@ -201,81 +193,6 @@ export function PaymentInflowCollectionLog() {
       setError(error instanceof Error ? error.message : "Network error while processing collection inflow.")
     } finally {
       setSubmitting(false)
-    }
-  }
-
-  const handleCreatePaystackCheckout = async () => {
-    const selectedStudent = dbStudents.find(
-      (student) => student.studentName === formState.studentName,
-    )
-    const amount = Number(formState.amountPaid)
-    const outstandingBalance = Number(selectedStudent?.billing.currentBalance ?? 0)
-
-    setError(null)
-    setSuccessMessage(null)
-
-    if (!selectedStudent?.id) {
-      setError("Select an active student before creating a digital checkout.")
-      return
-    }
-
-    if (!payerEmail.trim()) {
-      setError("Enter the payer email address for the Paystack checkout.")
-      return
-    }
-
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setError("Enter a valid payment amount greater than zero.")
-      return
-    }
-
-    if (amount > outstandingBalance) {
-      setError("Digital payment amount cannot exceed the student's outstanding balance.")
-      return
-    }
-
-    // Open synchronously from the click event so browsers do not block the
-    // hosted checkout tab after the asynchronous API request finishes.
-    const checkoutWindow = window.open("", "_blank", "noopener,noreferrer")
-    setDigitalSubmitting(true)
-
-    try {
-      const response = await fetchWithAuth("/payments/intents", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          studentId: selectedStudent.id,
-          payerEmail: payerEmail.trim(),
-          amount,
-        }),
-      })
-
-      const payload = await response.json()
-
-      if (!response.ok || !payload.success || !payload.data?.authorizationUrl) {
-        checkoutWindow?.close()
-        setError(payload.message || "Unable to create the Paystack checkout.")
-        return
-      }
-
-      if (checkoutWindow) {
-        checkoutWindow.location.href = payload.data.authorizationUrl
-      } else {
-        window.location.assign(payload.data.authorizationUrl)
-      }
-
-      setSuccessMessage(
-        "Paystack checkout opened in a new tab. The receipt will appear after payment confirmation.",
-      )
-    } catch (checkoutError) {
-      checkoutWindow?.close()
-      setError(
-        checkoutError instanceof Error
-          ? checkoutError.message
-          : "Network error while creating the Paystack checkout.",
-      )
-    } finally {
-      setDigitalSubmitting(false)
     }
   }
 
@@ -444,31 +361,15 @@ export function PaymentInflowCollectionLog() {
                   </div>
                 </div>
 
-                {/* Payment Mechanism Options Combo */}
+                {/* SMS-002: manual counter collections are cash-only. Digital channels
+                    (MoMo / card / bank transfer) enter via Paystack reconciliation only. */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-stone-700 dark:text-zinc-300 flex items-center gap-1">
                     <CreditCard className="h-3 w-3 text-stone-400 dark:text-zinc-500" /> Verified Payment Protocol
                   </Label>
-                  <Combobox
-                    items={PAYMENT_METHODS}
-                    value={formState.paymentMethod}
-                    onValueChange={(val) => updateFormField("paymentMethod", val ?? "Cash Settlement")}
-                  >
-                    <ComboboxInput
-                      placeholder="Select Payment Method"
-                      className="h-9 text-xs w-full rounded-md border border-stone-200 dark:border-zinc-800 bg-background px-3 outline-none"
-                    />
-                    <ComboboxContent>
-                      <ComboboxEmpty>Protocol match anomaly.</ComboboxEmpty>
-                      <ComboboxList>
-                        {(method) => (
-                          <ComboboxItem key={method} value={method} className="text-xs">
-                            {method}
-                          </ComboboxItem>
-                        )}
-                      </ComboboxList>
-                    </ComboboxContent>
-                  </Combobox>
+                  <div className="h-9 w-full rounded-md border border-stone-200 dark:border-zinc-800 bg-stone-100 dark:bg-zinc-900 px-3 flex items-center text-xs font-semibold text-stone-600 dark:text-zinc-300">
+                    Cash (Counter Collection)
+                  </div>
                 </div>
 
                 {/* Reference ID Field */}
@@ -608,31 +509,6 @@ export function PaymentInflowCollectionLog() {
 
           {/* Processing and Dispatch Action Controls */}
           <div className="flex flex-wrap items-end justify-end gap-3 pt-5 border-t border-stone-200 dark:border-zinc-800 bg-transparent max-w-2xl">
-            <div className="w-full sm:w-64 space-y-1.5 mr-auto">
-              <Label htmlFor="paystack-payer-email" className="text-xs font-semibold text-stone-700 dark:text-zinc-300">
-                Payer email for Paystack checkout
-              </Label>
-              <Input
-                id="paystack-payer-email"
-                type="email"
-                value={payerEmail}
-                onChange={(event) => setPayerEmail(event.target.value)}
-                placeholder="parent@example.com"
-                className="h-9 text-xs rounded-md border-stone-200 dark:border-zinc-800 bg-background"
-              />
-            </div>
-
-            <Button
-              type="button"
-              variant="outline"
-              disabled={!formState.studentName || !formState.amountPaid || digitalSubmitting}
-              onClick={handleCreatePaystackCheckout}
-              className="h-9 text-xs font-medium px-4 border-emerald-200 dark:border-emerald-900/60 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg flex items-center gap-1.5"
-            >
-              <CreditCard className="h-3.5 w-3.5" />
-              {digitalSubmitting ? "Creating Checkout..." : "Pay via Paystack"}
-            </Button>
-
             <Button
               type="submit"
               disabled={!formState.studentName || !formState.amountPaid || submitting}

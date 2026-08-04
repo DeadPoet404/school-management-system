@@ -32,6 +32,7 @@ vi.mock('@/lib/prisma', () => ({
 
 import { prisma } from '@/lib/prisma';
 import { FinanceService } from '@/modules/finance/finance.service';
+import { commitInflowSchema } from '@/modules/finance/finance.validation';
 import { createMockFinanceRepo } from '@/__tests__/helpers/mock-repositories';
 
 // Type-safe accessor: cast repo methods to vi.Mock at each call site
@@ -323,3 +324,35 @@ describe('FinanceService', () => {
     });
   });
 });
+
+// ── SMS-002: cash-only manual collection contract ──
+// The counter flow records physical cash only. All digital channels
+// (MoMo / card / bank transfer) arrive via Paystack reconciliation,
+// never through POST /api/finance/collections.
+describe('commitInflowSchema (SMS-002 cash-only contract)', () => {
+  const basePayload = {
+    sectionId: 'sec-1',
+    studentName: 'Ama Serwaa',
+    amountPaid: 250,
+    paymentMethod: 'CASH',
+    referenceNo: 'RCPT-TEST-01',
+    allocationTarget: 'Tuition Baseline Core',
+  };
+
+  it('accepts a CASH collection', () => {
+    const result = commitInflowSchema.safeParse(basePayload);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.paymentMethod).toBe('CASH');
+    }
+  });
+
+  it.each(['Mobile Money', 'Bank Transfer', 'Cash Settlement', 'cash', 'CARD'])(
+    'rejects non-CASH payment method: %s',
+    (method) => {
+      const result = commitInflowSchema.safeParse({ ...basePayload, paymentMethod: method });
+      expect(result.success).toBe(false);
+    },
+  );
+});
+
