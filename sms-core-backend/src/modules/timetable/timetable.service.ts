@@ -130,6 +130,62 @@ export class TimetableService {
     };
   }
 
+  /**
+   * SMS-010: feed projection for one class (option A mapping — the app
+   * matrix is an unslotted weekday template, so subjects round-robin
+   * into period slots and every event recurs MO-FR until term end).
+   */
+  async getCalendarEventsForClass(classId: string) {
+    const classRow = await prisma.class.findUnique({
+      where: { id: classId },
+      select: { id: true, name: true, section: true, deletedAt: true },
+    });
+    if (!classRow || classRow.deletedAt) throw new AppError(404, `Class not found: ${classId}`);
+
+    const config = await prisma.timetableConfiguration.findUnique({
+      where: { sectionId: classId },
+      include: {
+        periods: { orderBy: { periodNumber: 'asc' } },
+        breaks: { orderBy: { startTime: 'asc' } },
+        subjects: { orderBy: { subjectName: 'asc' } },
+      },
+    });
+    if (!config) throw new AppError(404, `No timetable configured for class ${classRow.name}.`);
+
+    const activeTerm = await prisma.term.findFirst({
+      where: { isActive: true, deletedAt: null },
+      orderBy: { startDate: 'desc' },
+    });
+    const termStart = activeTerm?.startDate ?? new Date();
+    const termEnd = activeTerm?.endDate ?? new Date(termStart.getTime() + 90 * 86400000);
+
+    const teacherIds = [...new Set(config.subjects.map((s) => s.teacherId))];
+    const teachers = await prisma.teacher.findMany({
+      where: { id: { in: teacherIds } },
+      select: { id: true, teacherName: true },
+    });
+    const teacherNames = new Map(teachers.map((t) => [t.id, t.teacherName]));
+
+    const events = config.periods.map((period, index) => {
+      const subject = config.subjects.length > 0 ? config.subjects[index % config.subjects.length]! : null;
+      const teacher = subject ? teacherNames.get(subject.teacherId) : null;
+      return {
+        summary: subject
+          ? `${subject.subjectName}${teacher ? ` — ${teacher}` : ''} (P${period.periodNumber})`
+          : `Period ${period.periodNumber}`,
+        description: `${classRow.name} timetable period ${period.periodNumber} — generated class feed`,
+        startHHmm: period.startTime,
+        endHHmm: period.endTime,
+      };
+    });
+    for (const b of config.breaks) {
+      events.push({ summary: `Break — ${b.name}`, description: 'Scheduled break', startHHmm: b.startTime, endHHmm: b.endTime });
+    }
+
+    const classLabel = `${classRow.name}${classRow.section ? ` — Section ${classRow.section}` : ''}`;
+    return { calendarName: `SMS Timetable — ${classLabel}`, events, termStart, termEnd };
+  }
+
   async replaceGlobalMatrix(
     matrixData: Record<string, SectionTimeMatrix>
   ): Promise<void> {

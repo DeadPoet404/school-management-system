@@ -3,12 +3,15 @@
 import * as React from "react"
 import {
   BookOpen,
+  CalendarPlus,
   Clock,
   Coffee,
   GraduationCap,
   Layers,
+  Link2,
   Loader2,
   Plus,
+  RefreshCw,
   Trash2,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -124,6 +127,8 @@ export function TimetableStructureSetup() {
   const [matrixState, setMatrixState] = React.useState<Record<string, SectionTimeMatrix>>({})
   const [isLoading, setIsLoading] = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
+  // SMS-010: which feed action is in flight (disables the trio)
+  const [calendarBusy, setCalendarBusy] = React.useState<null | "copy" | "google" | "refresh">(null)
   const hydratedRef = React.useRef(false)
 
   // When classes arrive, ensure matrix keys exist and pick a default active class.
@@ -198,6 +203,88 @@ export function TimetableStructureSetup() {
 
   const activeSectionLabel =
     academicSections.find((section) => section.id === activeSection)?.label ?? ""
+
+
+  /* ── SMS-010: calendar feed actions (token-signed public .ics) ─────────── */
+
+  const mintFeedUrl = React.useCallback(async (): Promise<string> => {
+    if (!activeSection) {
+      throw new Error("Select a class first.")
+    }
+    const response = await fetchWithAuth(
+      `/timetable/calendar/${activeSection}/token`,
+      { method: "POST" }
+    )
+    const payload = await response.json()
+    if (!response.ok || !payload?.success || typeof payload?.data?.path !== "string") {
+      throw new Error(payload?.message ?? "Unable to create a calendar feed link.")
+    }
+    // Same-origin: the frontend rewrites /api/* to the backend, so the feed
+    // URL is origin + path and works for external calendar apps when this
+    // origin is publicly reachable.
+    return `${window.location.origin}${payload.data.path}`
+  }, [activeSection])
+
+  const runCopyAction = async (
+    busy: "copy" | "refresh",
+    successMessage: string
+  ): Promise<void> => {
+    try {
+      setCalendarBusy(busy)
+      const url = await mintFeedUrl()
+      try {
+        await navigator.clipboard.writeText(url)
+        toast.success(successMessage)
+      } catch {
+        // Clipboard API can be denied; surface the URL for manual selection.
+        toast.info(url, { duration: 20000 })
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to create a calendar feed link."
+      )
+    } finally {
+      setCalendarBusy(null)
+    }
+  }
+
+  const handleCopyFeedLink = () => {
+    void runCopyAction("copy", "Calendar feed link copied.")
+  }
+
+  const handleRegenerateLink = () => {
+    void runCopyAction("refresh", "Fresh calendar feed link minted and copied.")
+  }
+
+  const handleGoogleSubscribe = () => {
+    // Pre-open synchronously (popup blockers deny window.open after await);
+    // popup is scoped OUTSIDE the async body so catch can close it (SMS-007e).
+    const popup = window.open("", "_blank")
+    void (async () => {
+      try {
+        setCalendarBusy("google")
+        const url = await mintFeedUrl()
+        const subscribeUrl = `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(url)}`
+        if (popup) {
+          popup.location.href = subscribeUrl
+        } else {
+          try {
+            await navigator.clipboard.writeText(url)
+            toast.success("Popup blocked -- feed link copied; add it in Google Calendar via From URL.")
+          } catch {
+            toast.info(subscribeUrl, { duration: 20000 })
+          }
+        }
+      } catch (error) {
+        popup?.close()
+        toast.error(
+          error instanceof Error ? error.message : "Unable to create a calendar feed link."
+        )
+      } finally {
+        setCalendarBusy(null)
+      }
+    })()
+  }
 
   const mid = Math.ceil(academicSections.length / 2) || 0
   const lowerAcademicTier = academicSections.slice(0, mid)
@@ -625,6 +712,76 @@ export function TimetableStructureSetup() {
                   </Button>
                 </div>
               ))}
+            </div>
+          </section>
+
+          <section className="space-y-5">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-stone-400">
+                Step 4
+              </p>
+              <h2 className="mt-1 text-base font-semibold">
+                Calendar Feed ({activeSectionLabel})
+              </h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Subscribe this class timetable in Google Calendar or any .ics
+                app. Feeds are read-only weekly weekday recurrence, bounded by
+                the active term.
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-stone-100 bg-stone-50/60 p-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCopyFeedLink}
+                  disabled={calendarBusy !== null || !activeSection}
+                >
+                  {calendarBusy === "copy" ? (
+                    <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Link2 className="mr-1 h-3.5 w-3.5" />
+                  )}
+                  Copy Feed Link
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleGoogleSubscribe}
+                  disabled={calendarBusy !== null || !activeSection}
+                >
+                  {calendarBusy === "google" ? (
+                    <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <CalendarPlus className="mr-1 h-3.5 w-3.5" />
+                  )}
+                  Subscribe via Google
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRegenerateLink}
+                  disabled={calendarBusy !== null || !activeSection}
+                >
+                  {calendarBusy === "refresh" ? (
+                    <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                  )}
+                  Regenerate Link
+                </Button>
+              </div>
+              <p className="mt-2 text-[11px] leading-snug text-stone-400">
+                Links are stateless HMAC-signed URLs: anyone holding one can read
+                this timetable. Regenerating mints a fresh link; rotating the
+                server CALENDAR_FEED_SECRET invalidates every outstanding link at
+                once. Google refreshes subscribed calendars on its own schedule,
+                which can lag hours behind timetable edits.
+              </p>
             </div>
           </section>
 

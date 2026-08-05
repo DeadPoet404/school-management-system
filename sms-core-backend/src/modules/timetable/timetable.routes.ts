@@ -17,6 +17,9 @@ const controller = new TimetableController(timetableService);
 router.get("/me", requireRole(ROLES.STUDENT), controller.getOwnTimetable);
 
 router.get("/matrix", requireRole(ROLES.ADMIN, ROLES.FACULTY), controller.getMatrix);
+
+// SMS-010: mint signed .ics subscription links (feed itself is public + token-gated)
+router.post("/calendar/:classId/token", requireRole(ROLES.ADMIN, ROLES.FACULTY), controller.mintCalendarToken);
 router.post("/matrix", requireRole(ROLES.ADMIN), validate(saveMatrixSchema), controller.saveMatrix);
 
 export default router;

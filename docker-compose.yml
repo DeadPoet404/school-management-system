@@ -38,6 +38,8 @@ services:
       # -- Google Sign-In for the External School Website (SMS-004) --
       # Leave blank until the website's Google OAuth Client ID is issued.
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      # -- Class Timetable Calendar Feeds (SMS-010) --
+      CALENDAR_FEED_SECRET: ${CALENDAR_FEED_SECRET:-}
       # -- Receipt Emails via Gmail SMTP (SMS-006) --
       # Leave blank until the school's Gmail App Password is issued; the
       # mailer stays disabled (skip-and-log) without both values.

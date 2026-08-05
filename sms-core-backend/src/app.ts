@@ -22,6 +22,7 @@ import studentRoutes from './modules/students/student.routes';
 import teacherRoutes from './modules/teachers/teacher.routes';
 import staffRoutes from './modules/staff/staff.routes';
 import timetableRoutes from './modules/timetable/timetable.routes';
+import calendarFeedRoutes from './modules/timetable/calendar-feed.routes';
 import financeRoutes from './modules/finance/finance.routes';
 import attendanceRoutes from './modules/attendance/attendance.routes';
 import gradesRoutes from './modules/grades/grades.routes';
@@ -199,6 +200,10 @@ app.use('/api/auth', authRoutes);
 app.use('/api/students', authenticate, studentRoutes);
 app.use('/api/teachers', authenticate, teacherRoutes);
 app.use('/api/staff', authenticate, staffRoutes);
+// SMS-010: PUBLIC .ics feed — must mount BEFORE the authenticated timetable
+// mount; the stateless HMAC token in ?token= is the credential (calendar
+// apps cannot carry JWT cookies). Global apiLimiter still applies.
+app.use('/api/timetable/calendar', calendarFeedRoutes);
 app.use('/api/timetable', authenticate, timetableRoutes);
 app.use('/api/finance', authenticate, financeRoutes);
 app.use('/api/payments', authenticate, paymentRoutes);
