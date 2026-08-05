@@ -1,6 +1,7 @@
 import { PaymentIntentStatus, Prisma } from '@prisma/client';
 import { AppError } from '@/middleware/error.handler';
 import { prisma } from '@/lib/prisma';
+import { logger } from '@/lib/logger';
 import { FinanceService } from '@/modules/finance/finance.service';
 import { PaystackClient, VerifiedPaystackTransaction } from './paystack.client';
 
@@ -27,6 +28,8 @@ export interface SettleResult {
   settled: boolean;
   alreadyReconciled: boolean;
   status: PaymentIntentStatus;
+  /** SMS-006: PaymentCollection id for the post-commit receipt dispatch. */
+  collectionId?: string;
 }
 
 /**
@@ -102,6 +105,17 @@ export class PaymentsReconciliationService {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       },
     );
+
+    // SMS-006 trigger (b): the settlement has committed — dispatch the
+    // receipt email asynchronously and fail-soft (the payment stands
+    // regardless of the mail outcome). Skipped on idempotent no-op
+    // re-deliveries, which report settled=false.
+    if (result.settled && result.collectionId) {
+      const collectionId = result.collectionId;
+      void import('@/lib/receipt-email')
+        .then((m) => m.sendCollectionReceipt(collectionId, 'PAYSTACK'))
+        .catch((err) => logger.warn({ err }, '[SMS-006] Receipt email dispatch hook failed (swallowed).'));
+    }
 
     return result;
   }
@@ -184,7 +198,7 @@ export class PaymentsReconciliationService {
       },
     });
 
-    await this.finance.processInflowCollection(
+    const collection = await this.finance.processInflowCollection(
       {
         sectionId: intent.student.placement.classId,
         studentName: intent.student.studentName,
@@ -200,7 +214,12 @@ export class PaymentsReconciliationService {
       },
     );
 
-    return { settled: true, alreadyReconciled: false, status: PaymentIntentStatus.SUCCEEDED };
+    return {
+      settled: true,
+      alreadyReconciled: false,
+      status: PaymentIntentStatus.SUCCEEDED,
+      collectionId: collection.id as string,
+    };
   }
 
   private assertVerified(reference: string, transaction: VerifiedPaystackTransaction) {

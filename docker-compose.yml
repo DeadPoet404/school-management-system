@@ -38,6 +38,11 @@ services:
       # -- Google Sign-In for the External School Website (SMS-004) --
       # Leave blank until the website's Google OAuth Client ID is issued.
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      # -- Receipt Emails via Gmail SMTP (SMS-006) --
+      # Leave blank until the school's Gmail App Password is issued; the
+      # mailer stays disabled (skip-and-log) without both values.
+      GMAIL_USER: ${GMAIL_USER:-}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
       # API docs are disabled by default. When true in production, /api/docs
       # requires an authenticated ADMIN session.
       ENABLE_API_DOCS: ${ENABLE_API_DOCS:-false}

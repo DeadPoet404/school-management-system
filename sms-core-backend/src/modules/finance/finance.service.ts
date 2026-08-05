@@ -5,6 +5,7 @@ import { parseDecimal, generateSerial } from "@/utils";
 import { IFinanceRepository, TransactionClient } from "@/types/repositories";
 import { FinanceRepository } from "./finance.repository";
 import type { ReceiptPdfData } from "@/lib/pdf";
+import { logger } from "@/lib/logger";
 
 type FeeConfigRow = Prisma.FeeStructureConfigurationGetPayload<{ include: { components: true } }>;
 type StaffPayrollRow = Prisma.StaffPayrollGetPayload<{ include: { staff: { select: { staffName: true; account: { select: { role: true } } } } } }>;
@@ -366,7 +367,21 @@ export class FinanceService {
 
     // Existing manual collections keep their own transaction. Digital
     // reconciliation will supply its own outer transaction.
-    return options.tx ? process(options.tx) : prisma.$transaction(process);
+    const committed = options.tx ? await process(options.tx) : await prisma.$transaction(process);
+
+    // SMS-006 trigger (a): manual cash collections dispatch the receipt
+    // email post-commit, asynchronously and fail-soft — a payment NEVER
+    // rolls back on mail failure. (Paystack settlements fire from the
+    // reconciliation service after its outer transaction commits.)
+    // Dynamic import avoids a module cycle: lib/receipt-email reuses
+    // FinanceService for the receipt DTO.
+    if (!options.tx) {
+      void import('@/lib/receipt-email')
+        .then((m) => m.sendCollectionReceipt(committed.id as string, 'CASH'))
+        .catch((err) => logger.warn({ err }, '[SMS-006] Receipt email dispatch hook failed (swallowed).'));
+    }
+
+    return committed;
   }
 
   // SMS-007: project a collection row into the printable receipt DTO.

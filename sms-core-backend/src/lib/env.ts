@@ -31,6 +31,18 @@ const envSchema = z.object({
     (v) => (v === '' ? undefined : v),
     z.string().min(1).optional(),
   ),
+  // SMS-006: Gmail SMTP credentials for receipt dispatch (Nodemailer).
+  // Optional pair -- receipt emails are skipped (logged) when unset.
+  // Same ''-normalization as GOOGLE_CLIENT_ID (compose passes unset
+  // pass-throughs as empty strings, and min(1) would crash boot).
+  GMAIL_USER: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(1).optional(),
+  ),
+  GMAIL_APP_PASSWORD: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(1).optional(),
+  ),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(60000),
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().min(1).default(100),
   AUTH_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().min(1).default(5),
@@ -72,6 +84,8 @@ function validateEnv() {
   process.env.COOKIE_SAME_SITE = env.COOKIE_SAME_SITE;
   process.env.CORS_ORIGINS = env.CORS_ORIGINS;
   if (env.GOOGLE_CLIENT_ID) process.env.GOOGLE_CLIENT_ID = env.GOOGLE_CLIENT_ID;
+  if (env.GMAIL_USER) process.env.GMAIL_USER = env.GMAIL_USER;
+  if (env.GMAIL_APP_PASSWORD) process.env.GMAIL_APP_PASSWORD = env.GMAIL_APP_PASSWORD;
   process.env.RATE_LIMIT_WINDOW_MS = String(env.RATE_LIMIT_WINDOW_MS);
   process.env.RATE_LIMIT_MAX_REQUESTS = String(env.RATE_LIMIT_MAX_REQUESTS);
   process.env.AUTH_RATE_LIMIT_MAX_REQUESTS = String(env.AUTH_RATE_LIMIT_MAX_REQUESTS);
