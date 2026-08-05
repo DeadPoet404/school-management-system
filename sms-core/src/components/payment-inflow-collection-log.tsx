@@ -164,6 +164,11 @@ export function PaymentInflowCollectionLog() {
     setError(null)
     setSuccessMessage(null)
     setSubmitting(true)
+
+    // SMS-007: pre-open the receipt tab synchronously — popup blockers deny window.open after an await.
+    // Declared OUTSIDE try so the catch block can close the tab on network errors.
+    const receiptWindow = window.open("", "_blank")
+
     try {
       // ✅ FIXED: removed the outer fetch() wrapper — fetchWithAuth IS the fetch
       const response = await fetchWithAuth("/finance/collections", {
@@ -185,10 +190,16 @@ export function PaymentInflowCollectionLog() {
         setFormState(DEFAULT_FORM_STATE())
         fetchSectionData(activeSection)
         setSuccessMessage(payload.message || "Payment collection recorded successfully.")
+        if (receiptWindow) {
+          // SMS-007: pop the print-ready PDF (browser print-or-cancel flow)
+          receiptWindow.location.href = `/api/finance/payments/${payload.data.id}/receipt.pdf`
+        }
       } else {
+        receiptWindow?.close()
         setError(payload.message || "Failed to process collection inflow.")
       }
     } catch (error) {
+      receiptWindow?.close()
       console.error("[Collection Pipeline Ingress Write Error]:", error)
       setError(error instanceof Error ? error.message : "Network error while processing collection inflow.")
     } finally {
@@ -491,8 +502,8 @@ export function PaymentInflowCollectionLog() {
                         type="button"
                         variant="outline"
                         className="h-8 w-8 p-0 border-stone-200 dark:border-zinc-800 hover:bg-stone-100 dark:hover:bg-zinc-900 text-stone-500 dark:text-zinc-400 hover:text-stone-900 dark:hover:text-zinc-50 rounded-lg"
-                        title="Print Physical Statement Receipt"
-                        onClick={() => setSuccessMessage(`Print protocol triggered for statement token serial: ${rcpt.receiptNumber}`)}
+                        title="Open Printable PDF Receipt"
+                        onClick={() => window.open(`/api/finance/payments/${rcpt.id}/receipt.pdf`, "_blank", "noopener,noreferrer")}
                       >
                         <Printer className="h-3.5 w-3.5" />
                       </Button>

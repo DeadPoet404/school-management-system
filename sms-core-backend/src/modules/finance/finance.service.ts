@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { parseDecimal, generateSerial } from "@/utils";
 import { IFinanceRepository, TransactionClient } from "@/types/repositories";
 import { FinanceRepository } from "./finance.repository";
+import type { ReceiptPdfData } from "@/lib/pdf";
 
 type FeeConfigRow = Prisma.FeeStructureConfigurationGetPayload<{ include: { components: true } }>;
 type StaffPayrollRow = Prisma.StaffPayrollGetPayload<{ include: { staff: { select: { staffName: true; account: { select: { role: true } } } } } }>;
@@ -366,6 +367,28 @@ export class FinanceService {
     // Existing manual collections keep their own transaction. Digital
     // reconciliation will supply its own outer transaction.
     return options.tx ? process(options.tx) : prisma.$transaction(process);
+  }
+
+  // SMS-007: project a collection row into the printable receipt DTO.
+  async getReceiptForPdf(collectionId: string): Promise<ReceiptPdfData> {
+    const record = await this.repo.findReceiptCollectionById(collectionId);
+    if (!record || record.deletedAt) {
+      throw new AppError(404, `No payment collection found for id: ${collectionId}`);
+    }
+    return {
+      receiptNumber: record.receiptNumber,
+      dateProcessed: record.dateProcessed,
+      studentName: record.studentName,
+      studentCode: record.student?.studentId ?? null,
+      className: record.class
+        ? `${record.class.name}${record.class.section ? ` — Section ${record.class.section}` : ''}`
+        : null,
+      amountPaid: parseDecimal(record.amountPaid),
+      paymentMethod: record.paymentMethod,
+      referenceNo: record.referenceNo,
+      allocationTarget: record.allocationTarget,
+      outstandingBalance: record.student?.billing ? parseDecimal(record.student.billing.currentBalance) : null,
+    };
   }
 
   async getStudentsBySection(sectionId: string) {

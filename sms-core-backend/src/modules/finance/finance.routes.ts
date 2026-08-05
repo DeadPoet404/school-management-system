@@ -27,6 +27,9 @@ router.post('/generate-invoices', financeAccess, validate(generateInvoicesSchema
 
 router.get('/invoices', financeAccess, controller.getInvoices);
 
+// SMS-007: on-demand printable receipt (finance-access roles: ADMIN + ACCOUNTANT)
+router.get('/payments/:id/receipt.pdf', financeAccess, controller.streamReceiptPdf);
+
 router.get('/expenses', financeAccess, controller.getExpenses);
 router.post('/expenses', financeAccess, validate(createExpenseSchema), controller.createExpense);
 

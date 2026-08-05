@@ -51,6 +51,17 @@ export class FinanceRepository implements IFinanceRepository {
     return tx.paymentCollection.create({ data });
   }
 
+  // SMS-007: full receipt projection (class + linked student + live balance)
+  async findReceiptCollectionById(collectionId: string, tx: TransactionClient = prisma) {
+    return tx.paymentCollection.findUnique({
+      where: { id: collectionId },
+      include: {
+        class: { select: { name: true, section: true } },
+        student: { select: { studentId: true, billing: { select: { currentBalance: true } } } },
+      },
+    });
+  }
+
   async findStudentsBySection(sectionId: string, tx: TransactionClient = prisma) {
     return tx.student.findMany({
       where: { placement: { classId: sectionId }, status: { not: 'DEPARTED' } },

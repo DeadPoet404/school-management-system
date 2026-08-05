@@ -3,6 +3,7 @@ import { AuthenticatedRequest } from '@/middleware/auth.middleware';
 import { FinanceService } from './finance.service';
 import { parsePaginationQuery, buildPaginationResponse } from '@/utils/pagination';
 import { toCSV, respondCSV } from '@/utils/export';
+import { renderReceiptPdf } from '@/lib/pdf';
 
 export class FinanceController {
   constructor(private financeService: FinanceService) {}
@@ -50,6 +51,17 @@ export class FinanceController {
     try {
       const record = await this.financeService.processInflowCollection(req.body);
       return res.status(201).json({ success: true, data: record });
+    } catch (error) { next(error); }
+  };
+
+  // SMS-007: GET /api/finance/payments/:id/receipt.pdf -- print-ready A5 receipt
+  streamReceiptPdf = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const data = await this.financeService.getReceiptForPdf(req.params.id!);
+      const pdfBuffer = await renderReceiptPdf(data);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="receipt-${data.receiptNumber}.pdf"`);
+      return res.send(pdfBuffer);
     } catch (error) { next(error); }
   };
 

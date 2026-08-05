@@ -151,6 +151,8 @@ export interface IFinanceRepository {
   findAllCollections(skip?: number, take?: number, tx?: TransactionClient): Promise<any>;
   countAllCollections(tx?: TransactionClient): Promise<number>;
   createCollection(data: CollectionCreateData, tx?: TransactionClient): Promise<any>;
+  // SMS-007: receipt rendering reads
+  findReceiptCollectionById(collectionId: string, tx?: TransactionClient): Promise<any>;
   // Student financials
   findStudentsBySection(sectionId: string, tx?: TransactionClient): Promise<any>;
   findStudentsMinimalBySection(sectionId: string, tx?: TransactionClient): Promise<any>;
