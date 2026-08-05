@@ -8,6 +8,7 @@ import {
   toStudentListDtoForRole,
 } from "@/lib/role-dtos";
 import { resolveSessionStudentId } from "@/middleware/self-access";
+import { renderTranscriptPdf } from "@/lib/pdf";
 
 type UploadedStudentImportFile = {
   buffer: Buffer;
@@ -57,6 +58,33 @@ export class StudentController {
     } catch (error) {
       next(error);
     }
+  };
+
+  /**
+   * SMS-008: GET /api/students/:id/transcript.pdf (ADMIN + STAFF only).
+   */
+  public streamTranscriptPdf = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
+    try {
+      const data = await this.studentService.getTranscriptForPdf(req.params.id!);
+      const pdfBuffer = await renderTranscriptPdf(data);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="transcript-${data.studentCode}.pdf"`);
+      return res.send(pdfBuffer);
+    } catch (error) { next(error); }
+  };
+
+  /**
+   * SMS-008: GET /api/students/me/transcript.pdf (STUDENT, session-resolved).
+   */
+  public streamOwnTranscriptPdf = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
+    try {
+      const internalId = resolveSessionStudentId(req.user);
+      const data = await this.studentService.getTranscriptForPdf(internalId);
+      const pdfBuffer = await renderTranscriptPdf(data);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="transcript-${data.studentCode}.pdf"`);
+      return res.send(pdfBuffer);
+    } catch (error) { next(error); }
   };
 
   public getStudentById = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {

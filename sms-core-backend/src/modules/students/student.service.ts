@@ -1,5 +1,6 @@
 import { AppError } from '@/middleware/error.handler';
 import { prisma } from "@/lib/prisma";
+import type { TranscriptPdfData, TranscriptTermSection } from "@/lib/pdf";
 import { Prisma, EntityStatus, DepartureType, TreasuryClearanceStatus } from "@prisma/client";
 import { IStudentRepository } from "@/types/repositories";
 import { StudentRepository } from "./student.repository";
@@ -59,6 +60,78 @@ export class StudentService {
 
     if (!student) throw new AppError(404, 'Student not found.');
     return student;
+  }
+
+  /**
+   * SMS-008: cumulative transcript DTO. Term sections ordered by term
+   * startDate (subjects alphabetical inside), weighted GPA per term
+   * (Σ gradePoints×creditHours / Σ creditHours), cumulative carried
+   * from the service-maintained Student.currentGpa.
+   */
+  async getTranscriptForPdf(internalId: string): Promise<TranscriptPdfData> {
+    const student = await prisma.student.findUnique({
+      where: { id: internalId },
+      select: {
+        id: true,
+        studentId: true,
+        studentName: true,
+        enrollmentDate: true,
+        currentGpa: true,
+        placement: { select: { class: { select: { name: true, section: true } } } },
+      },
+    });
+    if (!student) throw new AppError(404, `Student not found with ID: ${internalId}`);
+
+    const records = await prisma.gradeRecord.findMany({
+      where: { studentId: internalId },
+      include: {
+        subject: { select: { name: true, code: true } },
+        term: { select: { name: true, academicYear: true, startDate: true } },
+      },
+      orderBy: [{ term: { startDate: 'asc' } }, { subject: { name: 'asc' } }],
+    });
+
+    const terms: TranscriptTermSection[] = [];
+    let current: TranscriptTermSection | null = null;
+    let currentKey = '';
+    for (const r of records) {
+      const key = `${r.term.name}|${r.term.academicYear}`;
+      if (!current || key !== currentKey) {
+        current = { termName: r.term.name, academicYear: r.term.academicYear, rows: [], termGpa: 0, creditHours: 0 };
+        terms.push(current);
+        currentKey = key;
+      }
+      const section: TranscriptTermSection = current;
+      const creditHours = r.creditHours;
+      const gradePoints = Number(r.gradePoints);
+      section.rows.push({
+        subject: r.subject.name,
+        code: r.subject.code,
+        caScore: Number(r.continuousAssessment),
+        examScore: Number(r.examination),
+        finalScore: Number(r.finalScore),
+        letterGrade: r.letterGrade,
+        gradePoints,
+        creditHours,
+      });
+      section.creditHours += creditHours;
+      section.termGpa += gradePoints * creditHours;
+    }
+    for (const term of terms) {
+      term.termGpa = term.creditHours > 0 ? parseFloat((term.termGpa / term.creditHours).toFixed(2)) : 0;
+    }
+
+    return {
+      studentName: student.studentName,
+      studentCode: student.studentId,
+      className: student.placement?.class
+        ? `${student.placement.class.name}${student.placement.class.section ? ` — Section ${student.placement.class.section}` : ''}`
+        : null,
+      enrollmentDate: student.enrollmentDate,
+      dateOfIssue: new Date(),
+      terms,
+      cumulativeGpa: records.length === 0 ? null : parseFloat(Number(student.currentGpa).toFixed(2)),
+    };
   }
 
   async getAll() {

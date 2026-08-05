@@ -3,7 +3,7 @@
 import { useAuth } from "@/lib/auth-context"
 import * as React from "react"
 import Link from "next/link"
-import { Pencil } from "lucide-react"
+import { FileText, Pencil } from "lucide-react"
 import { UniversalDataTable, type DataTableColumn } from "@/components/universal-data-table"
 import { fetchWithAuth } from "@/lib/fetch-with-auth"
 
@@ -127,14 +127,26 @@ export function StudentOverviewTable({ data: initialData }: StudentOverviewTable
         "—"
       ),
       actions: canWrite && attendanceRouteId ? (
-        <Link
-          href={`/students/${encodeURIComponent(String(attendanceRouteId))}/edit`}
-          aria-label={`Edit ${student.studentName || "student"}`}
-          title="Edit student"
-          className="inline-flex h-7 w-7 items-center justify-center rounded border border-zinc-200 text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </Link>
+        <div className="inline-flex items-center gap-1.5">
+          <Link
+            href={`/students/${encodeURIComponent(String(attendanceRouteId))}/edit`}
+            aria-label={`Edit ${student.studentName || "student"}`}
+            title="Edit student"
+            className="inline-flex h-7 w-7 items-center justify-center rounded border border-zinc-200 text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Link>
+          {/* SMS-008: on-demand cumulative transcript PDF (browser print flow) */}
+          <button
+            type="button"
+            aria-label={`Print transcript for ${student.studentName || "student"}`}
+            title="Print Transcript"
+            onClick={() => window.open(`/api/students/${encodeURIComponent(String(attendanceRouteId))}/transcript.pdf`, "_blank", "noopener,noreferrer")}
+            className="inline-flex h-7 w-7 items-center justify-center rounded border border-zinc-200 text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+          >
+            <FileText className="h-3.5 w-3.5" />
+          </button>
+        </div>
       ) : (
         "—"
       ),
