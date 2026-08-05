@@ -1,11 +1,12 @@
 import type { ComponentType } from "react"
 import { isOperationAllowedForRole } from "@/lib/role-access"
 import type { LucideIcon } from "lucide-react"
-import { School, GraduationCap, FileSpreadsheet, Wallet } from "lucide-react"
+import { School, GraduationCap, FileSpreadsheet, Wallet, Megaphone } from "lucide-react"
 import { TimetableStructureSetup } from "@/components/timetable-structure-setup"
 import { FeeStructureInvoiceConfig } from "@/components/fee-structure-invoice-config"
 import { PaymentInflowCollectionLog } from "@/components/payment-inflow-collection-log"
 import { PayrollLedgersView } from "@/components/payroll-ledgers-view"
+import { CommunicationCenter } from "@/components/communication-center"
 
 // SMS-003: single source of truth for the Operations workspace.
 // The sidebar renders exactly these modules and the page resolves exactly
@@ -90,6 +91,18 @@ export const OPERATIONS_SECTIONS: OperationsSection[] = [
         id: "ca-gradebook",
         title: "Continuous Assessment Sheet",
         action: { type: "route", path: "/students/gradebook" },
+      },
+    ],
+  },
+  {
+    title: "Communication",
+    icon: Megaphone,
+    group: "Engagement",
+    modules: [
+      {
+        id: "communication-center",
+        title: "Announcements & Notices",
+        action: { type: "view", component: CommunicationCenter },
       },
     ],
   },

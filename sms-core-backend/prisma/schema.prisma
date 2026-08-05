@@ -761,3 +761,56 @@ model RefreshToken {
   @@index([expiresAt])
   @@map("refresh_tokens")
 }
+
+// ══════════════════════════════════════════════════════════════════════
+// SMS-012 ── COMMUNICATION (announcements + durable delivery ledger)
+// ══════════════════════════════════════════════════════════════════════
+
+model Announcement {
+  id             String   @id @default(uuid())
+  title          String
+  body           String   @db.Text
+  /// SCHOOL_WIDE | CLASS | STUDENTS
+  audience       String
+  /// Required when audience = CLASS (canonical Class.id).
+  classId        String?
+  /// Internal Student.id list when audience = STUDENTS (Json string[]).
+  studentIds     Json?
+  /// Requested channels: Json string[] subset of SMS | WHATSAPP | EMAIL.
+  channels       Json
+  /// QUEUED -> SENDING -> COMPLETED (per-delivery FAILED rows stay visible).
+  status         String   @default("QUEUED")
+  createdBy      String
+  createdByEmail String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  deliveries NotificationDelivery[]
+
+  @@index([audience, createdAt])
+}
+
+model NotificationDelivery {
+  id                String       @id @default(uuid())
+  announcementId    String
+  announcement      Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  /// SMS | WHATSAPP | EMAIL
+  channel           String
+  /// Phone number (SMS / WHATSAPP) or email address (EMAIL).
+  recipient         String
+  recipientLabel    String?
+  /// Resolution-context student (null when not attributable to one).
+  studentId         String?
+  /// QUEUED | SENT | FAILED
+  status            String       @default("QUEUED")
+  attempts          Int          @default(0)
+  nextAttemptAt     DateTime     @default(now())
+  providerMessageId String?
+  error             String?      @db.Text
+  sentAt            DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([announcementId])
+}

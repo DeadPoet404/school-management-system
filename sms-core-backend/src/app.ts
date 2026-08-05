@@ -28,6 +28,8 @@ import attendanceRoutes from './modules/attendance/attendance.routes';
 import gradesRoutes from './modules/grades/grades.routes';
 import referenceRoutes from './modules/reference/reference.routes';
 import analyticsRoutes from './modules/analytics/analytics.routes';
+import communicationRoutes from './modules/communication/communication.routes';
+import { notificationDispatchWorker } from './modules/communication/communication.worker';
 import paymentRoutes from './modules/payments/payments.routes';
 import paymentWebhookRoutes from './modules/payments/payments.webhook.routes';
 import { PaymentsSweeper } from './modules/payments/payments.sweeper';
@@ -211,6 +213,7 @@ app.use('/api/grades', authenticate, gradesRoutes);
 app.use('/api/attendance', authenticate, attendanceRoutes);
 app.use('/api/reference', authenticate, referenceRoutes);
 app.use('/api/analytics', authenticate, analyticsRoutes);
+app.use('/api/communication', authenticate, communicationRoutes);
 
 // ── 404 HANDLER (Must come AFTER all valid routes) ──
 app.use((_req, res) => {
@@ -230,6 +233,8 @@ if (require.main === module) {
     startBlocklistCleanup();
     paymentSweeper = new PaymentsSweeper();
     paymentSweeper.start();
+    // SMS-012: durable notification dispatch (60s sweep + compose-time kicks)
+    notificationDispatchWorker.start();
   });
 
   async function gracefulShutdown(signal: string) {
@@ -237,6 +242,7 @@ if (require.main === module) {
     server.close(() => {
       logger.info('[SMS-Core-Backend] HTTP server closed. No longer accepting connections.');
     paymentSweeper?.stop();
+    notificationDispatchWorker.stop();
     });
     try {
       const { prisma } = await import('./lib/prisma');

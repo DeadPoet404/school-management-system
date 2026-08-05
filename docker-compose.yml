@@ -40,6 +40,12 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       # -- Class Timetable Calendar Feeds (SMS-010) --
       CALENDAR_FEED_SECRET: ${CALENDAR_FEED_SECRET:-}
+      # -- Communication adapters (SMS-012; blank = channel disabled) --
+      ARKESEL_API_KEY: ${ARKESEL_API_KEY:-}
+      ARKESEL_SENDER_ID: ${ARKESEL_SENDER_ID:-}
+      META_WA_PHONE_NUMBER_ID: ${META_WA_PHONE_NUMBER_ID:-}
+      META_WA_ACCESS_TOKEN: ${META_WA_ACCESS_TOKEN:-}
+      META_WA_BUSINESS_ACCOUNT_ID: ${META_WA_BUSINESS_ACCOUNT_ID:-}
       # -- Receipt Emails via Gmail SMTP (SMS-006) --
       # Leave blank until the school's Gmail App Password is issued; the
       # mailer stays disabled (skip-and-log) without both values.

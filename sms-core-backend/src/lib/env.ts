@@ -49,6 +49,27 @@ const envSchema = z.object({
     (v) => (v === '' ? undefined : v),
     z.string().min(32, 'CALENDAR_FEED_SECRET should be at least 32 random characters.').optional(),
   ),
+  // SMS-012: communication adapters -- unset channels stay disabled (channel-disabled).
+  ARKESEL_API_KEY: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(1).optional(),
+  ),
+  ARKESEL_SENDER_ID: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().max(11, 'ARKESEL_SENDER_ID must be 11 characters or fewer.').optional(),
+  ),
+  META_WA_PHONE_NUMBER_ID: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(1).optional(),
+  ),
+  META_WA_ACCESS_TOKEN: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(1).optional(),
+  ),
+  META_WA_BUSINESS_ACCOUNT_ID: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(1).optional(),
+  ),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(60000),
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().min(1).default(100),
   AUTH_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().min(1).default(5),
@@ -93,6 +114,11 @@ function validateEnv() {
   if (env.GMAIL_USER) process.env.GMAIL_USER = env.GMAIL_USER;
   if (env.GMAIL_APP_PASSWORD) process.env.GMAIL_APP_PASSWORD = env.GMAIL_APP_PASSWORD;
   if (env.CALENDAR_FEED_SECRET) process.env.CALENDAR_FEED_SECRET = env.CALENDAR_FEED_SECRET;
+  if (env.ARKESEL_API_KEY) process.env.ARKESEL_API_KEY = env.ARKESEL_API_KEY;
+  if (env.ARKESEL_SENDER_ID) process.env.ARKESEL_SENDER_ID = env.ARKESEL_SENDER_ID;
+  if (env.META_WA_PHONE_NUMBER_ID) process.env.META_WA_PHONE_NUMBER_ID = env.META_WA_PHONE_NUMBER_ID;
+  if (env.META_WA_ACCESS_TOKEN) process.env.META_WA_ACCESS_TOKEN = env.META_WA_ACCESS_TOKEN;
+  if (env.META_WA_BUSINESS_ACCOUNT_ID) process.env.META_WA_BUSINESS_ACCOUNT_ID = env.META_WA_BUSINESS_ACCOUNT_ID;
   process.env.RATE_LIMIT_WINDOW_MS = String(env.RATE_LIMIT_WINDOW_MS);
   process.env.RATE_LIMIT_MAX_REQUESTS = String(env.RATE_LIMIT_MAX_REQUESTS);
   process.env.AUTH_RATE_LIMIT_MAX_REQUESTS = String(env.AUTH_RATE_LIMIT_MAX_REQUESTS);
