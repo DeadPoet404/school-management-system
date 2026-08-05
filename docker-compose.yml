@@ -34,6 +34,10 @@ services:
       # The backend keeps digital-payment routes disabled without it.
       PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:-}
       PAYSTACK_API_BASE_URL: ${PAYSTACK_API_BASE_URL:-https://api.paystack.co}
+      PAYSTACK_CALLBACK_URL: ${PAYSTACK_CALLBACK_URL:-}
+      # -- Google Sign-In for the External School Website (SMS-004) --
+      # Leave blank until the website's Google OAuth Client ID is issued.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       # API docs are disabled by default. When true in production, /api/docs
       # requires an authenticated ADMIN session.
       ENABLE_API_DOCS: ${ENABLE_API_DOCS:-false}

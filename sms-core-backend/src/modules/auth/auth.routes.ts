@@ -141,6 +141,11 @@ router.post('/login', authLimiter, async (req, res, next) => {
   return authController.login.bind(authController)(req, res, next);
 });
 
+// SMS-004 -- Google ID-token exchange for the external school website.
+// STUDENT accounts only; no password path, so it uses the token-endpoint
+// limiter rather than the per-account lockout machinery.
+router.post('/google', tokenEndpointLimiter, authController.googleLogin.bind(authController));
+
 // Public — rate-limited (uses refresh token cookie, not access token)
 router.post('/refresh', tokenEndpointLimiter, authController.refresh.bind(authController));
 

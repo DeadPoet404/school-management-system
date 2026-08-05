@@ -39,6 +39,13 @@ router.get(
   controller.getClassSheet,
 );
 
+// SMS-005: session-resolved attendance history for the portal.
+router.get(
+  "/me",
+  requireRole(ROLES.STUDENT),
+  controller.getOwnHistory,
+);
+
 // View attendance history for one student (self for STUDENT, or staff)
 router.get(
   "/student/:studentId",

@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { TimetableService } from "./timetable.service";
+import { AuthenticatedRequest } from "@/middleware/auth.middleware";
+import { resolveSessionStudentId } from "@/middleware/self-access";
 
 export class TimetableController {
   constructor(private timetableService: TimetableService) {}
@@ -8,6 +10,20 @@ export class TimetableController {
     try {
       const currentMatrix = await this.timetableService.getGlobalMatrix();
       return res.status(200).json({ success: true, data: currentMatrix });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * SMS-005: GET /api/timetable/me -- the session student's class schedule
+   * (periods, breaks, subject-teacher allocations). Identity from JWT only.
+   */
+  public getOwnTimetable = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const studentId = resolveSessionStudentId(req.user);
+      const data = await this.timetableService.getOwnTimetable(studentId);
+      return res.status(200).json({ success: true, data });
     } catch (error) {
       next(error);
     }

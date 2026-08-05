@@ -27,3 +27,17 @@ export function assertSelfOrPrivilegedStudentAccess(
     throw new AppError(403, 'You can only access your own records.');
   }
 }
+
+// SMS-005: Session-resolved student identity for the /me endpoint family.
+// The student id ALWAYS comes from the verified JWT -- never from request
+// params, query, or body -- making cross-student access impossible by
+// construction rather than by convention.
+export function resolveSessionStudentId(user: JwtPayload | undefined): string {
+  if (!user) {
+    throw new AppError(401, 'Authentication required.');
+  }
+  if (user.entityType !== 'STUDENT' || !user.entityInternalId) {
+    throw new AppError(403, 'This endpoint is for student self-service.');
+  }
+  return user.entityInternalId;
+}

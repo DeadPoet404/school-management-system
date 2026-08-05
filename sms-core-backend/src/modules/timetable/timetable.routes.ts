@@ -13,6 +13,9 @@ const timetableRepo = new TimetableRepository();
 const timetableService = new TimetableService(timetableRepo);
 const controller = new TimetableController(timetableService);
 
+// SMS-005: session-resolved class schedule for the portal.
+router.get("/me", requireRole(ROLES.STUDENT), controller.getOwnTimetable);
+
 router.get("/matrix", requireRole(ROLES.ADMIN, ROLES.FACULTY), controller.getMatrix);
 router.post("/matrix", requireRole(ROLES.ADMIN), validate(saveMatrixSchema), controller.saveMatrix);
 

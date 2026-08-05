@@ -5,7 +5,7 @@ import {
   parsePaginationQuery,
   buildPaginationResponse,
 } from "@/utils/pagination";
-import { assertSelfOrPrivilegedStudentAccess } from "@/middleware/self-access";
+import { assertSelfOrPrivilegedStudentAccess, resolveSessionStudentId } from "@/middleware/self-access";
 
 export class GradesController {
   constructor(private gradesService: GradesService) {}
@@ -87,6 +87,26 @@ export class GradesController {
         termId,
       );
 
+      return res.status(200).json({ success: true, data: gradebook });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * SMS-005: GET /api/grades/me -- session-resolved gradebook alias of the
+   * existing per-student read (the portal transcript source).
+   */
+  public getOwnGradebook = async (
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<Response | void> => {
+    try {
+      const studentId = resolveSessionStudentId(req.user);
+      const termId =
+        typeof req.query.termId === "string" ? req.query.termId : undefined;
+      const gradebook = await this.gradesService.getStudentGradebook(studentId, termId);
       return res.status(200).json({ success: true, data: gradebook });
     } catch (error) {
       next(error);

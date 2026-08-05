@@ -23,6 +23,14 @@ const envSchema = z.object({
   COOKIE_SECURE: z.coerce.string().transform(v => v === 'true').default(false),
   COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).default('lax'),
   CORS_ORIGINS: z.string().default('http://localhost:3000,http://localhost:3001'),
+  // SMS-004: Google OAuth 2.0 Client ID used to verify portal sign-in ID tokens.
+  // Optional -- POST /api/auth/google answers 503 when unset.
+  // Empty string is normalized to unset: docker-compose passes unconfigured
+  // pass-throughs as "", and plain min(1) would crash env validation at boot.
+  GOOGLE_CLIENT_ID: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(1).optional(),
+  ),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(60000),
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().min(1).default(100),
   AUTH_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().min(1).default(5),
@@ -63,6 +71,7 @@ function validateEnv() {
   process.env.COOKIE_SECURE = String(env.COOKIE_SECURE);
   process.env.COOKIE_SAME_SITE = env.COOKIE_SAME_SITE;
   process.env.CORS_ORIGINS = env.CORS_ORIGINS;
+  if (env.GOOGLE_CLIENT_ID) process.env.GOOGLE_CLIENT_ID = env.GOOGLE_CLIENT_ID;
   process.env.RATE_LIMIT_WINDOW_MS = String(env.RATE_LIMIT_WINDOW_MS);
   process.env.RATE_LIMIT_MAX_REQUESTS = String(env.RATE_LIMIT_MAX_REQUESTS);
   process.env.AUTH_RATE_LIMIT_MAX_REQUESTS = String(env.AUTH_RATE_LIMIT_MAX_REQUESTS);

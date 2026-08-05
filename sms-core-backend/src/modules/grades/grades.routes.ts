@@ -32,6 +32,9 @@ router.get(
   gradesController.listGrades
 );
 
+// SMS-005: session-resolved gradebook for the portal (identity from JWT only).
+router.get("/me", requireRole(ROLES.STUDENT), gradesController.getOwnGradebook);
+
 // One student's transcript: /api/grades/student/:studentId?termId=
 router.get(
   "/student/:studentId",

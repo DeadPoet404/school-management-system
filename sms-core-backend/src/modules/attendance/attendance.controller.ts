@@ -1,7 +1,7 @@
 import { Response, NextFunction } from "express";
 import { AuthenticatedRequest } from "@/middleware/auth.middleware";
 import { AttendanceService } from "./attendance.service";
-import { assertSelfOrPrivilegedStudentAccess } from "@/middleware/self-access";
+import { assertSelfOrPrivilegedStudentAccess, resolveSessionStudentId } from "@/middleware/self-access";
 
 export class AttendanceController {
   constructor(private attendanceService: AttendanceService) {}
@@ -45,6 +45,26 @@ export class AttendanceController {
         message: "Attendance record corrected and student attendance rate recalculated.",
         data: outcome,
       });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * SMS-005: GET /api/attendance/me -- session-resolved attendance history
+   * plus summary metrics. Same query contract as the param-keyed read.
+   */
+  public getOwnHistory = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
+    try {
+      const studentId = resolveSessionStudentId(req.user);
+      const from = typeof req.query.from === "string" ? req.query.from : undefined;
+      const to = typeof req.query.to === "string" ? req.query.to : undefined;
+      const limit = Math.min(
+        200,
+        Math.max(1, parseInt(String(req.query.limit ?? "50"), 10) || 50),
+      );
+      const history = await this.attendanceService.getStudentHistory(studentId, { from, to, limit });
+      return res.status(200).json({ success: true, data: history });
     } catch (error) {
       next(error);
     }

@@ -1,11 +1,23 @@
 import { randomUUID } from 'crypto';
 import jwt, { SignOptions, JwtPayload as JsonWebTokenPayload } from 'jsonwebtoken';
+import { OAuth2Client } from 'google-auth-library';
 import { prisma } from '@/lib/prisma';
 import { comparePassword } from '@/utils/hash';
 import { AppError } from '@/middleware/error.handler';
 import { JwtPayload } from '@/types/auth.types';
 
 export class AuthService {
+  // SMS-004: Google OAuth client for portal sign-in verification.
+  // Null when GOOGLE_CLIENT_ID is unset -- /api/auth/google then answers 503,
+  // mirroring the PAYSTACK_SECRET_KEY 'blank until configured' pattern.
+  private readonly googleClient: OAuth2Client | null;
+  private readonly googleClientId: string | undefined;
+
+  constructor() {
+    this.googleClientId = process.env.GOOGLE_CLIENT_ID;
+    this.googleClient = this.googleClientId ? new OAuth2Client(this.googleClientId) : null;
+  }
+
   /**
    * Login: validate credentials across all 3 account tables.
    * Returns access token (stateless, 15min) + refresh token (stateful, 7d, DB-backed).
@@ -31,6 +43,56 @@ export class AuthService {
       role: account.role,
       entityType: account.entityType,
       entityInternalId: account.userId,
+    };
+
+    return this.signTokenPair(payload);
+  }
+
+  /**
+   * SMS-004: Google sign-in exchange for the external school website / portal.
+   * Verifies a Google ID token and issues the standard SMS token pair for the
+   * matched STUDENT account (StudentAccount.portalEmail). The Google identity
+   * IS the credential -- no password is involved. Unknown emails, unverified
+   * Google emails, and unverifiable tokens all fail with a generic 401 so the
+   * endpoint cannot be used as an account-enumeration oracle.
+   */
+  async loginWithGoogle(idToken: string) {
+    if (!this.googleClient || !this.googleClientId) {
+      throw new AppError(503, 'Google sign-in is not configured on this server.');
+    }
+
+    let email: string;
+    try {
+      const ticket = await this.googleClient.verifyIdToken({
+        idToken,
+        audience: this.googleClientId,
+      });
+      const googlePayload = ticket.getPayload();
+      if (!googlePayload?.email || googlePayload.email_verified === false) {
+        throw new AppError(401, 'Google sign-in failed.');
+      }
+      email = googlePayload.email;
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      throw new AppError(401, 'Google sign-in failed.');
+    }
+
+    const account = await prisma.studentAccount.findUnique({
+      where: { portalEmail: email.toLowerCase().trim() },
+      include: { student: { select: { id: true, status: true } } },
+    });
+    if (!account?.student) {
+      throw new AppError(401, 'No student account is linked to this Google identity.');
+    }
+
+    this.assertAccountActive(account.student.status);
+
+    const payload: JwtPayload = {
+      sub: account.id,
+      email: account.portalEmail,
+      role: 'STUDENT',
+      entityType: 'STUDENT',
+      entityInternalId: account.student.id,
     };
 
     return this.signTokenPair(payload);

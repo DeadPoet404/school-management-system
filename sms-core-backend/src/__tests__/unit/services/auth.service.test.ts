@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- test mocks use any for flexibility */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import jwt from 'jsonwebtoken';
 
 // ── Module mocks (hoisted by vitest) ──
@@ -20,6 +20,15 @@ vi.mock('@/lib/prisma', () => ({
 vi.mock('@/utils/hash', () => ({
   comparePassword: vi.fn(),
   hashPassword: vi.fn(),
+}));
+
+const { mockVerifyIdToken } = vi.hoisted(() => ({ mockVerifyIdToken: vi.fn() }));
+vi.mock('google-auth-library', () => ({
+  // Real class expression, not vi.fn + arrow: the service calls
+  // `new OAuth2Client(...)` and arrow functions cannot be constructors.
+  OAuth2Client: class {
+    verifyIdToken = mockVerifyIdToken;
+  },
 }));
 
 import { prisma } from '@/lib/prisma';
@@ -414,3 +423,73 @@ describe('AuthService', () => {
     });
   });
 });
+
+describe('AuthService.loginWithGoogle (SMS-004)', () => {
+  let service: AuthService;
+
+  beforeEach(() => {
+    process.env.GOOGLE_CLIENT_ID = 'test-google-client-id.apps.googleusercontent.com';
+    process.env.JWT_SECRET = 'test-access-secret-key-that-is-long-enough';
+    process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-key-that-is-long';
+    service = new AuthService();
+    vi.clearAllMocks();
+    (prisma.refreshToken.create as any).mockResolvedValue({});
+  });
+
+  afterEach(() => {
+    delete process.env.GOOGLE_CLIENT_ID;
+  });
+
+  it('issues a student session for a verified Google identity', async () => {
+    mockVerifyIdToken.mockResolvedValue({
+      getPayload: () => ({ email: 'student@school.com', email_verified: true }),
+    });
+    (prisma.studentAccount.findUnique as any).mockResolvedValue(STUDENT_ACCOUNT);
+
+    const result = await service.loginWithGoogle('valid-id-token');
+
+    expect(mockVerifyIdToken).toHaveBeenCalledWith({
+      idToken: 'valid-id-token',
+      audience: 'test-google-client-id.apps.googleusercontent.com',
+    });
+    expect(result.user).toEqual({
+      email: 'student@school.com',
+      role: 'STUDENT',
+      entityType: 'STUDENT',
+      entityInternalId: 'stu-internal-1',
+    });
+    expect(typeof result.accessToken).toBe('string');
+    expect(typeof result.refreshToken).toBe('string');
+  });
+
+  it('rejects with 401 when no student account matches the Google email', async () => {
+    mockVerifyIdToken.mockResolvedValue({
+      getPayload: () => ({ email: 'ghost@gmail.com', email_verified: true }),
+    });
+    (prisma.studentAccount.findUnique as any).mockResolvedValue(null);
+
+    await expect(service.loginWithGoogle('valid-id-token')).rejects.toMatchObject({
+      statusCode: 401,
+    });
+  });
+
+  it('rejects with 401 when Google token verification fails', async () => {
+    mockVerifyIdToken.mockRejectedValue(new Error('Wrong audience'));
+
+    await expect(service.loginWithGoogle('garbage-token')).rejects.toMatchObject({
+      statusCode: 401,
+    });
+    expect(prisma.studentAccount.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('rejects with 401 when the Google email is unverified', async () => {
+    mockVerifyIdToken.mockResolvedValue({
+      getPayload: () => ({ email: 'student@school.com', email_verified: false }),
+    });
+
+    await expect(service.loginWithGoogle('valid-id-token')).rejects.toMatchObject({
+      statusCode: 401,
+    });
+  });
+});
+

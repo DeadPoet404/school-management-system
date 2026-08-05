@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { assertSelfOrPrivilegedStudentAccess } from '@/middleware/self-access';
+import { assertSelfOrPrivilegedStudentAccess, resolveSessionStudentId } from '@/middleware/self-access';
 import { JwtPayload } from '@/types/auth.types';
 import { AppError } from '@/middleware/error.handler';
 
@@ -101,3 +101,26 @@ describe('assertSelfOrPrivilegedStudentAccess', () => {
     ).not.toThrow();
   });
 });
+
+describe('resolveSessionStudentId (SMS-005)', () => {
+  it('returns the internal student id for a STUDENT session', () => {
+    expect(resolveSessionStudentId(studentUser())).toBe('stu-internal-1');
+  });
+
+  it('rejects 401 when there is no session user', () => {
+    expectAppError(() => resolveSessionStudentId(undefined), 401);
+  });
+
+  it('rejects 403 for non-student sessions (FACULTY and ADMIN cannot use /me)', () => {
+    expectAppError(() => resolveSessionStudentId(facultyUser()), 403);
+    expectAppError(() => resolveSessionStudentId(adminUser()), 403);
+  });
+
+  it('rejects 403 when the session carries no internal id', () => {
+    expectAppError(
+      () => resolveSessionStudentId(studentUser({ entityInternalId: '' })),
+      403,
+    );
+  });
+});
+

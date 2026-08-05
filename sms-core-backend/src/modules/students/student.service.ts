@@ -27,6 +27,40 @@ interface PaymentType {
 export class StudentService {
   constructor(private repo: IStudentRepository = new StudentRepository()) {}
 
+  /**
+   * SMS-005: Portal self-view profile. Portal-shaped DTO only -- compliance,
+   * billing, invoice/payment, and departure internals are never selected.
+   * Identity always comes from the verified session, never from parameters.
+   */
+  async getOwnProfile(studentId: string) {
+    const student = await prisma.student.findUnique({
+      where: { id: studentId },
+      select: {
+        id: true,
+        studentId: true,
+        studentName: true,
+        enrollmentDate: true,
+        status: true,
+        currentGpa: true,
+        attendanceRate: true,
+        placement: {
+          select: {
+            academicTrack: true,
+            boardingStatus: true,
+            class: { select: { id: true, name: true, section: true } },
+          },
+        },
+        demographics: { select: { dateOfBirth: true, gender: true } },
+        guardians: {
+          select: { name: true, relationship: true, phone: true, email: true },
+        },
+      },
+    });
+
+    if (!student) throw new AppError(404, 'Student not found.');
+    return student;
+  }
+
   async getAll() {
     return this.repo.findAll();
   }

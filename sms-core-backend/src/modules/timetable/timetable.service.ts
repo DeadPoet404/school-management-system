@@ -56,6 +56,80 @@ export class TimetableService {
     return matrix;
   }
 
+  /**
+   * SMS-005: The session student's class schedule for the portal.
+   * Placement -> TimetableConfiguration (sectionId == Class.id, canonical).
+   * Teacher names are resolved in one batched lookup. When the class has no
+   * configuration yet, `timetable` is null rather than an error -- the portal
+   * can render an empty state.
+   */
+  async getOwnTimetable(studentId: string) {
+    const student = await prisma.student.findUnique({
+      where: { id: studentId },
+      select: {
+        studentName: true,
+        placement: {
+          select: {
+            classId: true,
+            class: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+
+    if (!student) throw new AppError(404, 'Student not found.');
+
+    const classInfo = student.placement?.class ?? null;
+    if (!student.placement?.classId || !classInfo) {
+      throw new AppError(404, 'No class placement found for this student.');
+    }
+
+    const config = await prisma.timetableConfiguration.findUnique({
+      where: { sectionId: student.placement.classId },
+      include: {
+        periods: { orderBy: { periodNumber: 'asc' } },
+        breaks: true,
+        subjects: true,
+      },
+    });
+
+    if (!config) {
+      return { class: classInfo, timetable: null };
+    }
+
+    // Batch-resolve teacher names for the subject allocations.
+    const teacherIds = [...new Set(config.subjects.map((s) => s.teacherId))];
+    const teachers = await prisma.teacher.findMany({
+      where: { id: { in: teacherIds } },
+      select: { id: true, teacherName: true },
+    });
+    const teacherNameById = new Map(teachers.map((t) => [t.id, t.teacherName]));
+
+    return {
+      class: classInfo,
+      timetable: {
+        periodsCount: config.periodsCount,
+        periods: config.periods.map((p) => ({
+          periodNumber: p.periodNumber,
+          dayOfWeek: p.dayOfWeek,
+          startTime: p.startTime,
+          endTime: p.endTime,
+        })),
+        breaks: config.breaks.map((b) => ({
+          name: b.name,
+          dayOfWeek: b.dayOfWeek,
+          startTime: b.startTime,
+          endTime: b.endTime,
+        })),
+        subjects: config.subjects.map((s) => ({
+          subjectName: s.subjectName,
+          teacherName: teacherNameById.get(s.teacherId) ?? null,
+          dayOfWeek: s.dayOfWeek,
+        })),
+      },
+    };
+  }
+
   async replaceGlobalMatrix(
     matrixData: Record<string, SectionTimeMatrix>
   ): Promise<void> {

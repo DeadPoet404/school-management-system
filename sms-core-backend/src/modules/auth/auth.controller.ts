@@ -10,6 +10,10 @@ const loginSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 });
 
+const googleLoginSchema = z.object({
+  credential: z.string().min(1, 'A Google ID token (credential) is required.'),
+});
+
 /**
  * Builds cookie options from environment variables.
  *
@@ -76,6 +80,45 @@ export class AuthController {
       });
 
       res.status(200).json({ success: true, data: { user: result.user } });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * SMS-004: POST /api/auth/google
+   * Exchanges a Google ID token for the standard SMS session (STUDENT only).
+   * Sets the same httpOnly cookies as /login AND returns the token pair in the
+   * body so the external website can pick the Authorization: Bearer variant
+   * when cross-site cookies are not viable (see docs/PORTAL_API.md).
+   */
+  async googleLogin(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const parsed = googleLoginSchema.safeParse(req.body);
+      if (!parsed.success) {
+        throw new AppError(400, parsed.error.issues[0]!.message);
+      }
+
+      const result = await this.authService.loginWithGoogle(parsed.data.credential);
+      const cookieOpts = getCookieOptions();
+
+      res.cookie('access_token', result.accessToken, {
+        ...cookieOpts,
+        maxAge: 15 * 60 * 1000,
+      });
+      res.cookie('refresh_token', result.refreshToken, {
+        ...cookieOpts,
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          user: result.user,
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken,
+        },
+      });
     } catch (error) {
       next(error);
     }

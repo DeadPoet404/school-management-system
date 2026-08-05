@@ -7,6 +7,7 @@ import {
   toStudentDtoForRole,
   toStudentListDtoForRole,
 } from "@/lib/role-dtos";
+import { resolveSessionStudentId } from "@/middleware/self-access";
 
 type UploadedStudentImportFile = {
   buffer: Buffer;
@@ -39,6 +40,20 @@ export class StudentController {
       }
 
       return res.status(200).json(buildPaginationResponse(safeData, total, page, limit));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * SMS-005: GET /api/students/me -- portal self-view profile.
+   * Identity is resolved from the verified session (never parameters).
+   */
+  public getOwnProfile = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
+    try {
+      const studentId = resolveSessionStudentId(req.user);
+      const profile = await this.studentService.getOwnProfile(studentId);
+      return res.status(200).json({ success: true, data: profile });
     } catch (error) {
       next(error);
     }
