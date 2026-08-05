@@ -29,10 +29,10 @@ const TOP_LEVEL_BY_ROLE: Record<Role, TopLevelModule[]> = {
 }
 
 const OPERATIONS_BY_ROLE: Record<Role, string[]> = {
-  ADMIN: ["class-gen", "fee-structure", "payment-collection", "payroll-ledgers", "enrollment-workflow", "ca-gradebook"],
+  ADMIN: ["class-gen", "fee-structure", "payment-collection", "payroll-ledgers", "enrollment-workflow", "ca-gradebook", "attendance-registry"],
   ACCOUNTANT: ["fee-structure", "payment-collection", "payroll-ledgers"],
-  STAFF: ["enrollment-workflow", "ca-gradebook"],
-  FACULTY: ["ca-gradebook"],
+  STAFF: ["enrollment-workflow", "ca-gradebook", "attendance-registry"],
+  FACULTY: ["ca-gradebook", "attendance-registry"],
   STUDENT: [],
 }
 

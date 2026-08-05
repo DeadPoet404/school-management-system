@@ -40,6 +40,11 @@ export const OPERATIONS_SECTIONS: OperationsSection[] = [
         title: "Timetable & Scheduling",
         action: { type: "view", component: TimetableStructureSetup },
       },
+      {
+        id: "attendance-registry",
+        title: "Attendance Registry",
+        action: { type: "route", path: "/operations/attendance" },
+      },
     ],
   },
   {
