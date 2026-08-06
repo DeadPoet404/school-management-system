@@ -14,10 +14,16 @@ export interface AuthenticatedRequest extends Request {
  * B-4 fix: Explicitly specifies algorithms to prevent alg:none attacks.
  */
 export function authenticate(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  const token = req.cookies?.access_token;
+  let token = req.cookies?.access_token;
+  if (!token && req.headers.authorization?.startsWith('Bearer ')) {
+    token = req.headers.authorization.slice(7).trim();
+  }
+  if (!token && req.query?.token && typeof req.query.token === 'string') {
+    token = req.query.token.trim();
+  }
 
   if (!token) {
-    return next(new AppError(401, 'Authentication required. No access token cookie.'));
+    return next(new AppError(401, 'Authentication required. No access token provided.'));
   }
 
   const secret = process.env.JWT_SECRET;
