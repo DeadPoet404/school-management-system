@@ -131,7 +131,11 @@ export class AuthController {
    */
   async refresh(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const refreshTokenValue = req.cookies?.refresh_token;
+      // INT-005a: cookie first (sms-core staff console unchanged), body fallback for
+      // Bearer-mode clients (the jocomfy external portal stores no cookies cross-site).
+      // INT-005c: body (explicit) beats cookie (ambient) — same collision class.
+      // The console never sends a body, so its cookie flow is untouched.
+      const refreshTokenValue = req.body?.refreshToken || req.cookies?.refresh_token;
       if (!refreshTokenValue) {
         throw new AppError(401, 'No refresh token provided.');
       }
@@ -149,7 +153,14 @@ export class AuthController {
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
-      res.status(200).json({ success: true, data: { user: result.user } });
+      res.status(200).json({
+        success: true,
+        data: {
+          user: result.user,
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken,
+        },
+      });
     } catch (error) {
       next(error);
     }

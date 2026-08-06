@@ -14,9 +14,16 @@ export interface AuthenticatedRequest extends Request {
  * B-4 fix: Explicitly specifies algorithms to prevent alg:none attacks.
  */
 export function authenticate(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  let token = req.cookies?.access_token;
-  if (!token && req.headers.authorization?.startsWith('Bearer ')) {
+  // INT-005c: Authorization: Bearer WINS over cookies. This API's cookie jar is
+  // shared by the sms-core admin console and the external jocomfy portal (cookies
+  // ignore ports). A logged-in admin's ambient cookie must never shadow a portal
+  // caller's explicit Bearer token. Cookie remains the fallback for the console.
+  let token: string | undefined;
+  if (req.headers.authorization?.startsWith('Bearer ')) {
     token = req.headers.authorization.slice(7).trim();
+  }
+  if (!token) {
+    token = req.cookies?.access_token;
   }
   if (!token && req.query?.token && typeof req.query.token === 'string') {
     token = req.query.token.trim();
