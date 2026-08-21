@@ -1,11 +1,12 @@
 "use client"
 
 import * as React from "react"
+import { DashboardGreeting } from "@/components/dashboard/dashboard-greeting"
 
 export default function DashboardPage() {
   return (
-    <div className="w-full min-h-screen p-4 md:p-6 lg:p-8">
-      {/* Clean Slate */}
+    <div className="w-full px-2 sm:px-4 py-2">
+      <DashboardGreeting category="School Operations" title="Dashboard" />
     </div>
   )
 }
