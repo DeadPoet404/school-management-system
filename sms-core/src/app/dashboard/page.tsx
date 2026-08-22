@@ -93,17 +93,24 @@ export default function DashboardPage() {
 
         <section className="grid grid-cols-1 gap-5 sm:gap-6 lg:grid-cols-3">
           <div className="min-w-0">
-            <DashboardAttendanceCard />
+            <DashboardAttendanceCard
+              attendance={data?.attendanceByClass}
+            />
           </div>
 
           <div className="min-w-0">
-            <DashboardStudentsCard />
+            <DashboardStudentsCard
+              enrollment={data?.enrollmentDistribution}
+            />
           </div>
 
           <div className="min-w-0">
-            <DashboardPayrollCard />
+            <DashboardPayrollCard
+              payroll={data?.payrollSummary}
+            />
           </div>
         </section>
+
       </div>
     </div>
   )
