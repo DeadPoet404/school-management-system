@@ -1,5 +1,4 @@
 import { AppError } from "@/middleware/error.handler";
-import * as XLSX from "xlsx";
 
 export type StaffImportUploadedFile = {
   buffer: Buffer;
@@ -95,7 +94,7 @@ type CanonicalRow = Partial<Record<CanonicalField, string>>;
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const GHANA_CARD_REGEX = /^GHA-\d{9}-\d$/;
-const SUPPORTED_EXTENSIONS = [".csv", ".xlsx", ".xls"];
+const SUPPORTED_EXTENSIONS = [".csv"];
 const DEFAULT_IMPORT_PASSWORD = process.env.DEFAULT_IMPORT_PASSWORD || "SystemDefaultSecure2026!";
 
 const ALIAS_LOOKUP = new Map<string, CanonicalField>();
@@ -120,35 +119,59 @@ function valueToString(value: unknown): string {
   return String(value).trim();
 }
 
+function parseCsvRows(csv: string): unknown[][] {
+  const rows: unknown[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let quoted = false;
+
+  for (let index = 0; index < csv.length; index += 1) {
+    const character = csv[index];
+
+    if (character === '"') {
+      if (quoted && csv[index + 1] === '"') {
+        field += '"';
+        index += 1;
+      } else {
+        quoted = !quoted;
+      }
+      continue;
+    }
+
+    if (character === "," && !quoted) {
+      row.push(field);
+      field = "";
+      continue;
+    }
+
+    if ((character === "\n" || character === "\r") && !quoted) {
+      if (character === "\r" && csv[index + 1] === "\n") index += 1;
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = "";
+      continue;
+    }
+
+    field += character;
+  }
+
+  if (field || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+
+  return rows;
+}
+
 function readWorksheetRows(file: StaffImportUploadedFile): unknown[][] {
   const lowerName = file.originalname.toLowerCase();
 
-  if (!SUPPORTED_EXTENSIONS.some((extension) => lowerName.endsWith(extension))) {
-    throw new AppError(400, "Only CSV, XLSX, and XLS staff import files are supported.");
+  if (!lowerName.endsWith(".csv")) {
+    throw new AppError(400, "Only CSV student import files are supported.");
   }
 
-  const workbook = lowerName.endsWith(".csv")
-    ? XLSX.read(file.buffer.toString("utf8"), { type: "string", raw: false })
-    : XLSX.read(file.buffer, { type: "buffer", cellDates: false, raw: false });
-
-  const sheetName = workbook.SheetNames[0];
-
-  if (!sheetName) {
-    throw new AppError(400, "The import file does not contain a worksheet.");
-  }
-
-  const sheet = workbook.Sheets[sheetName];
-
-  if (!sheet) {
-    throw new AppError(400, "The import worksheet could not be read.");
-  }
-
-  return XLSX.utils.sheet_to_json(sheet, {
-    header: 1,
-    defval: "",
-    raw: false,
-    blankrows: false,
-  }) as unknown[][];
+  return parseCsvRows(file.buffer.toString("utf8").replace(/^\uFEFF/, ""));
 }
 
 function canonicalizeRow(headers: unknown[], values: unknown[]): CanonicalRow {

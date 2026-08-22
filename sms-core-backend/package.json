@@ -36,7 +36,6 @@
     "pino-http": "^11.0.0",
     "swagger-jsdoc": "^6.3.0",
     "swagger-ui-express": "^5.0.1",
-    "xlsx": "^0.18.5",
     "xss": "^1.0.15",
     "yaml": "^2.9.0",
     "zod": "^4.4.3"

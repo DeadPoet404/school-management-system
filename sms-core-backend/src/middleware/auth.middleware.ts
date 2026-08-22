@@ -30,7 +30,7 @@ export function authenticate(req: AuthenticatedRequest, res: Response, next: Nex
   }
 
   if (!token) {
-    return next(new AppError(401, 'Authentication required. No access token provided.'));
+    return next(new AppError(401, 'Authentication required. No access token cookie.'));
   }
 
   const secret = process.env.JWT_SECRET;
