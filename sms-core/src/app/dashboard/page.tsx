@@ -77,7 +77,10 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex min-h-0 flex-col lg:col-span-6">
-            <ChartBarStacked />
+            <ChartBarStacked
+              collections={data?.collectionsByChannel}
+              expenses={data?.expenseBreakdown}
+            />
           </div>
 
           <div className="flex min-h-0 flex-col lg:col-span-3">

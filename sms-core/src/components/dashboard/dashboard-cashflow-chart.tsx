@@ -2,6 +2,10 @@
 
 import * as React from "react"
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts"
+import type {
+  CollectionsByChannelData,
+  ExpenseBreakdownData,
+} from "@/lib/api/dashboard"
 
 import {
   Card,
@@ -21,19 +25,8 @@ import {
 
 export const description = "A stacked bi-weekly treasury cashflow bar chart with 9 periods and 1.5x wide bars"
 
-const chartData = [
-  { period: "Jun 1–14", collections: 78000, expenses: 31000 },
-  { period: "Jun 15–28", collections: 92000, expenses: 42000 },
-  { period: "Jul 1–14", collections: 104000, expenses: 38000 },
-  { period: "Jul 15–28", collections: 116000, expenses: 47000 },
-  { period: "Aug 1–14", collections: 89000, expenses: 35000 },
-  { period: "Aug 15–28", collections: 127000, expenses: 51000 },
-  { period: "Sep 1–14", collections: 118000, expenses: 44000 },
-  { period: "Sep 15–28", collections: 136000, expenses: 53000 },
-  { period: "Oct 1–14", collections: 108000, expenses: 39000 },
-  { period: "Oct 15–28", collections: 143000, expenses: 58000 },
-  { period: "Nov 1–14", collections: 121000, expenses: 46000 },
-  { period: "Nov 15–28", collections: 151000, expenses: 61000 },
+const fallbackChartData = [
+  { period: "No data", collections: 0, expenses: 0 },
 ]
 const chartConfig = {
   collections: {
@@ -46,14 +39,63 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-export function ChartBarStacked() {
+interface ChartBarStackedProps {
+  collections?: CollectionsByChannelData
+  expenses?: ExpenseBreakdownData
+}
+
+function formatMonth(month: string) {
+  const [year, monthNumber] = month.split("-")
+  const date = new Date(Number(year), Number(monthNumber) - 1, 1)
+
+  return date.toLocaleDateString("en-GH", {
+    month: "short",
+    year: "numeric",
+  })
+}
+
+export function ChartBarStacked({
+  collections,
+  expenses,
+}: ChartBarStackedProps) {
+  const chartData = React.useMemo(() => {
+    if (!collections && !expenses) {
+      return fallbackChartData
+    }
+
+    const collectionByMonth = new Map(
+      (collections?.monthly ?? []).map((item) => [item.month, item.total]),
+    )
+
+    const expenseByMonth = new Map(
+      (expenses?.netPosition ?? []).map((item) => [
+        item.month,
+        item.expenses,
+      ]),
+    )
+
+    const months = Array.from(
+      new Set([
+        ...(collections?.monthly ?? []).map((item) => item.month),
+        ...(expenses?.netPosition ?? []).map((item) => item.month),
+      ]),
+    ).sort()
+
+    return months.map((month) => ({
+      period: formatMonth(month),
+      collections: collectionByMonth.get(month) ?? 0,
+      expenses: expenseByMonth.get(month) ?? 0,
+    }))
+  }, [collections, expenses])
+
   const totalCollections = React.useMemo(
     () => chartData.reduce((acc, curr) => acc + curr.collections, 0),
-    []
+    [chartData],
   )
+
   const totalExpenses = React.useMemo(
     () => chartData.reduce((acc, curr) => acc + curr.expenses, 0),
-    []
+    [chartData],
   )
 
   return (
