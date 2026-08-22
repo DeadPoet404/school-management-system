@@ -16,8 +16,12 @@ import {
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import type {
+  ReceivablesAgingData,
+  TopDebtorsData,
+} from "@/lib/api/dashboard"
 
-const aging = {
+const fallbackAging = {
   current: {
     count: 6,
     amount: 18200,
@@ -36,7 +40,7 @@ const aging = {
   },
 }
 
-const debtors = [
+const fallbackDebtors = [
   {
     studentId: "HHA-0001",
     studentName: "Ama Yaw Osei",
@@ -99,7 +103,18 @@ const debtors = [
   },
 ]
 
-export function DashboardReceivablesCard() {
+interface DashboardReceivablesCardProps {
+  aging?: ReceivablesAgingData
+  debtors?: TopDebtorsData
+}
+
+export function DashboardReceivablesCard({
+  aging: agingData,
+  debtors: debtorData,
+}: DashboardReceivablesCardProps) {
+  const aging = agingData?.buckets ?? fallbackAging
+  const debtors = debtorData?.debtors ?? fallbackDebtors
+
   const openInvoicesCount =
     aging.current.count +
     aging.days1to30.count +
@@ -157,7 +172,7 @@ export function DashboardReceivablesCard() {
         </div>
 
         <CardTitle className="mt-3 text-[2.45rem] font-semibold leading-none tracking-[-0.05em]">
-          GH₵52,628
+          GH₵{(agingData?.totalOutstanding ?? 0).toLocaleString()}
         </CardTitle>
 
         <p className="mt-2 text-[11px] text-muted-foreground">

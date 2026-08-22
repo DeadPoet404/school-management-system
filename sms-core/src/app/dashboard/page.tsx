@@ -84,7 +84,10 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex min-h-0 flex-col lg:col-span-3">
-            <DashboardReceivablesCard />
+            <DashboardReceivablesCard
+              aging={data?.receivablesAging}
+              debtors={data?.topDebtors}
+            />
           </div>
         </section>
 
