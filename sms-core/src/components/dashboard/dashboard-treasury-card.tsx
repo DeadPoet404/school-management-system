@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge"
 
 interface DashboardTreasuryCardProps {
   totalRevenue?: number
+  totalInvoiced?: number
   trendPct?: number
   spentBudget?: number
   totalBudget?: number
@@ -99,8 +100,9 @@ const recentCollections = [
 ]
 
 export function DashboardTreasuryCard({
-  totalRevenue = 689372,
-  trendPct = 5.4,
+  totalRevenue = 0,
+  totalInvoiced = 0,
+  trendPct = 0,
   spentBudget = 180000,
   totalBudget = 350000,
   onCollectPayment,
@@ -138,7 +140,7 @@ export function DashboardTreasuryCard({
         </div>
 
         <p className="mt-1 text-[11px] text-muted-foreground">
-          GH₵824,500 invoiced this term
+          GH₵{totalInvoiced.toLocaleString()} invoiced this term
         </p>
 
         <div className="flex gap-2 pt-4">
