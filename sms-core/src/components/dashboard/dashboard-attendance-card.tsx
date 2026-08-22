@@ -108,7 +108,7 @@ export function DashboardAttendanceCard({
         present: livePresent,
         late: 0,
         absent: Math.max(liveTotal - livePresent, 0),
-        excused: liveAttendance.skippedUnassigned,
+        excused: liveAttendance?.skippedUnassigned ?? 0,
         totalStudents: liveTotal,
         highestClass: {
           name: sortedClasses[0]?.className ?? "No class data",
