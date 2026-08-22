@@ -25,6 +25,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
+import type { AttendanceByClassData } from "@/lib/api/dashboard"
 
 const attendanceData = [
   { day: "Mon", attendance: 94 },
@@ -43,7 +44,7 @@ const attendanceData = [
   { day: "Thu", attendance: 94 },
 ]
 
-const attendance = {
+const fallbackAttendance = {
   today: 94.8,
   yesterday: 93.1,
 
@@ -72,7 +73,56 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-export function DashboardAttendanceCard() {
+interface DashboardAttendanceCardProps {
+  attendance?: AttendanceByClassData
+}
+
+export function DashboardAttendanceCard({
+  attendance: liveAttendance,
+}: DashboardAttendanceCardProps) {
+  const liveClasses = liveAttendance?.classes ?? []
+
+  const livePresent = liveClasses.reduce(
+    (total, item) => total + item.present,
+    0,
+  )
+
+  const liveTotal = liveClasses.reduce(
+    (total, item) => total + item.total,
+    0,
+  )
+
+  const liveToday =
+    liveTotal > 0
+      ? Number(((livePresent / liveTotal) * 100).toFixed(1))
+      : 0
+
+  const sortedClasses = [...liveClasses].sort(
+    (a, b) => b.ratePct - a.ratePct,
+  )
+
+  const attendance = attendanceData
+    ? {
+        today: liveToday,
+        yesterday: liveToday,
+        present: livePresent,
+        late: 0,
+        absent: Math.max(liveTotal - livePresent, 0),
+        excused: liveAttendance.skippedUnassigned,
+        totalStudents: liveTotal,
+        highestClass: {
+          name: sortedClasses[0]?.className ?? "No class data",
+          rate: sortedClasses[0]?.ratePct ?? 0,
+        },
+        lowestClass: {
+          name:
+            sortedClasses[sortedClasses.length - 1]?.className ??
+            "No class data",
+          rate: sortedClasses[sortedClasses.length - 1]?.ratePct ?? 0,
+        },
+      }
+    : fallbackAttendance
+
   const change = attendance.today - attendance.yesterday
 
   return (
