@@ -1,80 +1,116 @@
 /* eslint-disable no-console */
 import { z } from 'zod';
 
-const envSchema = z.object({
-  // ── REQUIRED — server will not start without these ──
-  DATABASE_URL: z.string().min(1, 'DATABASE_URL is required and cannot be empty.'),
-  JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 characters for security.'),
-  // P1-9: JWT_REFRESH_SECRET is now REQUIRED. Previously optional with a
-  // fallback to JWT_SECRET, which meant refresh and access tokens shared
-  // the same signing key — defeating the purpose of dual-token architecture.
-  // If an access token was compromised, an attacker could forge refresh tokens.
-  // Generate a separate secret and add it to your .env file.
-  JWT_REFRESH_SECRET: z.string().min(16, 'JWT_REFRESH_SECRET must be at least 16 characters and MUST differ from JWT_SECRET.'),
-  COOKIE_SECRET: z.string().min(16).optional(),
+const envSchema = z
+  .object({
+    // ── REQUIRED — server will not start without these ──
+    DATABASE_URL: z.string().min(1, 'DATABASE_URL is required and cannot be empty.'),
+    JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 characters for security.'),
+    // P1-9: JWT_REFRESH_SECRET is now REQUIRED. Previously optional with a
+    // fallback to JWT_SECRET, which meant refresh and access tokens shared
+    // the same signing key — defeating the purpose of dual-token architecture.
+    // If an access token was compromised, an attacker could forge refresh tokens.
+    // Generate a separate secret and add it to your .env file.
+    JWT_REFRESH_SECRET: z.string().min(16, 'JWT_REFRESH_SECRET must be at least 16 characters and MUST differ from JWT_SECRET.'),
+    COOKIE_SECRET: z.string().min(16).optional(),
 
-  // ── OPTIONAL — have safe defaults ──
-  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  ENABLE_API_DOCS: z.coerce.string().transform(v => v === 'true').default(false),
-  PORT: z.coerce.number().int().min(1).max(65535).default(5000),
-  JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
-  JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
-  COOKIE_DOMAIN: z.string().optional(),
-  COOKIE_SECURE: z.coerce.string().transform(v => v === 'true').default(false),
-  COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).default('lax'),
-  CORS_ORIGINS: z.string().default('http://localhost:3000,http://localhost:3001'),
-  // SMS-004: Google OAuth 2.0 Client ID used to verify portal sign-in ID tokens.
-  // Optional -- POST /api/auth/google answers 503 when unset.
-  // Empty string is normalized to unset: docker-compose passes unconfigured
-  // pass-throughs as "", and plain min(1) would crash env validation at boot.
-  GOOGLE_CLIENT_ID: z.preprocess(
-    (v) => (v === '' ? undefined : v),
-    z.string().min(1).optional(),
-  ),
-  // SMS-006: Gmail SMTP credentials for receipt dispatch (Nodemailer).
-  // Optional pair -- receipt emails are skipped (logged) when unset.
-  // Same ''-normalization as GOOGLE_CLIENT_ID (compose passes unset
-  // pass-throughs as empty strings, and min(1) would crash boot).
-  GMAIL_USER: z.preprocess(
-    (v) => (v === '' ? undefined : v),
-    z.string().min(1).optional(),
-  ),
-  GMAIL_APP_PASSWORD: z.preprocess(
-    (v) => (v === '' ? undefined : v),
-    z.string().min(1).optional(),
-  ),
-  // SMS-010: HMAC signing secret for stateless .ics feed tokens.
-  // Optional -- feeds + token minting answer 503 while unset.
-  CALENDAR_FEED_SECRET: z.preprocess(
-    (v) => (v === '' ? undefined : v),
-    z.string().min(32, 'CALENDAR_FEED_SECRET should be at least 32 random characters.').optional(),
-  ),
-  // SMS-012: communication adapters -- unset channels stay disabled (channel-disabled).
-  ARKESEL_API_KEY: z.preprocess(
-    (v) => (v === '' ? undefined : v),
-    z.string().min(1).optional(),
-  ),
-  ARKESEL_SENDER_ID: z.preprocess(
-    (v) => (v === '' ? undefined : v),
-    z.string().max(11, 'ARKESEL_SENDER_ID must be 11 characters or fewer.').optional(),
-  ),
-  META_WA_PHONE_NUMBER_ID: z.preprocess(
-    (v) => (v === '' ? undefined : v),
-    z.string().min(1).optional(),
-  ),
-  META_WA_ACCESS_TOKEN: z.preprocess(
-    (v) => (v === '' ? undefined : v),
-    z.string().min(1).optional(),
-  ),
-  META_WA_BUSINESS_ACCOUNT_ID: z.preprocess(
-    (v) => (v === '' ? undefined : v),
-    z.string().min(1).optional(),
-  ),
-  RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(60000),
-  RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().min(1).default(100),
-  AUTH_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().min(1).default(5),
-  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
-});
+    // ── OPTIONAL — have safe defaults ──
+    NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+    ENABLE_API_DOCS: z.coerce.string().transform(v => v === 'true').default(false),
+    PORT: z.coerce.number().int().min(1).max(65535).default(5000),
+    JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
+    JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
+    COOKIE_DOMAIN: z.string().optional(),
+    COOKIE_SECURE: z.coerce.string().transform(v => v === 'true').default(false),
+    COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).default('lax'),
+    CORS_ORIGINS: z.string().default('http://localhost:3000,http://localhost:3001'),
+    GOOGLE_CLIENT_ID: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().min(1).optional(),
+    ),
+    GMAIL_USER: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().min(1).optional(),
+    ),
+    GMAIL_APP_PASSWORD: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().min(1).optional(),
+    ),
+    CALENDAR_FEED_SECRET: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().min(32, 'CALENDAR_FEED_SECRET should be at least 32 random characters.').optional(),
+    ),
+    ARKESEL_API_KEY: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().min(1).optional(),
+    ),
+    ARKESEL_SENDER_ID: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().max(11, 'ARKESEL_SENDER_ID must be 11 characters or fewer.').optional(),
+    ),
+    META_WA_PHONE_NUMBER_ID: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().min(1).optional(),
+    ),
+    META_WA_ACCESS_TOKEN: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().min(1).optional(),
+    ),
+    META_WA_BUSINESS_ACCOUNT_ID: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().min(1).optional(),
+    ),
+    RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(60000),
+    RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().min(1).default(100),
+    AUTH_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().min(1).default(5),
+    LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  })
+  .superRefine((env, ctx) => {
+    // ── P0: the error message always claimed these must differ — now enforced.
+    // Equal secrets collapse the dual-token architecture: anyone who can verify
+    // access tokens can also mint refresh tokens (and vice versa).
+    if (env.JWT_REFRESH_SECRET === env.JWT_SECRET) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['JWT_REFRESH_SECRET'],
+        message: 'JWT_REFRESH_SECRET must differ from JWT_SECRET. Generate two separate secrets: openssl rand -hex 32',
+      });
+    }
+
+    if (env.NODE_ENV === 'production') {
+      const record = env as unknown as Record<string, string | undefined>;
+      // ── P0: refuse to boot on the .env.example placeholders.
+      for (const key of ['JWT_SECRET', 'JWT_REFRESH_SECRET', 'COOKIE_SECRET']) {
+        const value = record[key];
+        if (value && /^change_me/i.test(value)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [key],
+            message: `${key} is still the .env.example placeholder. Generate a real secret: openssl rand -hex 32`,
+          });
+        }
+      }
+      // ── P0: 16 chars is the floor for dev/test; production gets 32+.
+      for (const key of ['JWT_SECRET', 'JWT_REFRESH_SECRET']) {
+        const value = record[key];
+        if (value && value.length < 32) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [key],
+            message: `${key} must be at least 32 characters in production. Generate with: openssl rand -hex 32`,
+          });
+        }
+      }
+    }
+  });
+
+/**
+ * Pure validation function — takes a raw env record, returns the Zod result.
+ * Exported for unit tests so the boot-path itself stays unmocked.
+ */
+export function validateEnvValues(raw: Record<string, string | undefined>) {
+  return envSchema.safeParse(raw);
+}
 
 /**
  * Validates all environment variables at startup.
@@ -82,7 +118,7 @@ const envSchema = z.object({
  * Throws immediately if required variables are missing or invalid.
  */
 function validateEnv() {
-  const result = envSchema.safeParse(process.env);
+  const result = validateEnvValues(process.env);
 
   if (!result.success) {
     console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -123,6 +159,13 @@ function validateEnv() {
   process.env.RATE_LIMIT_MAX_REQUESTS = String(env.RATE_LIMIT_MAX_REQUESTS);
   process.env.AUTH_RATE_LIMIT_MAX_REQUESTS = String(env.AUTH_RATE_LIMIT_MAX_REQUESTS);
   process.env.LOG_LEVEL = env.LOG_LEVEL;
+
+  // ── P0: loud, non-blocking warning. Intranet HTTP deployments are legal,
+  // but the operator must consciously acknowledge cookie exposure.
+  if (env.NODE_ENV === 'production' && !env.COOKIE_SECURE) {
+    console.error('⚠️  COOKIE_SECURE=false in production — session cookies will be transmitted over plain HTTP.');
+    console.error('   Set COOKIE_SECURE=true (and serve via HTTPS) before real traffic is accepted.');
+  }
 }
 
 // ── EXECUTE IMMEDIATELY ON IMPORT ──
