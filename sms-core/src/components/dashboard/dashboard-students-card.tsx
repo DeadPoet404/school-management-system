@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/chart"
 import type { EnrollmentDistributionData } from "@/lib/api/dashboard"
 
-const studentDistribution = [
+const fallbackStudentDistribution = [
   {
     type: "boarding",
     label: "Boarding",
@@ -57,12 +57,12 @@ const chartConfig = {
   students: {
     label: "Students",
   },
-  boarding: {
-    label: "Boarding",
+  assigned: {
+    label: "Assigned",
     color: "#7C3AED",
   },
-  day: {
-    label: "Day Students",
+  unassigned: {
+    label: "Unassigned",
     color: "#FF5A36",
   },
 } satisfies ChartConfig
@@ -74,16 +74,31 @@ interface DashboardStudentsCardProps {
 export function DashboardStudentsCard({
   enrollment,
 }: DashboardStudentsCardProps) {
-  const fallbackTotalStudents = React.useMemo(
-    () =>
-      studentDistribution.reduce(
-        (total, item) => total + item.students,
-        0
-      ),
-    []
-  )
+  const studentDistribution = enrollment
+    ? [
+        {
+          type: "assigned",
+          label: "Assigned",
+          students: enrollment.classes
+            .filter((item) => item.classId !== null)
+            .reduce((total, item) => total + item.students, 0),
+          fill: "var(--color-assigned)",
+        },
+        {
+          type: "unassigned",
+          label: "Unassigned",
+          students: enrollment.classes
+            .filter((item) => item.classId === null)
+            .reduce((total, item) => total + item.students, 0),
+          fill: "var(--color-unassigned)",
+        },
+      ]
+    : fallbackStudentDistribution
 
-  const totalStudents = enrollment?.total ?? fallbackTotalStudents
+  const totalStudents = enrollment?.total ?? studentDistribution.reduce(
+    (total, item) => total + item.students,
+    0,
+  )
 
   const newStudents = 34
 
