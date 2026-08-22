@@ -23,6 +23,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
+import type { AcademicPerformanceData } from "@/lib/api/dashboard"
 
 const gpaDistribution = [
   { range: "0–1", students: 42 },
@@ -58,9 +59,57 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-export function DashboardAcademicsCard() {
+interface DashboardAcademicsCardProps {
+  performance?: AcademicPerformanceData
+}
+
+export function DashboardAcademicsCard({
+  performance,
+}: DashboardAcademicsCardProps) {
+  const liveClassAverages = [...(performance?.perClass ?? [])].sort(
+    (a, b) => b.averageScore - a.averageScore,
+  )
+
+  const liveStrongestClass = liveClassAverages[0]
+  const liveAttentionClass =
+    liveClassAverages[liveClassAverages.length - 1]
+
+  const liveGpaDistribution =
+    performance?.gpaDistribution.map((item) => ({
+      range: item.bucket.replace("-", "–"),
+      students: item.students,
+    })) ?? gpaDistribution
+
+  const academicsView = performance
+    ? {
+        totalStudents: performance.activeStudents,
+        cumulativeGpa: performance.schoolAverageGpa,
+        previousGpa: performance.schoolAverageGpa,
+        passRate:
+          performance.perSubject.length > 0
+            ? performance.perSubject.reduce(
+                (total, subject) => total + subject.passRatePct,
+                0,
+              ) / performance.perSubject.length
+            : 0,
+        strongestClass: {
+          name: liveStrongestClass?.className ?? "No class data",
+          average: liveStrongestClass?.averageScore ?? 0,
+        },
+        attentionClass: {
+          name: liveAttentionClass?.className ?? "No class data",
+          average: liveAttentionClass?.averageScore ?? 0,
+        },
+        caRecords: performance.perSubject.reduce(
+          (total, subject) => total + subject.records,
+          0,
+        ),
+        examRecords: 0,
+      }
+    : academics
+
   const gpaChange =
-    academics.cumulativeGpa - academics.previousGpa
+    academicsView.cumulativeGpa - academicsView.previousGpa
 
   return (
     <Card className="flex h-full min-h-[390px] flex-col overflow-hidden rounded-2xl border border-border/60 bg-card py-0 shadow-sm">
@@ -102,7 +151,7 @@ export function DashboardAcademicsCard() {
             <div className="mt-1 flex items-baseline gap-1.5">
 
               <span className="text-[2.7rem] font-semibold leading-none tracking-[-0.06em] tabular-nums">
-                {academics.cumulativeGpa.toFixed(2)}
+                {academicsView.cumulativeGpa.toFixed(2)}
               </span>
 
               <span className="text-xs text-muted-foreground">
@@ -120,7 +169,7 @@ export function DashboardAcademicsCard() {
             </p>
 
             <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums text-[#00A896]">
-              {academics.passRate}%
+              {academicsView.passRate}%
             </p>
 
           </div>
@@ -142,7 +191,7 @@ export function DashboardAcademicsCard() {
             </span>
 
             <span className="text-[11px] text-muted-foreground">
-              {academics.totalStudents.toLocaleString()} students
+              {academicsView.totalStudents.toLocaleString()} students
             </span>
 
           </div>
@@ -153,7 +202,7 @@ export function DashboardAcademicsCard() {
           >
 
             <BarChart
-              data={gpaDistribution}
+              data={liveGpaDistribution}
               barCategoryGap="0%"
               barGap={0}
               margin={{
@@ -228,11 +277,11 @@ export function DashboardAcademicsCard() {
             </div>
 
             <p className="mt-1 truncate text-sm font-semibold">
-              {academics.strongestClass.name}
+              {academicsView.strongestClass.name}
             </p>
 
             <p className="mt-0.5 text-xs font-medium text-[#00A896]">
-              {academics.strongestClass.average}% average
+              {academicsView.strongestClass.average}% average
             </p>
 
           </div>
@@ -246,11 +295,11 @@ export function DashboardAcademicsCard() {
             </p>
 
             <p className="mt-1 truncate text-sm font-semibold">
-              {academics.attentionClass.name}
+              {academicsView.attentionClass.name}
             </p>
 
             <p className="mt-0.5 text-xs font-medium text-[#FF5A36]">
-              {academics.attentionClass.average}% average
+              {academicsView.attentionClass.average}% average
             </p>
 
           </div>
@@ -271,8 +320,8 @@ export function DashboardAcademicsCard() {
 
             <p className="mt-1 text-sm font-semibold tabular-nums">
               {(
-                academics.caRecords +
-                academics.examRecords
+                academicsView.caRecords +
+                academicsView.examRecords
               ).toLocaleString()}
             </p>
 

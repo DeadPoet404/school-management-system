@@ -18,6 +18,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
+import type { EnrollmentDistributionData } from "@/lib/api/dashboard"
 
 const studentDistribution = [
   {
@@ -66,8 +67,14 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-export function DashboardStudentsCard() {
-  const totalStudents = React.useMemo(
+interface DashboardStudentsCardProps {
+  enrollment?: EnrollmentDistributionData
+}
+
+export function DashboardStudentsCard({
+  enrollment,
+}: DashboardStudentsCardProps) {
+  const fallbackTotalStudents = React.useMemo(
     () =>
       studentDistribution.reduce(
         (total, item) => total + item.students,
@@ -75,6 +82,8 @@ export function DashboardStudentsCard() {
       ),
     []
   )
+
+  const totalStudents = enrollment?.total ?? fallbackTotalStudents
 
   const newStudents = 34
 

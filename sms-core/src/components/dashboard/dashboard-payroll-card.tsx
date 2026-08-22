@@ -17,8 +17,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import type { PayrollSummaryData } from "@/lib/api/dashboard"
 
-const payroll = {
+const fallbackPayroll = {
   monthlyObligation: 374200,
   paid: 331000,
   pending: 43200,
@@ -38,14 +39,52 @@ const payroll = {
   },
 }
 
-export function DashboardPayrollCard() {
-  const coverageRatio = 689372 / payroll.monthlyObligation
+interface DashboardPayrollCardProps {
+  payroll?: PayrollSummaryData
+}
+
+export function DashboardPayrollCard({
+  payroll: payrollData,
+}: DashboardPayrollCardProps) {
+  const payroll = payrollData
+    ? {
+        monthlyObligation: payrollData.monthlyObligation,
+        paid:
+          (payrollData.teachers.byStatus.PAID ?? 0) +
+          (payrollData.staff.byStatus.PAID ?? 0),
+        pending:
+          (payrollData.teachers.byStatus.PENDING ?? 0) +
+          (payrollData.staff.byStatus.PENDING ?? 0),
+        teachers: {
+          headcount: payrollData.teachers.headcount,
+          paid: payrollData.teachers.byStatus.PAID ?? 0,
+          pending: payrollData.teachers.byStatus.PENDING ?? 0,
+          amount: payrollData.teachers.netPayTotal,
+        },
+        nonTeaching: {
+          headcount: payrollData.staff.headcount,
+          paid: payrollData.staff.byStatus.PAID ?? 0,
+          pending: payrollData.staff.byStatus.PENDING ?? 0,
+          amount: payrollData.staff.netPayTotal,
+        },
+      }
+    : fallbackPayroll
+
+  const coverageRatio =
+    payrollData?.coverageRatio ??
+    (payroll.monthlyObligation > 0
+      ? 0
+      : 0)
 
   const paidPercentage =
-    (payroll.paid / payroll.monthlyObligation) * 100
+    payroll.monthlyObligation > 0
+      ? (payroll.paid / payroll.monthlyObligation) * 100
+      : 0
 
   const pendingPercentage =
-    (payroll.pending / payroll.monthlyObligation) * 100
+    payroll.monthlyObligation > 0
+      ? (payroll.pending / payroll.monthlyObligation) * 100
+      : 0
 
   const totalStaff =
     payroll.teachers.headcount + payroll.nonTeaching.headcount
