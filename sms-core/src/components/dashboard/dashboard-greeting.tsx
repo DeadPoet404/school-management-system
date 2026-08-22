@@ -24,15 +24,15 @@ export function DashboardGreeting({
         </span>
       </div>
 
-      {/* Modern Neon Asterisk + Satellite Arrow Badge */}
+      {/* Multifruit Radiant Badge Cluster */}
       <div className="flex items-end gap-1.5 self-center sm:self-end mb-1">
-        {/* Neon Lime Circle */}
-        <div className="size-10 sm:size-12 md:size-14 rounded-full bg-[#D8FA36] text-black flex items-center justify-center font-bold shadow-xs">
+        {/* Multifruit Gradient Circle (Papaya, Dragonfruit & Mango Fusion) */}
+        <div className="size-10 sm:size-12 md:size-14 rounded-full bg-gradient-to-tr from-[#FF512F] via-[#F09819] to-[#FF4B2B] text-white flex items-center justify-center font-bold shadow-md shadow-orange-500/20">
           <Asterisk className="size-6 sm:size-7 md:size-8 stroke-[2.5]" />
         </div>
 
-        {/* Dark Satellite Sub-Badge */}
-        <div className="size-5 sm:size-6 rounded-full bg-neutral-900 text-white dark:bg-neutral-100 dark:text-black flex items-center justify-center shadow-xs">
+        {/* Passion Fruit / Berry Satellite Pill */}
+        <div className="size-5 sm:size-6 rounded-full bg-gradient-to-br from-[#8E2DE2] to-[#4A00E0] text-white flex items-center justify-center shadow-xs">
           <ArrowDownRight className="size-3 sm:size-3.5 stroke-[2.5]" />
         </div>
       </div>

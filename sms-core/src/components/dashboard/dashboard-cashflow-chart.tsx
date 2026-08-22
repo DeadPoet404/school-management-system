@@ -22,17 +22,19 @@ import {
 export const description = "A stacked bi-weekly treasury cashflow bar chart with 9 periods and 1.5x wide bars"
 
 const chartData = [
-  { period: "Jan 1-14", collections: 85000, expenses: 32000 },
-  { period: "Jan 15-28", collections: 124000, expenses: 48000 },
-  { period: "Feb 1-14", collections: 96000, expenses: 39000 },
-  { period: "Feb 15-28", collections: 72000, expenses: 35000 },
-  { period: "Mar 1-14", collections: 64000, expenses: 31000 },
-  { period: "Mar 15-28", collections: 58000, expenses: 29000 },
-  { period: "Apr 1-14", collections: 110000, expenses: 52000 },
-  { period: "Apr 15-28", collections: 142000, expenses: 58000 },
-  { period: "May 1-14", collections: 88000, expenses: 41000 },
+  { period: "Jun 1–14", collections: 78000, expenses: 31000 },
+  { period: "Jun 15–28", collections: 92000, expenses: 42000 },
+  { period: "Jul 1–14", collections: 104000, expenses: 38000 },
+  { period: "Jul 15–28", collections: 116000, expenses: 47000 },
+  { period: "Aug 1–14", collections: 89000, expenses: 35000 },
+  { period: "Aug 15–28", collections: 127000, expenses: 51000 },
+  { period: "Sep 1–14", collections: 118000, expenses: 44000 },
+  { period: "Sep 15–28", collections: 136000, expenses: 53000 },
+  { period: "Oct 1–14", collections: 108000, expenses: 39000 },
+  { period: "Oct 15–28", collections: 143000, expenses: 58000 },
+  { period: "Nov 1–14", collections: 121000, expenses: 46000 },
+  { period: "Nov 15–28", collections: 151000, expenses: 61000 },
 ]
-
 const chartConfig = {
   collections: {
     label: "Fee Collections",

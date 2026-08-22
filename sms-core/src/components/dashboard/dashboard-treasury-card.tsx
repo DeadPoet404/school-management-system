@@ -2,10 +2,15 @@
 
 import * as React from "react"
 import {
-  TrendingUp,
+  Landmark,
   Plus,
   Receipt,
-  Landmark,
+  TrendingUp,
+  Smartphone,
+  Building2,
+  Banknote,
+  CreditCard,
+  WalletCards,
 } from "lucide-react"
 
 import {
@@ -27,24 +32,69 @@ interface DashboardTreasuryCardProps {
   onIssueInvoice?: () => void
 }
 
-const feeStreams = [
+const paymentMethods = [
   {
-    name: "Tuition",
-    percentage: 62,
-    status: "Active",
-    accent: "bg-sky-500",
+    name: "Mobile Money",
+    amount: 317112,
+    percentage: 46,
+    icon: Smartphone,
   },
   {
-    name: "Boarding",
-    percentage: 26,
-    status: "Active",
-    accent: "bg-violet-500",
+    name: "Bank Transfer",
+    amount: 193024,
+    percentage: 28,
+    icon: Building2,
   },
   {
-    name: "PTA Levies",
-    percentage: 12,
-    status: "Standby",
-    accent: "bg-amber-500",
+    name: "Cash",
+    amount: 117193,
+    percentage: 17,
+    icon: Banknote,
+  },
+  {
+    name: "Card / POS",
+    amount: 48256,
+    percentage: 7,
+    icon: CreditCard,
+  },
+  {
+    name: "Cheque",
+    amount: 13787,
+    percentage: 2,
+    icon: WalletCards,
+  },
+]
+
+const recentCollections = [
+  {
+    student: "Ama Yaw Osei",
+    reference: "PAY-009381",
+    amount: 3450,
+    method: "Mobile Money",
+  },
+  {
+    student: "Kwame Mensah",
+    reference: "PAY-009374",
+    amount: 2800,
+    method: "Bank Transfer",
+  },
+  {
+    student: "Abena Serwaa",
+    reference: "PAY-009362",
+    amount: 1850,
+    method: "Cash",
+  },
+  {
+    student: "Kofi Asare",
+    reference: "PAY-009351",
+    amount: 4200,
+    method: "Mobile Money",
+  },
+  {
+    student: "Nana Adjei",
+    reference: "PAY-009344",
+    amount: 1750,
+    method: "Card / POS",
   },
 ]
 
@@ -61,50 +111,43 @@ export function DashboardTreasuryCard({
       ? Math.round((spentBudget / totalBudget) * 100)
       : 0
 
-  const budgetWidth = Math.min(budgetPct, 100)
-  const isOverBudget = spentBudget > totalBudget
-
   return (
-    <Card className="h-full overflow-hidden rounded-2xl border border-border/60 bg-card shadow-none">
-      {/* Header */}
-      <CardHeader className="px-5 pb-0 pt-5 sm:px-6 sm:pt-6">
+    <Card className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border/60 bg-card shadow-none">
+      <CardHeader className="shrink-0 px-5 pb-0 pt-5 sm:px-6 sm:pt-6">
         <div className="flex items-center justify-between">
-          <CardDescription className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
+          <CardDescription className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.1em]">
             <Landmark className="size-3.5" />
             Total School Revenue
           </CardDescription>
 
           <Badge
             variant="outline"
-            className="h-6 rounded-md px-2 text-[10px] font-medium"
+            className="h-6 rounded-md px-2 text-[10px]"
           >
             🇬🇭 GHS
           </Badge>
         </div>
 
-        <div className="mt-3 flex items-end justify-between gap-4">
-          <CardTitle className="text-[2.5rem] font-semibold leading-none tracking-[-0.045em] sm:text-[3rem]">
-            GH₵{totalRevenue.toLocaleString()}
-          </CardTitle>
+        <CardTitle className="mt-3 text-[2.45rem] font-semibold leading-none tracking-[-0.05em]">
+          GH₵{totalRevenue.toLocaleString()}
+        </CardTitle>
 
-          <div className="mb-1 flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-            <TrendingUp className="size-3.5" />
-            <span>+{trendPct}%</span>
-          </div>
+        <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+          <TrendingUp className="size-3.5" />
+          +{trendPct}% than last term
         </div>
 
-        <p className="mt-2 text-xs text-muted-foreground">
-          Revenue collected this term
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          GH₵824,500 invoiced this term
         </p>
 
-        {/* Actions */}
-        <div className="flex items-center gap-2 pt-4">
+        <div className="flex gap-2 pt-4">
           <Button
             type="button"
             onClick={onCollectPayment}
-            className="h-9 rounded-md px-3.5 text-sm font-medium shadow-none"
+            className="h-9 rounded-md px-3 text-[11px] font-medium shadow-none"
           >
-            <Plus className="size-4" />
+            <Plus className="size-3.5" />
             Record Payment
           </Button>
 
@@ -112,115 +155,146 @@ export function DashboardTreasuryCard({
             type="button"
             variant="outline"
             onClick={onIssueInvoice}
-            className="h-9 rounded-md border-border px-3.5 text-sm font-medium shadow-none"
+            className="h-9 rounded-md px-3 text-[11px] font-medium shadow-none"
           >
-            <Receipt className="size-4" />
+            <Receipt className="size-3.5" />
             Issue Invoice
           </Button>
         </div>
       </CardHeader>
 
-      {/* Fee Distribution */}
-      <CardContent className="px-5 pt-7 sm:px-6">
-        <div className="flex items-end justify-between">
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 sm:px-6">
+        <div className="py-6">
+          {/* Payment methods */}
           <div>
-            <p className="text-sm font-medium">Fee streams</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Revenue distribution
+            <div className="flex items-end justify-between">
+              <div>
+                <p className="text-xs font-medium">
+                  Collection mix
+                </p>
+
+                <p className="mt-0.5 text-[10px] text-muted-foreground">
+                  Revenue by payment method
+                </p>
+              </div>
+
+              <span className="text-[10px] text-muted-foreground">
+                {paymentMethods.length} methods
+              </span>
+            </div>
+
+            <div className="mt-4 flex h-2 overflow-hidden rounded-full bg-muted">
+              {paymentMethods.map((method, index) => (
+                <div
+                  key={method.name}
+                  className={`h-full bg-foreground/80 ${
+                    index === 0 ? "rounded-l-full" : ""
+                  } ${
+                    index === paymentMethods.length - 1
+                      ? "rounded-r-full"
+                      : ""
+                  }`}
+                  style={{
+                    width: `${method.percentage}%`,
+                    opacity: 1 - index * 0.13,
+                  }}
+                />
+              ))}
+            </div>
+
+            <div className="mt-3 space-y-1">
+              {paymentMethods.map((method) => {
+                const Icon = method.icon
+
+                return (
+                  <div
+                    key={method.name}
+                    className="flex items-center justify-between border-b border-border/50 py-2.5 last:border-0"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Icon className="size-3.5 text-muted-foreground" />
+
+                      <span className="text-[11px]">
+                        {method.name}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-muted-foreground">
+                        {method.percentage}%
+                      </span>
+
+                      <span className="text-[11px] font-semibold tabular-nums">
+                        GH₵{method.amount.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Recent collections */}
+          <div className="mt-6 border-t border-border/60 pt-5">
+            <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+              Recent collections
             </p>
+
+            <div className="mt-2 divide-y divide-border/50">
+              {recentCollections.map((payment) => (
+                <div
+                  key={payment.reference}
+                  className="flex items-center justify-between py-3"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-[11px] font-medium">
+                      {payment.student}
+                    </p>
+
+                    <p className="mt-0.5 text-[9px] text-muted-foreground">
+                      {payment.reference} · {payment.method}
+                    </p>
+                  </div>
+
+                  <span className="ml-3 shrink-0 text-[11px] font-semibold">
+                    GH₵{payment.amount.toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
+      </div>
 
-        {/* Single distribution bar */}
-        <div className="mt-4 flex h-1.5 w-full overflow-hidden rounded-full bg-muted">
-          {feeStreams.map((stream) => (
-            <div
-              key={stream.name}
-              className={`${stream.accent} first:rounded-l-full last:rounded-r-full`}
-              style={{ width: `${stream.percentage}%` }}
-            />
-          ))}
-        </div>
-
-        {/* Distribution data */}
-        <div className="mt-4 grid grid-cols-3 divide-x divide-border/70">
-          {feeStreams.map((stream) => (
-            <div
-              key={stream.name}
-              className="min-w-0 px-3 first:pl-0 last:pr-0"
-            >
-              <div className="flex items-center gap-1.5">
-                <span
-                  className={`size-1.5 shrink-0 rounded-full ${stream.accent}`}
-                />
-
-                <span className="truncate text-xs font-medium">
-                  {stream.name}
-                </span>
-              </div>
-
-              <div className="mt-1 flex items-baseline gap-1.5">
-                <span className="text-lg font-semibold tracking-tight">
-                  {stream.percentage}%
-                </span>
-
-                <span
-                  className={`text-[10px] ${
-                    stream.status === "Active"
-                      ? "text-emerald-600 dark:text-emerald-400"
-                      : "text-muted-foreground"
-                  }`}
-                >
-                  {stream.status}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-
-      {/* Budget */}
-      <CardContent className="mt-7 border-t border-border/60 px-5 pb-5 pt-5 sm:px-6 sm:pb-6">
-        <div className="flex items-center justify-between gap-4">
+      {/* Budget stays anchored */}
+      <CardContent className="shrink-0 border-t border-border/60 px-5 pb-5 pt-4 sm:px-6">
+        <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium">
+            <p className="text-xs font-medium">
               Term Operating Budget
             </p>
 
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Budget consumption
+            <p className="mt-0.5 text-[10px] text-muted-foreground">
+              GH₵{spentBudget.toLocaleString()} spent
             </p>
           </div>
 
-          <span
-            className={`text-xs font-semibold ${
-              isOverBudget
-                ? "text-red-600 dark:text-red-400"
-                : "text-orange-600 dark:text-orange-400"
-            }`}
-          >
+          <span className="text-[10px] font-semibold text-orange-600 dark:text-orange-400">
             {budgetPct}% utilized
           </span>
         </div>
 
-        <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-muted">
+        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
           <div
-            className={`h-full rounded-full transition-all ${
-              isOverBudget ? "bg-red-500" : "bg-orange-500"
-            }`}
-            style={{
-              width: `${budgetWidth}%`,
-            }}
+            className="h-full rounded-full bg-orange-500"
+            style={{ width: `${budgetPct}%` }}
           />
         </div>
 
-        <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
+        <div className="mt-1.5 flex justify-between text-[9px] text-muted-foreground">
+          <span>Spent</span>
           <span>
-            GH₵ {spentBudget.toLocaleString()} spent
-          </span>
-
-          <span>
-            GH₵ {totalBudget.toLocaleString()} total budget
+            GH₵{totalBudget.toLocaleString()} budget
           </span>
         </div>
       </CardContent>

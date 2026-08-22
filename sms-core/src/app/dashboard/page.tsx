@@ -1,83 +1,120 @@
 "use client"
 
 import * as React from "react"
+
 import { DashboardGreeting } from "@/components/dashboard/dashboard-greeting"
 import { DashboardTreasuryCard } from "@/components/dashboard/dashboard-treasury-card"
 import { ChartBarStacked } from "@/components/dashboard/dashboard-cashflow-chart"
+import { DashboardReceivablesCard } from "@/components/dashboard/dashboard-receivables-card"
+
+import { DashboardAttendanceCard } from "@/components/dashboard/dashboard-attendance-card"
+import { DashboardStudentsCard } from "@/components/dashboard/dashboard-students-card"
+import { DashboardPayrollCard } from "@/components/dashboard/dashboard-payroll-card"
 
 export default function DashboardPage() {
   return (
-    <div className="w-full px-2 sm:px-4 py-3 flex flex-col gap-6">
-      
-      {/* 1. Header Greeting */}
-      <DashboardGreeting category="School Operations" title="Dashboard" />
+    <div className="w-full px-2 py-3 sm:px-4">
 
-      {/* 2. Wireframe Grid Structure */}
-      <div className="flex flex-col gap-5 sm:gap-6">
-        
-        {/* ROW 1: Asymmetric 3-Section Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-stretch">
-          
-          {/* Row 1 - Section 1 (Treasury Card: 3 cols) */}
-          <div className="lg:col-span-3 min-h-[470px] sm:min-h-[550px] flex flex-col">
+      {/* ============================================================
+          DASHBOARD HEADER
+      ============================================================ */}
+
+      <DashboardGreeting
+        category="School Operations"
+        title="Dashboard"
+      />
+
+
+      <div className="mt-6 flex flex-col gap-5 sm:gap-6">
+
+        {/* ============================================================
+            ROW 1 — FINANCIAL COMMAND CENTER
+
+            Treasury       3 columns
+            Cashflow        6 columns
+            Receivables     3 columns
+
+            Kept deliberately tall because these are the primary
+            financial working surfaces of the dashboard.
+        ============================================================ */}
+
+        <section className="grid grid-cols-1 gap-5 sm:gap-6 lg:h-[620px] lg:grid-cols-12">
+
+          {/* Treasury */}
+          <div className="flex min-h-0 flex-col lg:col-span-3">
+
             <DashboardTreasuryCard
               totalRevenue={689372}
               trendPct={5.4}
               spentBudget={180000}
               totalBudget={350000}
-              onCollectPayment={() => window.location.assign("/finance")}
-              onIssueInvoice={() => window.location.assign("/finance")}
+              onCollectPayment={() =>
+                window.location.assign("/finance")
+              }
+              onIssueInvoice={() =>
+                window.location.assign("/finance")
+              }
             />
+
           </div>
 
-          {/* Row 1 - Section 2 (Expanded Middle: 6 cols with Stacked Bar Chart) */}
-          <div className="lg:col-span-6 min-h-[470px] sm:min-h-[550px] flex flex-col">
+
+          {/* Cashflow */}
+          <div className="flex min-h-0 flex-col lg:col-span-6">
+
             <ChartBarStacked />
+
           </div>
 
-          {/* Row 1 - Section 3 (Compact Right: 3 cols) */}
-          <div className="lg:col-span-3 min-h-[470px] sm:min-h-[550px] rounded-2xl sm:rounded-3xl border-2 border-dashed border-neutral-300 dark:border-neutral-800 bg-neutral-100/50 dark:bg-neutral-900/30 flex flex-col items-center justify-center p-6 text-center transition-colors">
-            <span className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-              Row 1 · Section 3
-            </span>
-            <span className="text-xs text-neutral-400 dark:text-neutral-600 mt-1">
-              [ Right Compact Block · 25% ]
-            </span>
-          </div>
-        </div>
 
-        {/* ROW 2: 3 Sections */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 sm:gap-6">
-          {/* Row 2 - Section 1 */}
-          <div className="min-h-[360px] sm:min-h-[420px] rounded-2xl sm:rounded-3xl border-2 border-dashed border-neutral-300 dark:border-neutral-800 bg-neutral-100/50 dark:bg-neutral-900/30 flex flex-col items-center justify-center p-6 text-center transition-colors">
-            <span className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-              Row 2 · Section 1
-            </span>
-            <span className="text-xs text-neutral-400 dark:text-neutral-600 mt-1">
-              [ Lower Left Widget ]
-            </span>
+          {/* Receivables */}
+          <div className="flex min-h-0 flex-col lg:col-span-3">
+
+            <DashboardReceivablesCard />
+
           </div>
 
-          {/* Row 2 - Section 2 */}
-          <div className="min-h-[360px] sm:min-h-[420px] rounded-2xl sm:rounded-3xl border-2 border-dashed border-neutral-300 dark:border-neutral-800 bg-neutral-100/50 dark:bg-neutral-900/30 flex flex-col items-center justify-center p-6 text-center transition-colors">
-            <span className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-              Row 2 · Section 2
-            </span>
-            <span className="text-xs text-neutral-400 dark:text-neutral-600 mt-1">
-              [ Lower Middle Action Feed / Registry ]
-            </span>
+        </section>
+
+
+        {/* ============================================================
+            ROW 2 — DAILY OPERATIONS
+
+            Attendance     1/3
+            Students       1/3
+            Payroll        1/3
+
+            These are deliberately shorter than Row 1. They answer
+            the everyday operational questions without competing
+            with the financial command center.
+        ============================================================ */}
+
+        <section className="grid grid-cols-1 gap-5 sm:gap-6 lg:grid-cols-3">
+
+          {/* Attendance */}
+          <div className="min-w-0">
+
+            <DashboardAttendanceCard />
+
           </div>
 
-          {/* Row 2 - Section 3 */}
-          <div className="min-h-[360px] sm:min-h-[420px] rounded-2xl sm:rounded-3xl border-2 border-dashed border-neutral-300 dark:border-neutral-800 bg-neutral-100/50 dark:bg-neutral-900/30 flex flex-col items-center justify-center p-6 text-center transition-colors">
-            <span className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-              Row 2 · Section 3
-            </span>
-            <span className="text-xs text-neutral-400 dark:text-neutral-600 mt-1">
-              [ Lower Right Log / Summary ]
-            </span>
+
+          {/* Student Population */}
+          <div className="min-w-0">
+
+            <DashboardStudentsCard />
+
           </div>
-        </div>
+
+
+          {/* Payroll */}
+          <div className="min-w-0">
+
+            <DashboardPayrollCard />
+
+          </div>
+
+        </section>
 
       </div>
 
