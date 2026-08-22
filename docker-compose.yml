@@ -1,3 +1,12 @@
+# ── Shared: capped Docker logs so pino's stdout stream can never fill the disk ──
+# 10MB x 3 files per service. Raise for high-traffic production if you ship
+# logs to a collector instead (then replace json-file with your driver).
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -17,6 +26,12 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    # ── Production guardrails: tune to your host. Postgres comfortably
+    # serves a whole school inside 1g; raise only for large boarding-school
+    # volumes. The CPU cap keeps a runaway query from starving the stack.
+    mem_limit: 1g
+    cpus: 1.0
+    logging: *default-logging
 
   backend:
     build: ./sms-core-backend
@@ -28,7 +43,11 @@ services:
       DATABASE_URL: postgresql://sms_user:${POSTGRES_PASSWORD}@postgres:5432/sms_db?schema=public
       NODE_ENV: production
       PORT: "5000"
-      LOG_LEVEL: info
+      # ── Tunable via .env (defaults kept identical to the old hardcodes) ──
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
+      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-100}
+      AUTH_RATE_LIMIT_MAX_REQUESTS: ${AUTH_RATE_LIMIT_MAX_REQUESTS:-5}
       # ── Paystack Digital Collections ──
       # Leave PAYSTACK_SECRET_KEY blank until sandbox credentials are ready.
       # The backend keeps digital-payment routes disabled without it.
@@ -69,15 +88,17 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-lax}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
-      RATE_LIMIT_WINDOW_MS: "60000"
-      RATE_LIMIT_MAX_REQUESTS: "100"
-      AUTH_RATE_LIMIT_MAX_REQUESTS: "5"
       # Set RUN_SEED=true to populate the database with demo data on first boot.
       # Only takes effect when the _prisma_migrations table shows a fresh DB.
       RUN_SEED: ${RUN_SEED:-false}
     depends_on:
       postgres:
         condition: service_healthy
+    # ── Production guardrails: Express + Prisma live comfortably inside 1g.
+    # 1.5 CPU shares keep report-generation spikes responsive for users.
+    mem_limit: 1g
+    cpus: 1.5
+    logging: *default-logging
 
   frontend:
     build:
@@ -103,6 +124,11 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    # ── Production guardrails: standalone Next.js runtime is lean; 512m is
+    # ample for SSR of this dashboard. Bump if you add heavy image work.
+    mem_limit: 512m
+    cpus: 1.0
+    logging: *default-logging
 
 networks:
   sms-net:
