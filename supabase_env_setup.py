@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
-"""Create .env wired to Supabase for the SMS monorepo.
+"""Create the Supabase-wired .env files for the SMS monorepo.
 
 Run from the repo root:  python3 supabase_env_setup.py
 
-- Prompts for the Supabase DB password (input is hidden).
+Writes TWO files from their .env.example templates:
+  • .env                  -> docker compose (runtime + migrate-on-boot)
+  • sms-core-backend/.env -> bare-metal dev (npm run dev) + prisma CLI
+
+- Prompts for the Supabase DB password (input is hidden) and URL-encodes it,
+  so special characters (the old leaked one contained '@') cannot break the
+  connection URI.
 - Auto-detects whether your network can reach Supabase's IPv6-only direct
   connection; if not, routes migrations/backups through the session pooler
-  (IPv4, port 5432), which the transaction pooler cannot replace for DDL.
-- Generates brand-new JWT/cookie secrets (this also rotates the secrets
-  that leaked via the committed .env.bak files).
-- Refuses to overwrite an existing .env without an explicit YES.
+  (IPv4, port 5432). The TRANSACTION pooler (6543) cannot serve DDL or pg_dump.
+- Generates brand-new JWT/cookie secrets (this also rotates the secrets that
+  leaked via the committed .env.bak files). BOTH files receive the SAME values
+  so compose and bare-metal dev behave identically.
+- Refuses to overwrite existing files without an explicit YES.
 """
 import getpass
 import pathlib
@@ -20,15 +27,24 @@ import sys
 from urllib.parse import quote
 
 ROOT = pathlib.Path(__file__).resolve().parent
-EXAMPLE = ROOT / ".env.example"
-ENV = ROOT / ".env"
+TARGETS = [
+    (ROOT / ".env.example", ROOT / ".env", "docker compose"),
+    (
+        ROOT / "sms-core-backend" / ".env.example",
+        ROOT / "sms-core-backend" / ".env",
+        "bare-metal dev + prisma CLI",
+    ),
+]
 
-if not EXAMPLE.exists():
-    sys.exit("✗ .env.example not found — run this from the repo root")
+for example, _, _ in TARGETS:
+    if not example.exists():
+        sys.exit(f"✗ {example.relative_to(ROOT)} not found — run this from the repo root")
 
-if ENV.exists():
-    if input(".env already exists. Overwrite? (type YES): ").strip() != "YES":
-        sys.exit("aborted — .env left untouched")
+existing = [env for _, env, _ in TARGETS if env.exists()]
+if existing:
+    names = ", ".join(str(e.relative_to(ROOT)) for e in existing)
+    if input(f"{names} already exist. Overwrite both? (type YES): ").strip() != "YES":
+        sys.exit("aborted — existing .env files left untouched")
 
 REF = input("Supabase project ref [qdzvgyhkajegixagahry]: ").strip() or "qdzvgyhkajegixagahry"
 REGION = input("Pooler region prefix [aws-0-eu-west-2]: ").strip() or "aws-0-eu-west-2"
@@ -79,18 +95,39 @@ else:
         f"{REGION}.pooler.supabase.com:5432"
     )
 
-t = EXAMPLE.read_text()
-t = re.sub(r"^DATABASE_URL=.*$", "DATABASE_URL=" + POOLED, t, flags=re.M)
-t = re.sub(r"^DIRECT_URL=.*$", "DIRECT_URL=" + DIRECT, t, flags=re.M)
-t = re.sub(r"^JWT_SECRET=.*$", "JWT_SECRET=" + secrets.token_hex(32), t, flags=re.M)
-t = re.sub(r"^JWT_REFRESH_SECRET=.*$", "JWT_REFRESH_SECRET=" + secrets.token_hex(32), t, flags=re.M)
-t = re.sub(r"^COOKIE_SECRET=.*$", "COOKIE_SECRET=" + secrets.token_hex(32), t, flags=re.M)
-ENV.write_text(t)
+# One set of fresh secrets shared by BOTH files — compose and bare-metal dev
+# must validate the same tokens or logins break when switching flows.
+FRESH = {
+    "JWT_SECRET": secrets.token_hex(32),
+    "JWT_REFRESH_SECRET": secrets.token_hex(32),
+    "COOKIE_SECRET": secrets.token_hex(32),
+}
+
+
+def patch(template):
+    t = template.read_text()
+    # Double-quote the URLs: they contain '&' — unquoted, sourcing the file
+    # (set -a; . ./.env, as backup.sh does) backgrounds the assignment in a
+    # subshell and the variable silently vanishes. dotenv/prisma/compose strip
+    # the quotes when reading the file.
+    t = re.sub(r"^DATABASE_URL=.*$", 'DATABASE_URL="' + POOLED + '"', t, flags=re.M)
+    t = re.sub(r"^DIRECT_URL=.*$", 'DIRECT_URL="' + DIRECT + '"', t, flags=re.M)
+    for key, val in FRESH.items():
+        t = re.sub(rf"^{key}=.*$", f"{key}={val}", t, flags=re.M)
+    return t
+
+
+for example, env, purpose in TARGETS:
+    env.write_text(patch(example))
+    print(f"✓ wrote {env.relative_to(ROOT)}  ({purpose})")
 
 print()
-print("✓ .env written from .env.example")
 print(f"  DATABASE_URL  -> transaction pooler, project {REF} (port 6543)")
 print(f"  DIRECT_URL    -> {DIRECT_MODE}")
-print("  JWT_SECRET / JWT_REFRESH_SECRET / COOKIE_SECRET -> freshly generated")
+print("  JWT_SECRET / JWT_REFRESH_SECRET / COOKIE_SECRET -> freshly generated (same in both files)")
 print()
-print("Next:  npx prisma migrate deploy   (proves the direct/session link works)")
+print("Verify, in order:")
+print("  1) python3 env_inspect.py                      # pw_len matches the dashboard password")
+print("  2) cd sms-core-backend && set -a && . ./.env && set +a && \\")
+print('     node ../probe_supabase.js "$DATABASE_URL" "$DIRECT_URL"   # expect: OK  OK')
+print("  3) npx prisma migrate deploy                   # applies the schema to Supabase")
