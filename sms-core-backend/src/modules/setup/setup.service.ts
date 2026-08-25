@@ -1,8 +1,11 @@
+import { EntityStatus, Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { AppError } from '@/middleware/error.handler';
+import { hashPassword } from '@/utils/hash';
+import { formatInstitutionalId } from '@/utils';
+import type { BootstrapSetupInput } from './setup.validation';
 
 export const SYSTEM_CONFIG_ID = 1;
-
-/** Wizard contract version exposed to clients. */
 export const SETUP_CONTRACT_VERSION = 1;
 
 export interface SetupSteps {
@@ -16,11 +19,8 @@ export interface SetupSteps {
 }
 
 export interface SetupStatus {
-  /** True once a SystemConfig row exists (bootstrap has started). */
   initialized: boolean;
-  /** True once POST /api/setup/complete has stamped setupCompletedAt. */
   setupCompleted: boolean;
-  /** True when at least one StaffAccount with role ADMIN exists. */
   hasAdmin: boolean;
   schoolName: string | null;
   schoolCode: string | null;
@@ -29,16 +29,19 @@ export interface SetupStatus {
   currency: string | null;
   setupVersion: number;
   steps: SetupSteps;
-  /**
-   * Frontend gate: when true, force /setup and block normal app shells.
-   * Equivalent to !setupCompleted (wizard may still be mid-flight after bootstrap).
-   */
   requiresSetup: boolean;
 }
 
-/**
- * First-start readiness probe. Public — no secrets, no PII beyond school name.
- */
+export interface BootstrapResult {
+  status: SetupStatus;
+  admin: {
+    email: string;
+    fullName: string;
+    staffId: string;
+    role: 'ADMIN';
+  };
+}
+
 export class SetupService {
   async getStatus(): Promise<SetupStatus> {
     const [config, adminCount, termCount, classCount, departmentCount, subjectCount, ledgerCount] =
@@ -77,5 +80,158 @@ export class SetupService {
       steps,
       requiresSetup: !setupCompleted,
     };
+  }
+
+  /**
+   * Public one-shot bootstrap: SystemConfig + founding ADMIN.
+   * Rejected once an ADMIN exists or setup has been marked complete.
+   */
+  async bootstrap(input: BootstrapSetupInput): Promise<BootstrapResult> {
+    const email = input.admin.email.trim().toLowerCase();
+    const schoolCode = input.school.schoolCode;
+
+    const existingStatus = await this.getStatus();
+    if (existingStatus.setupCompleted) {
+      throw new AppError(
+        409,
+        'This school has already completed first-start setup. Sign in with an administrator account.',
+      );
+    }
+    if (existingStatus.hasAdmin) {
+      throw new AppError(
+        409,
+        'An administrator account already exists. Sign in to continue the setup wizard.',
+      );
+    }
+
+    await this.assertEmailAvailable(email);
+
+    if (!existingStatus.initialized) {
+      const codeTaken = await prisma.systemConfig.findUnique({ where: { schoolCode } });
+      if (codeTaken) {
+        throw new AppError(409, 'That school code is already in use.');
+      }
+    }
+
+    const passwordHash = await hashPassword(input.admin.password);
+    const staffBusinessId = formatInstitutionalId('STF', 'ADMIN');
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.systemConfig.upsert({
+          where: { id: SYSTEM_CONFIG_ID },
+          create: {
+            id: SYSTEM_CONFIG_ID,
+            schoolName: input.school.schoolName,
+            schoolCode,
+            motto: input.school.motto ?? null,
+            address: input.school.address ?? null,
+            phone: input.school.phone ?? null,
+            email: input.school.email ?? null,
+            country: input.school.country,
+            timezone: input.school.timezone,
+            currency: input.school.currency,
+            setupVersion: SETUP_CONTRACT_VERSION,
+            setupCompletedAt: null,
+          },
+          update: {
+            schoolName: input.school.schoolName,
+            schoolCode,
+            motto: input.school.motto ?? null,
+            address: input.school.address ?? null,
+            phone: input.school.phone ?? null,
+            email: input.school.email ?? null,
+            country: input.school.country,
+            timezone: input.school.timezone,
+            currency: input.school.currency,
+            setupVersion: SETUP_CONTRACT_VERSION,
+          },
+        });
+
+        const adminInside = await tx.staffAccount.count({ where: { role: 'ADMIN' } });
+        if (adminInside > 0) {
+          throw new AppError(
+            409,
+            'An administrator account already exists. Sign in to continue the setup wizard.',
+          );
+        }
+
+        await tx.staff.create({
+          data: {
+            staffId: staffBusinessId,
+            staffName: input.admin.fullName,
+            appointmentDate: new Date(),
+            status: EntityStatus.ACTIVE,
+            account: {
+              create: {
+                email,
+                passwordHash,
+                role: 'ADMIN',
+              },
+            },
+            placement: {
+              create: {
+                departmentId: 'ADMINISTRATION',
+                jobTitle: 'System Administrator',
+                employmentType: 'Full-Time',
+                shiftSchedule: 'Standard Day',
+              },
+            },
+            demographics: {
+              create: {
+                dateOfBirth: new Date('1990-01-01'),
+                gender: 'UNSPECIFIED',
+                residentialAddress: input.school.address?.trim() || 'Not provided',
+                phone: input.school.phone?.trim() || 'N/A',
+              },
+            },
+            compliance: {
+              create: {},
+            },
+            payroll: {
+              create: {
+                clearanceTier: 'Level 3: Executive',
+                baseSalary: 0,
+                deductions: 0,
+                netPay: 0,
+                salaryStatus: 'PENDING',
+              },
+            },
+          },
+        });
+      });
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new AppError(
+          409,
+          'A unique field conflict occurred during bootstrap (email or school code). Retry with different values.',
+        );
+      }
+      throw error;
+    }
+
+    const status = await this.getStatus();
+    return {
+      status,
+      admin: {
+        email,
+        fullName: input.admin.fullName,
+        staffId: staffBusinessId,
+        role: 'ADMIN',
+      },
+    };
+  }
+
+  private async assertEmailAvailable(email: string): Promise<void> {
+    const [student, staff, teacher] = await Promise.all([
+      prisma.studentAccount.findUnique({ where: { portalEmail: email }, select: { id: true } }),
+      prisma.staffAccount.findUnique({ where: { email }, select: { id: true } }),
+      prisma.teacherAccount.findUnique({ where: { email }, select: { id: true } }),
+    ]);
+
+    if (student || staff || teacher) {
+      throw new AppError(409, 'That email address is already registered on this system.');
+    }
   }
 }

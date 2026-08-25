@@ -5,7 +5,6 @@ import { SetupController } from './setup.controller';
 const router = Router();
 const controller = new SetupController();
 
-// Public status is cheap but still rate-limited so scanners cannot hammer DB counts.
 const statusLimiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10),
   max: parseInt(process.env.SETUP_STATUS_RATE_LIMIT_MAX || '60', 10),
@@ -17,9 +16,18 @@ const statusLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-/**
- * GET /api/setup/status — first-start readiness probe (public)
- */
+const bootstrapLimiter = rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10),
+  max: parseInt(process.env.SETUP_BOOTSTRAP_RATE_LIMIT_MAX || '5', 10),
+  message: {
+    success: false,
+    message: 'Too many bootstrap attempts. Please try again later.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 router.get('/status', statusLimiter, controller.getStatus.bind(controller));
+router.post('/bootstrap', bootstrapLimiter, controller.bootstrap.bind(controller));
 
 export default router;
