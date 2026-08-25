@@ -69,6 +69,68 @@ sanitize_uri() {
   printf '%s' "${base}${keep:+?${keep}}"
 }
 DB_URL="$(sanitize_uri "$DB_URL")"
+export DB_URL  # forwarded into the container when the docker fallback fires
+
+# ── pg_dump must not be OLDER than the server's major version ──
+# pg_dump aborts on a newer server ("server version mismatch"). Supabase runs
+# Postgres 17 while e.g. Ubuntu 24.04 ships client 16. Resolution order:
+#   1. tools on PATH   2. newest /usr/lib/postgresql/*/bin (PGDG installs)
+#   3. docker postgres:<server-major>-alpine   4. fail with instructions
+pg_major_of() { "$1" --version 2>/dev/null | grep -oE '[0-9]+(\.[0-9]+)?' | head -n1 | cut -d. -f1; }
+
+SRV_MAJOR="$(psql -tA "$DB_URL" -c "select current_setting('server_version_num')::int / 10000" 2>/dev/null)"
+
+PGDUMP=""
+PSQL=""
+pick_host_tools() {
+  local cand=() c m d
+  command -v pg_dump >/dev/null 2>&1 && cand+=("$(command -v pg_dump)")
+  for d in $(ls -d /usr/lib/postgresql/*/bin 2>/dev/null | sort -rV); do
+    [ -x "$d/pg_dump" ] && cand+=("$d/pg_dump")
+  done
+  for c in "${cand[@]}"; do
+    m="$(pg_major_of "$c")"
+    if [ -n "$m" ] && { [ -z "$SRV_MAJOR" ] || [ "$m" -ge "$SRV_MAJOR" ]; }; then
+      PGDUMP="$c"
+      PSQL="$(dirname "$c")/psql"; [ -x "$PSQL" ] || PSQL="$(command -v psql)"
+      return 0
+    fi
+  done
+  return 1
+}
+
+DOCKER_MODE=0
+IMG=""
+if ! pick_host_tools; then
+  if command -v docker >/dev/null 2>&1 && [ -n "$SRV_MAJOR" ]; then
+    DOCKER_MODE=1
+    IMG="postgres:${SRV_MAJOR}-alpine"
+    echo "ℹ️  host pg_dump is older than server ${SRV_MAJOR} — using docker ${IMG} (first run pulls the image)" >&2
+  else
+    echo "❌ pg_dump is older than the server (${SRV_MAJOR:-unknown}) and no docker fallback available." >&2
+    echo "   Install matching client via PGDG, e.g.:" >&2
+    echo "     sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh" >&2
+    echo "     sudo apt-get install -y postgresql-client-${SRV_MAJOR:-17}" >&2
+    exit 1
+  fi
+fi
+
+# Credentials ride in the URL env/args — same local exposure class as the
+# previous host-side invocation (docker group == host root).
+run_pg_dump() {
+  if [ "$DOCKER_MODE" = 1 ]; then
+    docker run --rm -i --network host -e DB_URL "$IMG" pg_dump "$DB_URL"
+  else
+    "$PGDUMP" "$DB_URL"
+  fi
+}
+run_psql_stdin() {  # SQL is piped in on stdin
+  if [ "$DOCKER_MODE" = 1 ]; then
+    docker run --rm -i --network host -e DB_URL "$IMG" psql -v ON_ERROR_STOP=1 "$DB_URL"
+  else
+    "$PSQL" -v ON_ERROR_STOP=1 "$DB_URL"
+  fi
+}
 
 # Password-free echo of the target for logs
 MASKED_URL="$(printf '%s' "$DB_URL" | sed -E 's#(://)[^@]+@#\1***@#')"
@@ -87,7 +149,7 @@ if [ "${1:-}" = "restore" ]; then
     echo "aborted."
     exit 1
   fi
-  gunzip -c "$FILE" | psql -v ON_ERROR_STOP=1 "$DB_URL"
+  gunzip -c "$FILE" | run_psql_stdin
   echo "✅ restored: ${FILE}"
   exit 0
 fi
@@ -97,7 +159,7 @@ STAMP="$(date +%Y-%m-%d_%H%M)"
 OUT="backups/sms_db_${STAMP}.sql.gz"
 
 mkdir -p backups
-pg_dump "$DB_URL" | gzip > "$OUT"
+run_pg_dump | gzip > "$OUT"
 
 echo "✅ backup written: ${OUT} ($(du -h "${OUT}" | cut -f1)) from ${MASKED_URL}"
 # Retention: keep the newest 14 dumps
