@@ -8,31 +8,6 @@ x-logging: &default-logging
     max-file: "3"
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    networks: [sms-net]
-    environment:
-      POSTGRES_USER: sms_user
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: sms_db
-    # Postgres is intentionally NOT exposed to the host.
-    # Backend reaches it privately over the Docker network using:
-    #   postgres:5432
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sms_user -d sms_db"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    # ── Production guardrails: tune to your host. Postgres comfortably
-    # serves a whole school inside 1g; raise only for large boarding-school
-    # volumes. The CPU cap keeps a runaway query from starving the stack.
-    mem_limit: 1g
-    cpus: 1.0
-    logging: *default-logging
-
   backend:
     build: ./sms-core-backend
     restart: unless-stopped
@@ -40,7 +15,10 @@ services:
     ports:
       - "127.0.0.1:5000:5000"
     environment:
-      DATABASE_URL: postgresql://sms_user:${POSTGRES_PASSWORD}@postgres:5432/sms_db?schema=public
+      DATABASE_URL: ${DATABASE_URL}
+      # DIRECT_URL (port 5432) is used ONLY for Prisma migrations and
+      # pg_dump backups — the Supabase transaction pooler cannot run DDL.
+      DIRECT_URL: ${DIRECT_URL:-}
       NODE_ENV: production
       PORT: "5000"
       # ── Tunable via .env (defaults kept identical to the old hardcodes) ──
@@ -91,9 +69,6 @@ services:
       # Set RUN_SEED=true to populate the database with demo data on first boot.
       # Only takes effect when the _prisma_migrations table shows a fresh DB.
       RUN_SEED: ${RUN_SEED:-false}
-    depends_on:
-      postgres:
-        condition: service_healthy
     # ── Production guardrails: Express + Prisma live comfortably inside 1g.
     # 1.5 CPU shares keep report-generation spikes responsive for users.
     mem_limit: 1g
@@ -134,5 +109,3 @@ networks:
   sms-net:
     driver: bridge
 
-volumes:
-  postgres_data:
