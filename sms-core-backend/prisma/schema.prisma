@@ -1,6 +1,10 @@
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Supabase: url points at the transaction pooler (port 6543) for runtime
+  // queries. directUrl (port 5432) is used by the Prisma CLI only — the
+  // pooler is pgbouncer-backed and cannot execute migrations' DDL.
+  directUrl = env("DIRECT_URL")
 }
 
 generator client {
