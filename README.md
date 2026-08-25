@@ -7,7 +7,7 @@ schools.
 
 - **Frontend** - Next.js 16 (React 19) + TypeScript, Tailwind v4, TanStack Query
 - **Backend** - Node.js 20 + Express + TypeScript, Prisma ORM
-- **Database** - PostgreSQL 16
+- **Database** - Supabase Postgres (managed)
 - **Deploy** - Docker Compose (one command brings the whole stack up)
 
 **Traffic flow**
@@ -16,7 +16,7 @@ schools.
 Browser --> Next.js frontend (port 3000)
               Next.js rewrites paths beginning with /api/ to the backend
         --> Express API (port 5000)
-        --> PostgreSQL 16 (private Docker network)
+        --> Supabase Postgres (managed; pooled + direct connections)
 ```
 
 ## Features (current)
@@ -47,9 +47,9 @@ Browser --> Next.js frontend (port 3000)
 
 | Path | Purpose |
 | --- | --- |
-| `docker-compose.yml` | Postgres, backend, frontend on a private Docker network |
+| `docker-compose.yml` | Backend + frontend on a private Docker network (DB is Supabase-managed) |
 | `.env.example` | Compose-level secrets and environment configuration |
-| `scripts/backup.sh` | pg_dump backup/restore helper against the Postgres container |
+| `scripts/backup.sh` | pg_dump backup/restore helper (Supabase direct connection) |
 | `backups/` | Backup output directory (`.sql.gz` files are git-ignored) |
 | `.github/workflows/` | GitHub Actions CI (lint, build, test, Docker build) |
 | `sms-core/` | Next.js 16 frontend |
@@ -61,10 +61,13 @@ Requires Docker Engine v24+ with the Compose plugin.
 
 1. `cd ~/sms-monorepo`
 2. `cp .env.example .env`
-3. Generate strong secrets and paste each value into `.env`:
+3. Paste your Supabase connection strings into `.env` — Supabase
+   Dashboard → Project Settings → Database → Connection string. Copy the
+   **Transaction pooler** URI into `DATABASE_URL` (port 6543; keep the
+   `?pgbouncer=true&connection_limit=1` suffix) and the **Direct
+   connection** URI into `DIRECT_URL` (port 5432). Then generate secrets:
 
    ```bash
-   openssl rand -hex 32   # POSTGRES_PASSWORD
    openssl rand -hex 32   # JWT_SECRET
    openssl rand -hex 32   # JWT_REFRESH_SECRET  (MUST differ from JWT_SECRET)
    openssl rand -hex 32   # COOKIE_SECRET
@@ -91,6 +94,35 @@ Open your browser at `localhost` on port 3000. You will be redirected to
 > backend healthcheck allows a 60-second start period. `docker compose ps` can
 > report `health: starting` for up to a minute on a cold start - this is
 > expected, not a hang.
+
+## Moving an existing PostgreSQL database to Supabase
+
+1. Dump the old database (any machine with `pg_dump`; `BACKUP_DB_URL`
+   overrides the target so you can point at the OLD server):
+
+   ```bash
+   BACKUP_DB_URL="postgresql://sms_user:<old_password>@<old_host>:5432/sms_db" ./scripts/backup.sh
+   ```
+
+2. Restore into Supabase — fresh project only (the dump contains `CREATE`
+   statements) and over the direct connection:
+
+   ```bash
+   ./scripts/backup.sh restore backups/sms_db_<timestamp>.sql.gz
+   ```
+
+   ⚠️ Double-check `.env` first: `DIRECT_URL` must point at the NEW Supabase
+   project, not the old server.
+
+3. Boot the stack — the entrypoint runs `prisma migrate deploy`, then the
+   API starts:
+
+   ```bash
+   docker compose up -d
+   ```
+
+Never use `RUN_SEED=true` against a database that already has records — the
+seed is destructive. It is only for a brand-new, empty database.
 
 ## Demo accounts (created when `RUN_SEED` is true)
 
@@ -129,12 +161,12 @@ cd ~/sms-monorepo
 docker compose logs -f backend                            # tail backend logs
 docker compose logs -f frontend                           # tail frontend logs
 docker compose exec backend sh                            # shell into backend container
-docker compose exec postgres psql -U sms_user -d sms_db   # raw psql shell
+psql "$(grep '^DIRECT_URL=' .env | cut -d= -f2-)"        # raw psql shell (Supabase)
 ./scripts/backup.sh                                       # gzipped pg_dump into ./backups/
 ./scripts/backup.sh list                                  # list existing backups
 ./scripts/backup.sh restore FILE                          # restore (interactive confirmation)
-docker compose down                                       # stop (keeps Postgres data volume)
-docker compose down -v                                    # stop AND wipe Postgres (resets DB)
+docker compose down                                       # stop the stack (data lives in Supabase)
+docker compose down -v                                    # stop and wipe local volumes (NOT the Supabase DB)
 ```
 
 ## Development without Docker (faster iteration)
@@ -143,7 +175,7 @@ docker compose down -v                                    # stop AND wipe Postgr
 
 ```bash
 cd ~/sms-monorepo/sms-core-backend
-cp .env.example .env       # set DATABASE_URL, JWT_SECRET, JWT_REFRESH_SECRET (and optionally COOKIE_SECRET)
+cp .env.example .env       # set DATABASE_URL, DIRECT_URL, JWT_SECRET, JWT_REFRESH_SECRET (and optionally COOKIE_SECRET)
 npm install
 npx prisma migrate dev
 npx prisma db seed         # only on an empty DB
@@ -187,7 +219,8 @@ or malformed.
 
 | Variable | Description |
 | --- | --- |
-| `POSTGRES_PASSWORD` | DB password for `sms_user` (required) |
+| `DATABASE_URL` | Supabase transaction-pooler URI, port 6543 (required) |
+| `DIRECT_URL` | Supabase direct URI, port 5432 — migrations and backups (required) |
 | `JWT_SECRET` | Signs access tokens, at least 16 chars (required) |
 | `JWT_REFRESH_SECRET` | Signs refresh tokens, at least 16 chars, MUST differ (required) |
 | `COOKIE_SECRET` | Signs httpOnly cookies, at least 16 chars (optional) |
