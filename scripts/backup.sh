@@ -50,6 +50,26 @@ if ! command -v pg_dump >/dev/null 2>&1 || ! command -v psql >/dev/null 2>&1; th
   exit 1
 fi
 
+# libpq (pg_dump/psql) rejects Prisma-only URI query parameters such as
+# ?pgbouncer=true&connection_limit=1 — prune them before connecting.
+# Everything else (sslmode, connect_timeout, ...) is passed through untouched.
+sanitize_uri() {
+  local url="$1" base query kv key keep=""
+  base="${url%%\?*}"
+  [[ "$url" == *\?* ]] || { printf '%s' "$url"; return 0; }
+  query="${url#*\?}"
+  local IFS='&'
+  for kv in $query; do
+    key="${kv%%=*}"
+    case "$key" in
+      pgbouncer|connection_limit|pool_timeout|schema|socket_timeout|statement_cache_size) ;;
+      *) keep+="${keep:+&}${kv}" ;;
+    esac
+  done
+  printf '%s' "${base}${keep:+?${keep}}"
+}
+DB_URL="$(sanitize_uri "$DB_URL")"
+
 # Password-free echo of the target for logs
 MASKED_URL="$(printf '%s' "$DB_URL" | sed -E 's#(://)[^@]+@#\1***@#')"
 
