@@ -818,3 +818,34 @@ model NotificationDelivery {
   @@index([status, nextAttemptAt])
   @@index([announcementId])
 }
+
+// ══════════════════════════════════════════════════════════════════════
+// SMS-013 ── SYSTEM CONFIG + FIRST-START (singleton school profile)
+// ══════════════════════════════════════════════════════════════════════
+// Exactly one logical row (id = 1). setupCompletedAt == null means the
+// first-start wizard is still required. Bootstrap creates this row; later
+// wizard steps mutate it. Re-bootstrap is rejected once an ADMIN exists or
+// setupCompletedAt is set.
+
+model SystemConfig {
+  /// Singleton primary key — always 1. Enforced in service layer + DB CHECK.
+  id               Int       @id @default(1)
+  schoolName       String
+  schoolCode       String    @unique
+  motto            String?
+  address          String?   @db.Text
+  phone            String?
+  email            String?
+  logoUrl          String?
+  country          String    @default("GH")
+  timezone         String    @default("Africa/Accra")
+  currency         String    @default("GHS")
+  /// Null until POST /api/setup/complete succeeds.
+  setupCompletedAt DateTime?
+  /// Bumped when the wizard contract changes (clients can detect stale UIs).
+  setupVersion     Int       @default(1)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@map("system_config")
+}
