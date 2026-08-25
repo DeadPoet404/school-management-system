@@ -36,6 +36,7 @@ import { PaymentsSweeper } from './modules/payments/payments.sweeper';
 
 // ── Auth ──
 import authRoutes from './modules/auth/auth.routes';
+import setupRoutes from './modules/setup/setup.routes';
 import { authenticate } from './middleware/auth.middleware';
 import { requireRole, ROLES } from './middleware/rbac.middleware';
 import { startBlocklistCleanup } from './lib/token-blocklist';
@@ -194,6 +195,9 @@ if (process.env.ENABLE_API_DOCS === 'true') {
 
 // Auth — login, refresh, logout, me (login has its own stricter rate limiter)
 app.use('/api/auth', authRoutes);
+
+// First-start / setup wizard — status is public; later mutating routes self-gate.
+app.use('/api/setup', setupRoutes);
 
 // ═════════════════════════════════════════════
 // ── PROTECTED ROUTES (JWT required) ──
