@@ -18,7 +18,14 @@ case "${1:-}" in
     ls -1t backups/sms_db_*.sql.gz 2>/dev/null || echo "(no backups yet)"
     exit 0
     ;;
-  ""|restore)
+  restore)
+    FILE="${2:-}"
+    if [ -z "$FILE" ]; then
+      echo "usage: $0 restore backups/sms_db_<timestamp>.sql.gz" >&2
+      exit 1
+    fi
+    ;;
+  "")
     ;;
   *)
     echo "usage: $0 [list|restore FILE]" >&2
@@ -48,11 +55,6 @@ MASKED_URL="$(printf '%s' "$DB_URL" | sed -E 's#(://)[^@]+@#\1***@#')"
 
 # ── Restore ──
 if [ "${1:-}" = "restore" ]; then
-  FILE="${2:-}"
-  if [ -z "$FILE" ]; then
-    echo "usage: $0 restore backups/sms_db_<timestamp>.sql.gz" >&2
-    exit 1
-  fi
   if [ ! -f "$FILE" ]; then
     echo "❌ $FILE not found" >&2
     exit 1
