@@ -53,11 +53,13 @@ if not PW:
     sys.exit("✗ no password given")
 PWQ = quote(PW, safe="")  # URL-encode so special characters can't break the URI
 
-# Runtime queries -> transaction pooler (IPv4, verified pattern).
+# Runtime queries -> transaction pooler. connection_limit=8 (not the
+# serverless =1): this is a persistent Express server; pages fan out parallel
+# queries and a pool of 1 starves to P2024 500s under any concurrency.
 POOLED = (
     f"postgresql://postgres.{REF}:{PWQ}@"
     f"{REGION}.pooler.supabase.com:6543/postgres"
-    "?pgbouncer=true&connection_limit=1"
+    "?pgbouncer=true&connection_limit=8"
 )
 
 

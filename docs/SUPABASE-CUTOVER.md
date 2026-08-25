@@ -102,5 +102,7 @@ Nightly cron (see PRODUCTION-CHECKLIST §7):
 | `pg_dump: invalid URI query parameter: "pgbouncer"` | libpq rejects Prisma-only params | fix(backup): strip Prisma-only URI params |
 | `server version mismatch` (17 vs 16) | host client older than Supabase's Postgres | fix(backup): auto-match pg_dump major version |
 
+| `P2024 ... (connection limit: 1)` 500s on data pages | serverless-style pool guidance (`connection_limit=1`) applied to a persistent server | fix(env): raise Prisma connection_limit to 8 |
+
 Supabase additionally keeps its own automatic daily backups; our `pg_dump`
 copies are the portable, self-controlled layer.
