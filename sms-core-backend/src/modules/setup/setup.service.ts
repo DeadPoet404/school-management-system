@@ -245,27 +245,26 @@ export class SetupService {
   async saveAcademic(input: SetupAcademicInput): Promise<SetupStatus> {
     await this.assertWizardMutable();
     try {
-      await prisma.$transaction(
-        input.terms.map((term) =>
-          prisma.term.upsert({
-            where: { name: term.name },
-            create: {
-              name: term.name,
-              academicYear: term.academicYear,
-              startDate: new Date(term.startDate),
-              endDate: new Date(term.endDate),
-              isActive: term.isActive ?? true,
-            },
-            update: {
-              academicYear: term.academicYear,
-              startDate: new Date(term.startDate),
-              endDate: new Date(term.endDate),
-              isActive: term.isActive ?? true,
-              deletedAt: null,
-            },
-          }),
-        ),
-      );
+      // No interactive transaction — Supabase pooler safe.
+      for (const term of input.terms) {
+        await prisma.term.upsert({
+          where: { name: term.name },
+          create: {
+            name: term.name,
+            academicYear: term.academicYear,
+            startDate: new Date(term.startDate),
+            endDate: new Date(term.endDate),
+            isActive: term.isActive ?? true,
+          },
+          update: {
+            academicYear: term.academicYear,
+            startDate: new Date(term.startDate),
+            endDate: new Date(term.endDate),
+            isActive: term.isActive ?? true,
+            deletedAt: null,
+          },
+        });
+      }
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new AppError(409, 'A term name conflict occurred. Use unique term names.');
@@ -282,23 +281,21 @@ export class SetupService {
       throw new AppError(400, 'Class names must be unique within the payload.');
     }
     try {
-      await prisma.$transaction(
-        input.classes.map((row) =>
-          prisma.class.upsert({
-            where: { name: row.name },
-            create: {
-              name: row.name,
-              section: row.section ?? null,
-              isActive: row.isActive ?? true,
-            },
-            update: {
-              section: row.section ?? null,
-              isActive: row.isActive ?? true,
-              deletedAt: null,
-            },
-          }),
-        ),
-      );
+      for (const row of input.classes) {
+        await prisma.class.upsert({
+          where: { name: row.name },
+          create: {
+            name: row.name,
+            section: row.section ?? null,
+            isActive: row.isActive ?? true,
+          },
+          update: {
+            section: row.section ?? null,
+            isActive: row.isActive ?? true,
+            deletedAt: null,
+          },
+        });
+      }
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new AppError(409, 'A class name conflict occurred.');
@@ -312,36 +309,57 @@ export class SetupService {
     await this.assertWizardMutable();
     const deptCodes = input.departments.map((d) => d.code);
     const subjectCodes = input.subjects.map((s) => s.code);
+    const deptNames = input.departments.map((d) => d.name.trim().toLowerCase());
+    const subjectNames = input.subjects.map((s) => s.name.trim().toLowerCase());
     if (new Set(deptCodes).size !== deptCodes.length) {
       throw new AppError(400, 'Department codes must be unique within the payload.');
     }
     if (new Set(subjectCodes).size !== subjectCodes.length) {
       throw new AppError(400, 'Subject codes must be unique within the payload.');
     }
+    if (new Set(deptNames).size !== deptNames.length) {
+      throw new AppError(400, 'Department names must be unique within the payload.');
+    }
+    if (new Set(subjectNames).size !== subjectNames.length) {
+      throw new AppError(
+        400,
+        'Subject names must be unique within the payload. Use "Name (CODE),CODE" if the same subject repeats by grade.',
+      );
+    }
 
+    // IMPORTANT: do NOT wrap this in prisma.$transaction().
+    // DATABASE_URL points at Supabase PgBouncer (transaction pooler), which
+    // cannot host long interactive transactions — large subject catalogues
+    // fail with P2028 "Transaction not found" after a few seconds.
     try {
-      await prisma.$transaction(async (tx) => {
-        for (const dept of input.departments) {
-          await tx.department.upsert({
-            where: { code: dept.code },
-            create: { name: dept.name, code: dept.code, isActive: true },
-            update: { name: dept.name, isActive: true, deletedAt: null },
-          });
-        }
-        for (const subject of input.subjects) {
-          await tx.subject.upsert({
-            where: { code: subject.code },
-            create: { name: subject.name, code: subject.code, isActive: true },
-            update: { name: subject.name, isActive: true, deletedAt: null },
-          });
-        }
-      });
+      for (const dept of input.departments) {
+        await prisma.department.upsert({
+          where: { code: dept.code },
+          create: { name: dept.name, code: dept.code, isActive: true },
+          update: { name: dept.name, isActive: true, deletedAt: null },
+        });
+      }
+      for (const subject of input.subjects) {
+        await prisma.subject.upsert({
+          where: { code: subject.code },
+          create: { name: subject.name, code: subject.code, isActive: true },
+          update: { name: subject.name, isActive: true, deletedAt: null },
+        });
+      }
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new AppError(
-          409,
-          'A department or subject name/code conflict occurred. Codes and names must be unique.',
-        );
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2002') {
+          throw new AppError(
+            409,
+            'A department or subject name/code conflict occurred. Every name and code must be unique.',
+          );
+        }
+        if (error.code === 'P2028') {
+          throw new AppError(
+            503,
+            'Database transaction timed out while saving curriculum. Retry — if this persists, check Supabase pooler settings.',
+          );
+        }
       }
       throw error;
     }
@@ -364,25 +382,23 @@ export class SetupService {
     }
 
     try {
-      await prisma.$transaction(
-        accounts.map((account) =>
-          prisma.ledgerAccount.upsert({
-            where: { code: account.code },
-            create: {
-              code: account.code,
-              accountName: account.accountName,
-              category: account.category,
-              debit: 0,
-              credit: 0,
-            },
-            update: {
-              accountName: account.accountName,
-              category: account.category,
-              deletedAt: null,
-            },
-          }),
-        ),
-      );
+      for (const account of accounts) {
+        await prisma.ledgerAccount.upsert({
+          where: { code: account.code },
+          create: {
+            code: account.code,
+            accountName: account.accountName,
+            category: account.category,
+            debit: 0,
+            credit: 0,
+          },
+          update: {
+            accountName: account.accountName,
+            category: account.category,
+            deletedAt: null,
+          },
+        });
+      }
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new AppError(409, 'A ledger account code conflict occurred.');
