@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
+import { authenticate } from '@/middleware/auth.middleware';
+import { requireRole, ROLES } from '@/middleware/rbac.middleware';
 import { SetupController } from './setup.controller';
 
 const router = Router();
@@ -27,7 +29,15 @@ const bootstrapLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const adminOnly = [authenticate, requireRole(ROLES.ADMIN)] as const;
+
 router.get('/status', statusLimiter, controller.getStatus.bind(controller));
 router.post('/bootstrap', bootstrapLimiter, controller.bootstrap.bind(controller));
+
+router.post('/academic', ...adminOnly, controller.saveAcademic.bind(controller));
+router.post('/classes', ...adminOnly, controller.saveClasses.bind(controller));
+router.post('/curriculum', ...adminOnly, controller.saveCurriculum.bind(controller));
+router.post('/ledger', ...adminOnly, controller.saveLedger.bind(controller));
+router.post('/complete', ...adminOnly, controller.complete.bind(controller));
 
 export default router;
