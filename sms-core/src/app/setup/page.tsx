@@ -93,8 +93,17 @@ function parseNameCodeLines(raw: string): Array<{ name: string; code: string }> 
 
 function initialStepFromStatus(status: SetupStatus, isAuthenticated: boolean): WizardStepId {
   if (status.setupCompleted) return "finish"
-  if (!status.initialized || !status.hasAdmin) return "welcome"
+
+  // No admin yet → cold first-start welcome / bootstrap
+  if (!status.hasAdmin) return "welcome"
+
+  // Admin exists but user not signed in
   if (!isAuthenticated) return "signIn"
+
+  // Signed-in admin but no SystemConfig (typical demo DB).
+  // Do NOT bounce back to welcome — that looks like sign-in is broken.
+  if (!status.initialized) return "finish"
+
   if (!status.steps.academicTerms) return "academic"
   if (!status.steps.classes) return "classes"
   if (!status.steps.curriculum) return "curriculum"
@@ -807,10 +816,20 @@ export default function SetupPage() {
                   ))}
               </ul>
               {!status?.steps.schoolProfile && (
-                <p className="text-sm text-amber-700 dark:text-amber-400">
-                  School profile is missing until bootstrap runs on an empty database. After wipe,
-                  use Begin setup. Complete stays disabled until initialized.
-                </p>
+                <div className="space-y-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+                  <p className="font-medium text-amber-900 dark:text-amber-200">
+                    Signed in, but this database still has demo data without a first-start school profile.
+                  </p>
+                  <p className="text-muted-foreground">
+                    Bootstrap cannot create a second admin, and setup steps need an empty DB (or a
+                    wiped DB). Complete is disabled until you wipe demo data and run Begin setup.
+                  </p>
+                  <ol className="list-decimal space-y-1 pl-5 text-muted-foreground">
+                    <li>Stop and wipe the database (backup first).</li>
+                    <li>Restart Docker without RUN_SEED.</li>
+                    <li>Open /setup → Begin setup with your real school + admin.</li>
+                  </ol>
+                </div>
               )}
               <button
                 type="button"
