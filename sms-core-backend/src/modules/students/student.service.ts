@@ -311,36 +311,37 @@ export class StudentService {
     const resolvedTierId = feeTier.id;
     const computedBalance = Math.max(0, baseTariff - initialDeposit);
 
-    return await prisma.$transaction(async (tx) => {
-      const hashedPassword = await hashPassword(account.password);
+    // Avoid prisma.$transaction here: Supabase transaction pooler (PgBouncer)
+    // rejects interactive transactions (P2028), which surfaces as HTTP 500 on import.
+    const hashedPassword = await hashPassword(account.password);
 
-      const dbPayload = {
-        studentId: uniqueStudentId,
-        studentName: account.fullName,
-        enrollmentDate: new Date(account.enrollmentDate),
-        status: "ACTIVE" as const,
-        currentGpa: 0.0,
-        attendanceRate: 100.0,
-        account: { create: { portalEmail: account.email, passwordHash: hashedPassword } },
-        demographics: {
-          create: {
-            dateOfBirth: new Date(demographics.dateOfBirth),
-            gender: demographics.gender,
-            residentialAddress: demographics.residentialAddress,
-            medicalNotes: demographics.medicalNotes ?? null,
-            bloodType: demographics.bloodType ?? null,
-            religion: demographics.religion ?? null,
-            formerSchool: demographics.formerSchool ?? null,
-          },
+    const dbPayload = {
+      studentId: uniqueStudentId,
+      studentName: account.fullName,
+      enrollmentDate: new Date(account.enrollmentDate),
+      status: "ACTIVE" as const,
+      currentGpa: 0.0,
+      attendanceRate: 100.0,
+      account: { create: { portalEmail: account.email, passwordHash: hashedPassword } },
+      demographics: {
+        create: {
+          dateOfBirth: new Date(demographics.dateOfBirth),
+          gender: demographics.gender,
+          residentialAddress: demographics.residentialAddress,
+          medicalNotes: demographics.medicalNotes ?? null,
+          bloodType: demographics.bloodType ?? null,
+          religion: demographics.religion ?? null,
+          formerSchool: demographics.formerSchool ?? null,
         },
-        placement: { create: { classId: placement.classId, academicTrack: placement.academicTrack, boardingStatus: placement.boardingStatus } },
-        guardians: { create: { name: resolvedGuardian.name, relationship: resolvedGuardian.relationship, phone: resolvedGuardian.phone, email: resolvedGuardian.email ?? null } },
-        billing: { create: { feeTierId: resolvedTierId, initialDeposit: billing.initialDeposit, currentBalance: computedBalance } },
-        compliance: { create: { nationalId: compliance?.nationalId ?? null, emergencyName: compliance?.emergencyContact?.name ?? null, emergencyPhone: compliance?.emergencyContact?.phone ?? null, emergencyRelation: compliance?.emergencyContact?.relationship ?? null } },
-      };
+      },
+      placement: { create: { classId: placement.classId, academicTrack: placement.academicTrack, boardingStatus: placement.boardingStatus } },
+      guardians: { create: { name: resolvedGuardian.name, relationship: resolvedGuardian.relationship, phone: resolvedGuardian.phone, email: resolvedGuardian.email ?? null } },
+      billing: { create: { feeTierId: resolvedTierId, initialDeposit: billing.initialDeposit, currentBalance: computedBalance } },
+      compliance: { create: { nationalId: compliance?.nationalId ?? null, emergencyName: compliance?.emergencyContact?.name ?? null, emergencyPhone: compliance?.emergencyContact?.phone ?? null, emergencyRelation: compliance?.emergencyContact?.relationship ?? null } },
+    };
 
-      return this.repo.createNestedStudent(dbPayload, tx);
-    });
+    // createNestedStudent accepts optional tx; omit tx → uses root prisma client.
+    return this.repo.createNestedStudent(dbPayload);
   }
 
   async importStudentsFromFile(file: StudentImportUploadedFile) {
