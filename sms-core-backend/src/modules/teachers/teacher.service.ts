@@ -225,74 +225,71 @@ export class TeacherService {
     // Phase 4 (Task 4.1).
     const rawPassword = account.password || crypto.randomBytes(16).toString('base64url');
 
-    const result = await prisma.$transaction(async (tx) => {
-      const hashedPassword = await hashPassword(rawPassword);
+    // Avoid interactive prisma.$transaction — Supabase PgBouncer pooler
+    // cannot host them (P2028 → HTTP 500 on teacher bulk import).
+    const hashedPassword = await hashPassword(rawPassword);
 
-      const completeDbPayload: Prisma.TeacherCreateInput = {
-        teacherId: uniqueTeacherId,
-        teacherName: account.fullName,
+    const completeDbPayload: Prisma.TeacherCreateInput = {
+      teacherId: uniqueTeacherId,
+      teacherName: account.fullName,
+      email: account.email,
+      departmentRecord: placement?.departmentId
+        ? { connect: { id: placement.departmentId } }
+        : undefined,
+      employmentType: placement?.employmentType || "Full-Time",
+      employmentDate: account.employmentDate ? new Date(account.employmentDate) : null,
+      status: EntityStatus.ACTIVE,
+      yearsOfExperience: 0,
+
+      demographics: {
+        create: {
+          gender: demographics.gender,
+          residentialAddress: demographics.residentialAddress,
+          dateOfBirth: new Date(demographics.dateOfBirth),
+          phone: demographics.phone,
+          bloodType: demographics.bloodType || null,
+          religion: demographics.religion || null,
+          formerSchool: demographics.formerSchool || null,
+        },
+      },
+
+      compliance: compliance
+        ? {
+            create: {
+              nationalId: compliance.nationalId ?? null,
+              ssnitNumber: compliance.ssnitNumber ?? null,
+              emergencyName: compliance.emergencyContact?.name ?? null,
+              emergencyPhone: compliance.emergencyContact?.phone ?? null,
+            },
+          }
+        : { create: {} },
+
+      payroll: {
+        create: {
+          clearanceTier: payroll?.clearanceTier || "Level 1: Standard Faculty Access",
+          baseSalary: payroll?.baseSalary ? parseFloat(String(payroll.baseSalary)) : 0.0,
+          deductions: 0.0,
+          netPay: (payroll?.baseSalary ? parseFloat(String(payroll.baseSalary)) : 0.0) - 0.0,
+          paymentRoute: payroll?.paymentRoute || "BANK_TRANSFER",
+          bankName: payroll?.bankName || "Unconfigured Bank",
+          bankAccount: payroll?.bankAccount || "—",
+          salaryStatus: "PENDING",
+        },
+      },
+    };
+
+    const newTeacher = await this.repo.createNestedTeacher(completeDbPayload);
+
+    await prisma.teacherAccount.create({
+      data: {
+        teacherId: newTeacher.id,
         email: account.email,
-        departmentRecord: placement?.departmentId
-          ? { connect: { id: placement.departmentId } }
-          : undefined,
-        employmentType: placement?.employmentType || "Full-Time",
-        employmentDate: account.employmentDate ? new Date(account.employmentDate) : null,
-        status: EntityStatus.ACTIVE,
-        yearsOfExperience: 0,
-
-        demographics: {
-          create: {
-            gender: demographics.gender,
-            residentialAddress: demographics.residentialAddress,
-            dateOfBirth: new Date(demographics.dateOfBirth),
-            phone: demographics.phone,
-            bloodType: demographics.bloodType || null,
-            religion: demographics.religion || null,
-            formerSchool: demographics.formerSchool || null,
-          },
-        },
-
-        compliance: compliance
-          ? {
-              create: {
-                nationalId: compliance.nationalId ?? null,
-                ssnitNumber: compliance.ssnitNumber ?? null,
-                emergencyName: compliance.emergencyContact?.name ?? null,
-                emergencyPhone: compliance.emergencyContact?.phone ?? null,
-              },
-            }
-          : { create: {} },
-
-        payroll: {
-          create: {
-            clearanceTier: payroll?.clearanceTier || "Level 1: Standard Faculty Access",
-            baseSalary: payroll?.baseSalary ? parseFloat(String(payroll.baseSalary)) : 0.0,
-            deductions: 0.0,
-            netPay: (payroll?.baseSalary ? parseFloat(String(payroll.baseSalary)) : 0.0) - 0.0,
-            paymentRoute: payroll?.paymentRoute || "BANK_TRANSFER",
-            bankName: payroll?.bankName || "Unconfigured Bank",
-            bankAccount: payroll?.bankAccount || "—",
-            salaryStatus: "PENDING",
-          },
-        },
-      };
-
-      const newTeacher = await this.repo.createNestedTeacher(
-        completeDbPayload,
-        tx
-      );
-
-      await tx.teacherAccount.create({
-        data: {
-          teacherId: newTeacher.id,
-          email: account.email,
-          passwordHash: hashedPassword,
-          role: "FACULTY",
-        },
-      });
-
-      return newTeacher;
+        passwordHash: hashedPassword,
+        role: "FACULTY",
+      },
     });
+
+    const result = newTeacher;
 
     // Return the teacher record with the temporary password attached.
     // Underscore prefix signals internal fields to API consumers.
