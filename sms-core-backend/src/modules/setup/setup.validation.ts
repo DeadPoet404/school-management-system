@@ -124,7 +124,7 @@ export const setupCurriculumSchema = z.object({
       }),
     )
     .min(1)
-    .max(120),
+    .max(500),
 });
 
 export type SetupCurriculumInput = z.infer<typeof setupCurriculumSchema>;
