@@ -52,3 +52,6 @@ _*_backup/
 # Env snapshot backups — may contain live secrets. Never commit.
 .env.bak*
 .env.*-backup
+
+# Local Docker cache-bust markers (not source)
+**/.docker-bust

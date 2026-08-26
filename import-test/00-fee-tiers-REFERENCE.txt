@@ -1,0 +1,8 @@
+Create these fee tiers in the app (Finance / reference) BEFORE student import
+if they do not exist yet:
+
+  name,code,amount
+  Day Student,DAY,2500.00
+  Boarding Student,BOARD,4500.00
+
+Student CSV uses: DAY or BOARD (or the exact tier name).
