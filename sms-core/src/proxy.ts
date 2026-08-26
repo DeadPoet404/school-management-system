@@ -2,18 +2,8 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
 /**
- * P1: Edge-level route guard.
- *
- * Reads the access_token httpOnly cookie (Edge Runtime CAN read httpOnly cookies).
- * If the cookie is absent on a protected route, redirects to /login.
- *
- * Token VALIDITY is checked by the backend's authenticate middleware.
- * This is a fast-path existence check to prevent protected pages from
- * rendering for unauthenticated users.
- *
- * Protected routes: /dashboard, /staff, /teachers, /students,
- *                   /operations, /finance, /no-access and all sub-paths.
- * Public routes: /, /login, /api/*, /_next/* (static assets)
+ * Edge-level route guard.
+ * /setup is public so first-start can run before any admin session exists.
  */
 
 const PROTECTED_PATHS = [
@@ -36,15 +26,14 @@ function isProtectedPath(pathname: string): boolean {
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Skip non-protected paths
+  if (pathname === "/setup" || pathname.startsWith("/setup/")) {
+    return NextResponse.next()
+  }
+
   if (!isProtectedPath(pathname)) {
     return NextResponse.next()
   }
 
-  // Check for either access_token or refresh_token cookie existence.
-  // The access token is intentionally short-lived; if only the refresh token
-  // exists, allow the page to render so AuthProvider/fetchWithAuth can refresh
-  // the session through /api/auth/refresh instead of causing a login loop.
   const accessToken = request.cookies.get("access_token")?.value
   const refreshToken = request.cookies.get("refresh_token")?.value
 
@@ -58,9 +47,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    // Match all routes except static files and API routes
-    // (API routes are protected by the backend, not Next.js middleware)
-    "/((?!_next/static|_next/image|favicon.ico|api).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api).*)"],
 }

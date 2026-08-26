@@ -1,10 +1,12 @@
 "use client"
 
-import { useState, FormEvent } from "react"
+import { useState, FormEvent, useEffect } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 import { ApiClientError } from "@/lib/fetch-with-auth"
 import { landingPathForRole } from "@/lib/role-access"
+import { getSetupStatus } from "@/lib/api/setup"
+import Link from "next/link"
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -13,6 +15,28 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [requiresSetup, setRequiresSetup] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    async function check() {
+      try {
+        const status = await getSetupStatus()
+        if (cancelled) return
+        setRequiresSetup(status.requiresSetup)
+        // No admin yet → force wizard (bootstrap is public)
+        if (status.requiresSetup && !status.hasAdmin) {
+          router.replace("/setup")
+        }
+      } catch {
+        if (!cancelled) setRequiresSetup(false)
+      }
+    }
+    void check()
+    return () => {
+      cancelled = true
+    }
+  }, [router])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -21,6 +45,15 @@ export default function LoginPage() {
 
     try {
       const loggedInUser = await login(email, password)
+      try {
+        const status = await getSetupStatus()
+        if (status.requiresSetup && loggedInUser.role === "ADMIN") {
+          router.push("/setup")
+          return
+        }
+      } catch {
+        // fall through
+      }
       const from = new URLSearchParams(window.location.search).get("from")
       router.push(landingPathForRole(loggedInUser.role, from))
     } catch (err) {
@@ -46,6 +79,15 @@ export default function LoginPage() {
             Enter your credentials to access the platform
           </p>
         </div>
+
+        {requiresSetup && (
+          <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
+            First-start setup is not finished.{" "}
+            <Link href="/setup" className="font-medium text-primary underline-offset-4 hover:underline">
+              Continue setup
+            </Link>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
