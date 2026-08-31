@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Jocomfy encrypted database backup daily
+
+[Timer]
+OnCalendar=*-*-* 02:15:00 Africa/Accra
+RandomizedDelaySec=10m
+Persistent=true
+Unit=jocomfy-backup.service
+
+[Install]
+WantedBy=timers.target

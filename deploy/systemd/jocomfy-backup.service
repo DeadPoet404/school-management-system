@@ -1,0 +1,25 @@
+[Unit]
+Description=Jocomfy encrypted database backup to Cloudflare R2
+Documentation=file:///root/school-management-system/scripts/backup-to-r2.sh
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/root/school-management-system
+ExecStart=/root/school-management-system/scripts/backup-to-r2.sh
+UMask=0077
+TimeoutStartSec=1h
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=6
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6

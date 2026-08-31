@@ -1,0 +1,11 @@
+[Unit]
+Description=Run weekly Jocomfy backup restore verification
+
+[Timer]
+OnCalendar=Sun *-*-* 03:30:00 Africa/Accra
+RandomizedDelaySec=10m
+Persistent=true
+Unit=jocomfy-backup-verify.service
+
+[Install]
+WantedBy=timers.target
