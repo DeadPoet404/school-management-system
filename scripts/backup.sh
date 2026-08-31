@@ -160,6 +160,10 @@ if [ "${1:-}" = "restore" ]; then
     echo "aborted."
     exit 1
   fi
+  echo "Dropping the target public schema before restore..."
+  printf 'DROP SCHEMA IF EXISTS public CASCADE;\n' |
+    run_psql_stdin
+
   gunzip -c "$FILE" | run_psql_stdin
   echo "✅ restored: ${FILE}"
   exit 0

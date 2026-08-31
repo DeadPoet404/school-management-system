@@ -83,6 +83,16 @@ if [ "$READY" != "true" ]; then
 fi
 
 echo "Temporary database: READY"
+echo "Dropping the temporary database's default public schema..."
+
+docker exec "$CONTAINER" \
+  psql \
+  -v ON_ERROR_STOP=1 \
+  -U postgres \
+  -d sms_restore \
+  -c 'DROP SCHEMA IF EXISTS public CASCADE;' \
+  >/dev/null
+
 echo "Restoring backup..."
 
 if ! gzip -cd "$FILE" |
