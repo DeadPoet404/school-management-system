@@ -10,6 +10,7 @@
 #   • Override the target with BACKUP_DB_URL (e.g. to dump an old local
 #     Postgres while migrating data into Supabase).
 set -euo pipefail
+umask 077
 cd "$(dirname "$0")/.."
 
 # ── Subcommands that never need a database connection ──
@@ -115,13 +116,23 @@ if ! pick_host_tools; then
   fi
 fi
 
+# Dump only the application-owned public schema. Supabase-managed schemas,
+# roles, ownership declarations, and grants are excluded so the result can
+# be restored into ordinary PostgreSQL.
+PG_DUMP_ARGS=(
+  --schema=public
+  --no-owner
+  --no-privileges
+  --format=plain
+)
+
 # Credentials ride in the URL env/args — same local exposure class as the
 # previous host-side invocation (docker group == host root).
 run_pg_dump() {
   if [ "$DOCKER_MODE" = 1 ]; then
-    docker run --rm -i --network host -e DB_URL "$IMG" pg_dump "$DB_URL"
+    docker run --rm -i --network host -e DB_URL "$IMG"       pg_dump "${PG_DUMP_ARGS[@]}" "$DB_URL"
   else
-    "$PGDUMP" "$DB_URL"
+    "$PGDUMP" "${PG_DUMP_ARGS[@]}" "$DB_URL"
   fi
 }
 run_psql_stdin() {  # SQL is piped in on stdin
@@ -160,6 +171,7 @@ OUT="backups/sms_db_${STAMP}.sql.gz"
 
 mkdir -p backups
 run_pg_dump | gzip > "$OUT"
+chmod 600 "$OUT"
 
 echo "✅ backup written: ${OUT} ($(du -h "${OUT}" | cut -f1)) from ${MASKED_URL}"
 # Retention: keep the newest 14 dumps
