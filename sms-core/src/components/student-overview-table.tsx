@@ -3,9 +3,13 @@
 import { useAuth } from "@/lib/auth-context"
 import * as React from "react"
 import Link from "next/link"
-import { FileText, Pencil } from "lucide-react"
+import { FileText, KeyRound, Pencil } from "lucide-react"
 import { UniversalDataTable, type DataTableColumn } from "@/components/universal-data-table"
 import { fetchWithAuth } from "@/lib/fetch-with-auth"
+import {
+  StudentPasswordResetDialog,
+  type StudentPasswordResetTarget,
+} from "@/components/student-password-reset-dialog"
 
 type StudentOverviewRow = {
   id: string
@@ -30,6 +34,9 @@ interface StudentOverviewTableProps {
 export function StudentOverviewTable({ data: initialData }: StudentOverviewTableProps) {
   const { user } = useAuth()
   const canWrite = user?.role === "ADMIN" || user?.role === "STAFF"
+  const isAdmin = user?.role === "ADMIN"
+  const [passwordResetTarget, setPasswordResetTarget] =
+    React.useState<StudentPasswordResetTarget | null>(null)
   const [students, setStudents] = React.useState<any[]>(initialData || [])
   const [loading, setLoading] = React.useState<boolean>(!initialData)
   const [error, setError] = React.useState<string | null>(null)
@@ -102,7 +109,8 @@ export function StudentOverviewTable({ data: initialData }: StudentOverviewTable
       ? `${rawTrack || ""} ${rawClass}`.trim()
       : rawTrack || "Unassigned"
 
-    const attendanceRouteId = student.id || student.studentId
+    const internalStudentId = student.id
+    const attendanceRouteId = internalStudentId || student.studentId
 
     return {
       id: student.studentId || "—",
@@ -136,6 +144,27 @@ export function StudentOverviewTable({ data: initialData }: StudentOverviewTable
           >
             <Pencil className="h-3.5 w-3.5" />
           </Link>
+          {isAdmin && internalStudentId && (
+            <button
+              type="button"
+              aria-label={`Reset password for ${student.studentName || "student"}`}
+              title="Reset student password"
+              onClick={() =>
+                setPasswordResetTarget({
+                  id: String(internalStudentId),
+                  studentId: String(student.studentId || "—"),
+                  studentName: String(student.studentName || "Unknown Student"),
+                  portalEmail:
+                    student.account?.portalEmail ||
+                    student.portalEmail ||
+                    undefined,
+                })
+              }
+              className="inline-flex h-7 w-7 items-center justify-center rounded border border-amber-200 text-amber-700 transition-colors hover:bg-amber-50 hover:text-amber-900 dark:border-amber-900/50 dark:text-amber-400 dark:hover:bg-amber-950/30"
+            >
+              <KeyRound className="h-3.5 w-3.5" />
+            </button>
+          )}
           {/* SMS-008: on-demand cumulative transcript PDF (browser print flow) */}
           <button
             type="button"
@@ -267,7 +296,7 @@ export function StudentOverviewTable({ data: initialData }: StudentOverviewTable
       // visible without having to scroll through the other 11 columns.
       key: "actions",
       header: "",
-      className: "sticky right-0 z-10 w-[56px] bg-zinc-50/95 dark:bg-zinc-900/95 text-center backdrop-blur-sm",
+      className: "sticky right-0 z-10 w-[104px] bg-zinc-50/95 dark:bg-zinc-900/95 text-center backdrop-blur-sm",
       cellClassName: "sticky right-0 z-10 bg-white dark:bg-zinc-950 text-center",
     },
   ]
@@ -290,11 +319,21 @@ export function StudentOverviewTable({ data: initialData }: StudentOverviewTable
   }
 
   return (
-    <UniversalDataTable
-      data={normalizedData}
-      columns={columns}
-      rowId={(student) => student.id}
-      emptyMessage="No student overview records found."
-    />
+    <>
+      <UniversalDataTable
+        data={normalizedData}
+        columns={columns}
+        rowId={(student) => student.id}
+        emptyMessage="No student overview records found."
+      />
+
+      {passwordResetTarget && (
+        <StudentPasswordResetDialog
+          key={passwordResetTarget.id}
+          student={passwordResetTarget}
+          onClose={() => setPasswordResetTarget(null)}
+        />
+      )}
+    </>
   )
 }
