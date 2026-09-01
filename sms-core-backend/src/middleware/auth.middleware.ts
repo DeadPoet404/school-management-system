@@ -51,6 +51,15 @@ export function authenticate(req: AuthenticatedRequest, res: Response, next: Nex
       return next(new AppError(401, 'Session has been invalidated. Please log in again.'));
     }
 
+    const requestPath = (req.originalUrl || '').split('?')[0];
+    const passwordChangeAllowed =
+      requestPath === '/api/auth/me' ||
+      requestPath === '/api/auth/password';
+
+    if (decoded.mustChangePassword && !passwordChangeAllowed) {
+      return next(new AppError(403, 'Password change required before continuing.'));
+    }
+
     req.user = decoded;
     next();
   } catch (err) {

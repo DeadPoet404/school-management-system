@@ -419,6 +419,7 @@ describe('AuthService', () => {
         role: 'ADMIN',
         entityType: 'STAFF',
         entityInternalId: 'staff-id-1',
+        mustChangePassword: false,
       });
     });
   });
@@ -457,6 +458,7 @@ describe('AuthService.loginWithGoogle (SMS-004)', () => {
       role: 'STUDENT',
       entityType: 'STUDENT',
       entityInternalId: 'stu-internal-1',
+      mustChangePassword: false,
     });
     expect(typeof result.accessToken).toBe('string');
     expect(typeof result.refreshToken).toBe('string');

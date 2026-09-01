@@ -14,6 +14,14 @@ const googleLoginSchema = z.object({
   credential: z.string().min(1, 'A Google ID token (credential) is required.'),
 });
 
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required.').max(128),
+  newPassword: z
+    .string()
+    .min(12, 'New password must be at least 12 characters.')
+    .max(128, 'New password must not exceed 128 characters.'),
+}).strict();
+
 /**
  * Builds cookie options from environment variables.
  *
@@ -194,6 +202,68 @@ export class AuthController {
       res.cookie('refresh_token', '', clearOpts);
 
       res.status(200).json({ success: true, message: 'Logged out successfully.' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * PATCH /api/auth/password
+   * Changes the authenticated student's password and clears the session.
+   */
+  async changePassword(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) {
+        throw new AppError(401, 'Not authenticated.');
+      }
+
+      const parsed = changePasswordSchema.safeParse(req.body);
+      if (!parsed.success) {
+        throw new AppError(400, parsed.error.issues[0]!.message);
+      }
+
+      await this.authService.changeStudentPassword(
+        req.user,
+        parsed.data.currentPassword,
+        parsed.data.newPassword,
+      );
+
+      const clearOpts = {
+        ...getCookieOptions(),
+        maxAge: 0,
+      };
+
+      res.cookie('access_token', '', clearOpts);
+      res.cookie('refresh_token', '', clearOpts);
+
+      res.status(200).json({
+        success: true,
+        message: 'Password changed successfully. Please sign in again.',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /api/auth/students/:studentId/password-reset
+   * Generates a one-time temporary password. ADMIN authorization is enforced
+   * by the route before this method runs.
+   */
+  async resetStudentPassword(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const studentId = req.params.studentId;
+      if (!studentId) {
+        throw new AppError(400, 'Student ID is required.');
+      }
+
+      const result = await this.authService.resetStudentPassword(studentId);
+
+      res.status(200).json({
+        success: true,
+        message: 'Student password reset successfully.',
+        data: result,
+      });
     } catch (error) {
       next(error);
     }

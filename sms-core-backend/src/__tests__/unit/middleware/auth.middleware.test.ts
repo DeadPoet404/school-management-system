@@ -125,6 +125,41 @@ describe('authenticate middleware (cookie-based)', () => {
     expect(req.user).toMatchObject(payload);
   });
 
+  it('should block protected data routes when password change is required', () => {
+    const payload = {
+      sub: 'uuid-reset',
+      email: 'student@school.com',
+      role: 'STUDENT',
+      entityType: 'STUDENT',
+      entityInternalId: 'int-reset',
+      mustChangePassword: true,
+    };
+    const token = createToken(payload);
+    const req = mockReq({ access_token: token });
+    req.originalUrl = '/api/students/me';
+    authenticate(req, res, next);
+    const err = getAppError(next);
+    expect(err.statusCode).toBe(403);
+    expect(err.message).toBe('Password change required before continuing.');
+  });
+
+  it('should allow the password endpoint when password change is required', () => {
+    const payload = {
+      sub: 'uuid-reset',
+      email: 'student@school.com',
+      role: 'STUDENT',
+      entityType: 'STUDENT',
+      entityInternalId: 'int-reset',
+      mustChangePassword: true,
+    };
+    const token = createToken(payload);
+    const req = mockReq({ access_token: token });
+    req.originalUrl = '/api/auth/password';
+    authenticate(req, res, next);
+    expect(next).toHaveBeenCalledWith();
+    expect(req.user).toMatchObject(payload);
+  });
+
   it('should set req.user and call next() for valid FACULTY token', () => {
     const payload = { sub: 'uuid-2', email: 'teacher@school.com', role: 'FACULTY', entityType: 'TEACHER', entityInternalId: 'int-2' };
     const token = createToken(payload);

@@ -1,10 +1,11 @@
-import { randomUUID } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import jwt, { SignOptions, JwtPayload as JsonWebTokenPayload } from 'jsonwebtoken';
 import { OAuth2Client } from 'google-auth-library';
 import { prisma } from '@/lib/prisma';
-import { comparePassword } from '@/utils/hash';
+import { comparePassword, hashPassword } from '@/utils/hash';
 import { AppError } from '@/middleware/error.handler';
 import { JwtPayload } from '@/types/auth.types';
+import { invalidateUserTokensBefore } from '@/lib/token-blocklist';
 
 export class AuthService {
   // SMS-004: Google OAuth client for portal sign-in verification.
@@ -43,6 +44,7 @@ export class AuthService {
       role: account.role,
       entityType: account.entityType,
       entityInternalId: account.userId,
+      mustChangePassword: account.mustChangePassword,
     };
 
     return this.signTokenPair(payload);
@@ -105,6 +107,7 @@ export class AuthService {
       role: 'STUDENT',
       entityType: 'STUDENT',
       entityInternalId: account.student.id,
+      mustChangePassword: account.mustChangePassword,
     };
 
     return this.signTokenPair(payload);
@@ -172,6 +175,7 @@ export class AuthService {
       role: account.role,
       entityType: account.entityType,
       entityInternalId: account.userId,
+      mustChangePassword: account.mustChangePassword,
     };
 
     return this.signTokenPair(payload);
@@ -198,6 +202,111 @@ export class AuthService {
       role: payload.role,
       entityType: payload.entityType,
       entityInternalId: payload.entityInternalId,
+      mustChangePassword: payload.mustChangePassword ?? false,
+    };
+  }
+
+  /**
+   * Change the authenticated student's password and revoke every existing
+   * session. The caller must sign in again with the new password.
+   */
+  async changeStudentPassword(
+    payload: JwtPayload,
+    currentPassword: string,
+    newPassword: string,
+  ) {
+    if (payload.entityType !== 'STUDENT' || payload.role !== 'STUDENT') {
+      throw new AppError(403, 'Only student accounts can use this password-change route.');
+    }
+
+    const account = await prisma.studentAccount.findUnique({
+      where: { id: payload.sub },
+      include: { student: { select: { id: true, status: true } } },
+    });
+
+    if (!account?.student || account.student.id !== payload.entityInternalId) {
+      throw new AppError(404, 'Student account not found.');
+    }
+
+    this.assertAccountActive(account.student.status);
+
+    if (!(await comparePassword(currentPassword, account.passwordHash))) {
+      throw new AppError(401, 'Current password is incorrect.');
+    }
+
+    if (await comparePassword(newPassword, account.passwordHash)) {
+      throw new AppError(400, 'New password must be different from the current password.');
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+    const changedAt = new Date();
+
+    await prisma.$transaction([
+      prisma.studentAccount.update({
+        where: { id: account.id },
+        data: {
+          passwordHash,
+          mustChangePassword: false,
+          passwordChangedAt: changedAt,
+        },
+      }),
+      prisma.refreshToken.deleteMany({
+        where: { accountId: account.id },
+      }),
+    ]);
+
+    invalidateUserTokensBefore(account.id, Math.floor(changedAt.getTime() / 1000));
+
+    return { changedAt };
+  }
+
+  /**
+   * ADMIN-only student reset. A cryptographically random temporary password
+   * is returned once and the student must replace it at the next login.
+   */
+  async resetStudentPassword(studentId: string) {
+    const account = await prisma.studentAccount.findUnique({
+      where: { studentId },
+      include: {
+        student: {
+          select: {
+            id: true,
+            studentId: true,
+            studentName: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (!account?.student) {
+      throw new AppError(404, 'Student account not found.');
+    }
+
+    const temporaryPassword = `Jc!${randomBytes(12).toString('base64url')}`;
+    const passwordHash = await hashPassword(temporaryPassword);
+    const changedAt = new Date();
+
+    await prisma.$transaction([
+      prisma.studentAccount.update({
+        where: { id: account.id },
+        data: {
+          passwordHash,
+          mustChangePassword: true,
+          passwordChangedAt: changedAt,
+        },
+      }),
+      prisma.refreshToken.deleteMany({
+        where: { accountId: account.id },
+      }),
+    ]);
+
+    invalidateUserTokensBefore(account.id, Math.floor(changedAt.getTime() / 1000));
+
+    return {
+      temporaryPassword,
+      mustChangePassword: true,
+      student: account.student,
     };
   }
 
@@ -264,6 +373,7 @@ export class AuthService {
         entityType: 'STUDENT' as const,
         userId: studentAccount.student.id,
         status: studentAccount.student.status,
+        mustChangePassword: studentAccount.mustChangePassword ?? false,
       };
     }
 
@@ -276,6 +386,7 @@ export class AuthService {
         entityType: 'STAFF' as const,
         userId: staffAccount.staff.id,
         status: staffAccount.staff.status,
+        mustChangePassword: false,
       };
     }
 
@@ -288,6 +399,7 @@ export class AuthService {
         entityType: 'TEACHER' as const,
         userId: teacherAccount.teacher.id,
         status: teacherAccount.teacher.status,
+        mustChangePassword: false,
       };
     }
 
@@ -311,6 +423,7 @@ export class AuthService {
         role: payload.role,
         entityType: payload.entityType,
         entityInternalId: payload.entityInternalId,
+        mustChangePassword: payload.mustChangePassword ?? false,
       },
     };
   }

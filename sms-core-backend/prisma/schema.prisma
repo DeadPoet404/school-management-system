@@ -195,8 +195,10 @@ model StudentAccount {
   id           String  @id @default(uuid())
   studentId    String  @unique
   student      Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  portalEmail  String  @unique
-  passwordHash String
+  portalEmail        String    @unique
+  passwordHash       String
+  mustChangePassword Boolean   @default(false)
+  passwordChangedAt  DateTime?
 }
 
 model Demographics {

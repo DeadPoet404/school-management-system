@@ -2,6 +2,7 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { AuthController } from './auth.controller';
 import { authenticate } from '@/middleware/auth.middleware';
+import { requireRole, ROLES } from '@/middleware/rbac.middleware';
 
 const router = Router();
 const authController = new AuthController();
@@ -101,6 +102,17 @@ const tokenEndpointLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const passwordEndpointLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: {
+    success: false,
+    message: 'Too many password requests. Please try again later.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // ── LOGIN WITH PER-ACCOUNT LOCKOUT ──
 router.post('/login', authLimiter, async (req, res, next) => {
   const { email } = req.body || {};
@@ -151,6 +163,23 @@ router.post('/refresh', tokenEndpointLimiter, authController.refresh.bind(authCo
 
 // Public — rate-limited (revokes refresh token, clears cookies)
 router.post('/logout', tokenEndpointLimiter, authController.logout.bind(authController));
+
+// Protected password lifecycle endpoints.
+router.patch(
+  '/password',
+  passwordEndpointLimiter,
+  authenticate,
+  requireRole(ROLES.STUDENT),
+  authController.changePassword.bind(authController),
+);
+
+router.post(
+  '/students/:studentId/password-reset',
+  passwordEndpointLimiter,
+  authenticate,
+  requireRole(ROLES.ADMIN),
+  authController.resetStudentPassword.bind(authController),
+);
 
 // Protected — requires valid access token
 router.get('/me', authenticate, authController.me.bind(authController));

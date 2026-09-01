@@ -29,7 +29,7 @@ export function isTokenBlocked(token: string): boolean {
  */
 export function invalidateUserTokensBefore(sub: string, iat: number): void {
   const existing = userInvalidations.get(sub);
-  if (!existing || iat < existing) {
+  if (existing === undefined || iat > existing) {
     userInvalidations.set(sub, iat);
   }
 }
