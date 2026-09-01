@@ -231,7 +231,7 @@ export class AuthService {
     this.assertAccountActive(account.student.status);
 
     if (!(await comparePassword(currentPassword, account.passwordHash))) {
-      throw new AppError(401, 'Current password is incorrect.');
+      throw new AppError(400, 'Current password is incorrect.');
     }
 
     if (await comparePassword(newPassword, account.passwordHash)) {

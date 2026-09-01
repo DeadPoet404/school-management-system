@@ -70,7 +70,7 @@ describe('AuthService password lifecycle', () => {
     await expect(
       service.changeStudentPassword(payload, 'wrong-password', 'A-new-password-2026'),
     ).rejects.toMatchObject({
-      statusCode: 401,
+      statusCode: 400,
       message: 'Current password is incorrect.',
     });
 
