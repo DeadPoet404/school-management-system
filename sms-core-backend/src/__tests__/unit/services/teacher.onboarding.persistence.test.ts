@@ -8,7 +8,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    $transaction: vi.fn(),
+    teacherAccount: {
+      create: vi.fn(),
+    },
   },
 }));
 
@@ -52,10 +54,9 @@ describe('SMS-002: TeacherService.createTeacher persists employmentDate', () => 
 
     (repo.createNestedTeacher as any).mockResolvedValue(CREATED_TEACHER);
 
-    // Run the transaction callback with a tx that exposes teacherAccount.create.
-    (prisma.$transaction as any).mockImplementation(async (fn: any) =>
-      fn({ teacherAccount: { create: vi.fn().mockResolvedValue({ id: 'account-uuid-1' }) } }),
-    );
+    (prisma.teacherAccount.create as any).mockResolvedValue({
+      id: 'account-uuid-1',
+    });
   });
 
   it('writes account.employmentDate to the Teacher record as a Date', async () => {
