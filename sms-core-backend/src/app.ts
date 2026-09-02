@@ -166,10 +166,14 @@ app.get('/api/health', async (_req, res) => {
     await prisma.$queryRaw`SELECT 1`;
     dbStatus = 'connected';
   } catch (_e) { /* db not available */ }
-  res.json({
-    success: true,
+  // Status code must mirror the body: uptime monitors and container
+  // healthchecks watch the code, and a 200 during a database outage reads
+  // as healthy. 503 makes degradation visible to anything polling this.
+  const healthy = dbStatus === 'connected';
+  res.status(healthy ? 200 : 503).json({
+    success: healthy,
     data: {
-      status: dbStatus === 'connected' ? 'healthy' : 'degraded',
+      status: healthy ? 'healthy' : 'degraded',
       timestamp: new Date().toISOString(),
       uptime: Math.floor(process.uptime()),
       db: { status: dbStatus, latencyMs: Date.now() - start },

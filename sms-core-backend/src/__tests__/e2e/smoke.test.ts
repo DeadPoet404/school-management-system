@@ -48,17 +48,31 @@ describe('E2E Smoke Tests', () => {
   const request = supertest(app);
 
   describe('Health endpoint', () => {
-    it('GET /api/health returns 200 with status and db info', async () => {
+    it('GET /api/health reports status and db info', async () => {
       const res = await request.get('/api/health');
 
-      expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
       expect(res.body.data).toBeDefined();
       expect(res.body.data.status).toMatch(/healthy|degraded/);
       expect(res.body.data.uptime).toBeTypeOf('number');
       expect(res.body.data.db).toBeDefined();
       expect(res.body.data.db.status).toMatch(/connected|disconnected/);
       expect(res.body.data.timestamp).toBeDefined();
+    });
+
+    it('correlates the HTTP status code with database connectivity', async () => {
+      // A 200 during a database outage reads as healthy to uptime monitors
+      // and container healthchecks, so the code must track the body.
+      const res = await request.get('/api/health');
+
+      if (res.body.data.db.status === 'connected') {
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.status).toBe('healthy');
+      } else {
+        expect(res.status).toBe(503);
+        expect(res.body.success).toBe(false);
+        expect(res.body.data.status).toBe('degraded');
+      }
     });
   });
 
