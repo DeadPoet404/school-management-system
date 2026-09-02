@@ -128,6 +128,29 @@ Defaults are overridable by environment variable:
 | `MONITOR_CONTAINERS` | four production containers | Space-separated names |
 | `MONITOR_PUBLIC_URLS` | `jocomfy.com`, `sms.jocomfy.com` | Reachability targets |
 | `MONITOR_CERT_HOSTS` | `jocomfy.com`, `sms.jocomfy.com` | TLS expiry targets |
+| `MONITOR_IGNORE_UNITS` | `systemd-networkd-wait-online.service` | Failed units to treat as benign (glob patterns allowed) |
+
+### Ignoring known-benign failed units
+
+`systemd-networkd-wait-online.service` frequently times out at boot on cloud
+VMs where an interface never reaches a fully configured state, then stays in
+the failed list permanently. The network itself is fine.
+
+This matters more than it looks. Because alerts fire on state *change*, one
+permanently failed unit holds the systemd check red forever — and a real
+failure appearing later raises no new alert, because the state never
+transitions. Anything genuinely harmless must therefore be excluded rather
+than tolerated:
+
+```bash
+systemctl edit jocomfy-monitor.service
+# [Service]
+# Environment=MONITOR_IGNORE_UNITS=systemd-networkd-wait-online.service other.service
+```
+
+Ignored units are still printed to the journal on every run, so they stay
+visible without being alertable. Prefer fixing or disabling the unit; use
+the ignore list only where neither is appropriate.
 
 ## Muting
 

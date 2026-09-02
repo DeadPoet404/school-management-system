@@ -31,6 +31,12 @@ PUBLIC_URLS="${MONITOR_PUBLIC_URLS:-https://jocomfy.com https://sms.jocomfy.com}
 CERT_HOSTS="${MONITOR_CERT_HOSTS:-jocomfy.com sms.jocomfy.com}"
 CONTAINERS="${MONITOR_CONTAINERS:-jocomfy-site-caddy-1 jocomfy-site-website-1 school-management-system-frontend-1 school-management-system-backend-1}"
 
+# Units that are known-benign when failed. Without this, one permanently
+# failed unit keeps the systemd check red forever, and because alerts fire
+# on state change a genuinely failed unit appearing later would raise no
+# new alert — it would blend into the existing bad state.
+IGNORE_UNITS="${MONITOR_IGNORE_UNITS:-systemd-networkd-wait-online.service}"
+
 mkdir -p "$STATE_DIR" 2>/dev/null || true
 
 FAILURES=0
@@ -125,9 +131,33 @@ for container in $CONTAINERS; do
 done
 
 # ── 5. Failed systemd units ────────────────────────────────────────────
-FAILED_UNITS="$(systemctl list-units --state=failed --no-legend --plain 2>/dev/null | awk '{print $1}' | paste -sd' ' -)"
+ALL_FAILED="$(systemctl list-units --state=failed --no-legend --plain 2>/dev/null | awk '{print $1}')"
+
+FAILED_UNITS=""
+IGNORED_UNITS=""
+
+for unit in $ALL_FAILED; do
+  ignored=false
+  for pattern in $IGNORE_UNITS; do
+    # shellcheck disable=SC2254
+    case "$unit" in
+      $pattern) ignored=true; break ;;
+    esac
+  done
+
+  if [ "$ignored" = "true" ]; then
+    IGNORED_UNITS="${IGNORED_UNITS}${unit} "
+  else
+    FAILED_UNITS="${FAILED_UNITS}${unit} "
+  fi
+done
+
+if [ -n "$IGNORED_UNITS" ]; then
+  echo "note: ignoring known-benign failed units: ${IGNORED_UNITS% }"
+fi
+
 if [ -n "$FAILED_UNITS" ]; then
-  report systemd bad "Failed systemd units present" "units: $FAILED_UNITS"
+  report systemd bad "Failed systemd units present" "units: ${FAILED_UNITS% }"
 else
   report systemd ok "No failed systemd units"
 fi
