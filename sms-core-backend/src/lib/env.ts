@@ -36,6 +36,10 @@ const envSchema = z
       (v) => (v === '' ? undefined : v),
       z.string().min(1).optional(),
     ),
+    STAFF_PORTAL_URL: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().url('STAFF_PORTAL_URL must be an absolute URL.').optional(),
+    ),
     CALENDAR_FEED_SECRET: z.preprocess(
       (v) => (v === '' ? undefined : v),
       z.string().min(32, 'CALENDAR_FEED_SECRET should be at least 32 random characters.').optional(),
@@ -149,6 +153,7 @@ function validateEnv() {
   if (env.GOOGLE_CLIENT_ID) process.env.GOOGLE_CLIENT_ID = env.GOOGLE_CLIENT_ID;
   if (env.GMAIL_USER) process.env.GMAIL_USER = env.GMAIL_USER;
   if (env.GMAIL_APP_PASSWORD) process.env.GMAIL_APP_PASSWORD = env.GMAIL_APP_PASSWORD;
+  if (env.STAFF_PORTAL_URL) process.env.STAFF_PORTAL_URL = env.STAFF_PORTAL_URL;
   if (env.CALENDAR_FEED_SECRET) process.env.CALENDAR_FEED_SECRET = env.CALENDAR_FEED_SECRET;
   if (env.ARKESEL_API_KEY) process.env.ARKESEL_API_KEY = env.ARKESEL_API_KEY;
   if (env.ARKESEL_SENDER_ID) process.env.ARKESEL_SENDER_ID = env.ARKESEL_SENDER_ID;

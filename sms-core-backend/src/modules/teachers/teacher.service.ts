@@ -7,6 +7,7 @@ import { TeacherRepository } from "./teacher.repository";
 import { formatInstitutionalId } from "@/utils";
 import { hashPassword } from "@/utils/hash";
 import { parseTeacherImportFile, type TeacherImportError, type TeacherImportUploadedFile } from "./teacher.import";
+import { dispatchTemporaryCredential } from "@/lib/credential-email";
 
 type TeacherWithRelations = Prisma.TeacherGetPayload<{
   include: {
@@ -219,10 +220,9 @@ export class TeacherService {
 
     const uniqueTeacherId = formatInstitutionalId("TCH", deptPrefix);
 
-    // Generate a temporary password if not provided by the caller.
-    // Returned in the response so the admin can communicate it to
-    // the teacher. A proper email delivery flow is planned for
-    // Phase 4 (Task 4.1).
+    // Generate a temporary password if not provided by the caller. SMS-013:
+    // this value is emailed directly to the teacher and is never placed in
+    // the HTTP response body.
     const rawPassword = account.password || crypto.randomBytes(16).toString('base64url');
 
     // Avoid interactive prisma.$transaction — Supabase PgBouncer pooler
@@ -291,14 +291,19 @@ export class TeacherService {
 
     const result = newTeacher;
 
-    // Return the teacher record with the temporary password attached.
-    // Underscore prefix signals internal fields to API consumers.
-    // The controller should pass these through to the admin response.
-    // Phase 4 will replace this with email-based password delivery.
+    // SMS-013: the temporary password is delivered out-of-band to the teacher
+    // and NEVER returned to the caller. Onboarding is already committed at
+    // this point, so a mail failure must not fail the request — the dispatcher
+    // is fail-soft and we surface only a non-sensitive delivery status.
+    const delivery = await dispatchTemporaryCredential({
+      to: account.email,
+      recipientName: account.fullName,
+      temporaryPassword: rawPassword,
+    });
+
     return {
       ...result,
-      _temporaryPassword: rawPassword,
-      _warning: "Communicate this password to the teacher immediately. Email delivery not yet implemented.",
+      _credentialDelivery: delivery,
     };
   }
 

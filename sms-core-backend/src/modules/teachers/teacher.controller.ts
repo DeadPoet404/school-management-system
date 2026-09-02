@@ -7,6 +7,7 @@ import {
   toTeacherDtoForRole,
   toTeacherListDtoForRole,
 } from "@/lib/role-dtos";
+import type { DeliveryOutcome as CredentialDeliveryOutcome } from "@/lib/credential-email";
 
 type UploadedTeacherImportFile = {
   buffer: Buffer;
@@ -103,9 +104,9 @@ export class TeacherController {
         payroll,
       });
 
-      // TODO: Phase 4 Task 4.1 — Replace password-in-response with
-      // email-based delivery. The underscore prefix signals internal
-      // fields that should be stripped by API versioning middleware.
+      // SMS-013: the temporary password is emailed straight to the teacher.
+      // The response carries only a non-sensitive delivery status so the
+      // admin knows whether a manual handover is still required.
       const response: Record<string, unknown> = {
         success: true,
         teacherId: newTeacher.teacherId,
@@ -113,11 +114,15 @@ export class TeacherController {
         message: "Faculty profile saved to database successfully.",
       };
 
-      // Surface auto-generated temporary password to the enrolling admin
-      // so they can deliver it to the new teacher out-of-band.
-      if ((newTeacher as { _temporaryPassword?: string })._temporaryPassword) {
-        response.temporaryPassword = (newTeacher as { _temporaryPassword?: string })._temporaryPassword;
-        response.warning = (newTeacher as { _warning?: string })._warning ?? "Communicate this password to the teacher immediately.";
+      const delivery = (newTeacher as { _credentialDelivery?: CredentialDeliveryOutcome })
+        ._credentialDelivery;
+
+      if (delivery) {
+        response.credentialDelivery = delivery.status;
+        response.credentialMessage = delivery.message;
+        if (delivery.status !== "SENT") {
+          response.warning = delivery.message;
+        }
       }
 
       return res.status(201).json(response);
