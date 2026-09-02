@@ -10,7 +10,7 @@ export class StudentRepository implements IStudentRepository {
       include: {
         account: { select: { id: true, studentId: true, portalEmail: true } },
         demographics: true,
-        placement: true,
+        placement: { include: { class: true } },
         compliance: true,
         guardians: true,
         billing: true,
@@ -35,7 +35,7 @@ export class StudentRepository implements IStudentRepository {
       include: {
         account: { select: { id: true, studentId: true, portalEmail: true } },
         demographics: true,
-        placement: true,
+        placement: { include: { class: true } },
         compliance: true,
         guardians: true,
         billing: true,

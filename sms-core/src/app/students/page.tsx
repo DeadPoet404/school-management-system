@@ -1,13 +1,16 @@
 "use client"
 
 import { useAuth } from "@/lib/auth-context"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { FileSpreadsheet, LogOut, Plus, RefreshCw } from "lucide-react"
 
 import { ModuleTabs } from "@/components/module-tabs"
 import { UniversalSearch } from "@/components/universal-search"
-import { StudentRegistryFilter } from "@/components/student-registry-filter"
+import {
+  StudentRegistryFilter,
+  type StudentClassFilterOption,
+} from "@/components/student-registry-filter"
 import { ActionDropdown } from "@/components/action-dropdown"
 import { Button } from "@/components/ui/button"
 
@@ -40,6 +43,26 @@ const studentTabs = [
 ]
 
 type StudentRecord = Record<string, any>
+type StudentFilters = Record<string, string>
+
+type StudentListResponse = {
+  success?: boolean
+  data?: StudentRecord[]
+  message?: string
+  pagination?: {
+    page?: number
+    totalPages?: number
+  }
+}
+
+type ClassReferenceResponse = {
+  success?: boolean
+  data?: Array<
+    StudentClassFilterOption & {
+      isActive?: boolean
+    }
+  >
+}
 
 const StudentsPage = () => {
   const { user } = useAuth()
@@ -47,51 +70,154 @@ const StudentsPage = () => {
 
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const studentRequestRef = useRef(0)
 
   const [activeTab, setActiveTab] = useState("overview")
   const [searchQuery, setSearchQuery] = useState("")
-  const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({})
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+  const [advancedFilters, setAdvancedFilters] = useState<StudentFilters>({})
+  const [classOptions, setClassOptions] = useState<StudentClassFilterOption[]>([])
 
   const [students, setStudents] = useState<StudentRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim())
+    }, 300)
+
+    return () => window.clearTimeout(timer)
+  }, [searchQuery])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadClasses = async () => {
+      try {
+        const response = await fetchWithAuth(
+          "/reference/classes"
+        )
+
+        if (!response.ok) return
+
+        const result =
+          (await response.json()) as ClassReferenceResponse
+
+        if (
+          !cancelled &&
+          result.success &&
+          Array.isArray(result.data)
+        ) {
+          setClassOptions(
+            result.data.filter(
+              (item) => item.isActive !== false
+            )
+          )
+        }
+      } catch {
+        // The student list remains usable without class options.
+      }
+    }
+
+    void loadClasses()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const loadStudents = useCallback(async () => {
+    const requestId = ++studentRequestRef.current
+
+    const requestPage = async (page: number) => {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: "100",
+      })
+
+      if (debouncedSearch) {
+        params.set("search", debouncedSearch)
+      }
+
+      for (const [key, value] of Object.entries(
+        advancedFilters
+      )) {
+        if (value) params.set(key, value)
+      }
+
+      const response = await fetchWithAuth(
+        `/students?${params.toString()}`
+      )
+
+      const result =
+        (await response
+          .json()
+          .catch(() => null)) as StudentListResponse | null
+
+      if (!response.ok || !result?.success) {
+        throw new Error(
+          result?.message ||
+            `Student search failed with HTTP ${response.status}.`
+        )
+      }
+
+      if (!Array.isArray(result.data)) {
+        throw new Error(
+          "The students endpoint returned an unexpected data structure."
+        )
+      }
+
+      return result
+    }
+
     try {
       setLoading(true)
       setError(null)
 
-      const response = await fetchWithAuth("/students?limit=500")
+      const firstPage = await requestPage(1)
+      const totalPages = Math.min(
+        100,
+        Math.max(
+          1,
+          Number(firstPage.pagination?.totalPages) || 1
+        )
+      )
 
-      if (!response.ok) {
-        throw new Error(`HTTP error: ${response.status}`)
-      }
+      const remainingPages = await Promise.all(
+        Array.from(
+          { length: totalPages - 1 },
+          (_, index) => requestPage(index + 2)
+        )
+      )
 
-      const json = await response.json()
-
-      if (json?.success && Array.isArray(json.data)) {
-        setStudents(json.data)
+      if (requestId !== studentRequestRef.current) {
         return
       }
 
-      if (Array.isArray(json?.data)) {
-        setStudents(json.data)
+      setStudents([
+        ...(firstPage.data || []),
+        ...remainingPages.flatMap(
+          (page) => page.data || []
+        ),
+      ])
+    } catch (caught) {
+      if (requestId !== studentRequestRef.current) {
         return
       }
 
-      if (Array.isArray(json)) {
-        setStudents(json)
-        return
-      }
-
-      throw new Error("The students endpoint returned an unexpected data structure.")
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load students.")
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to load students."
+      )
     } finally {
-      setLoading(false)
+      if (requestId === studentRequestRef.current) {
+        setLoading(false)
+      }
     }
-  }, [])
+  }, [advancedFilters, debouncedSearch])
 
   useEffect(() => {
     void loadStudents()
@@ -99,8 +225,6 @@ const StudentsPage = () => {
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab)
-    setSearchQuery("")
-    setAdvancedFilters({})
   }
 
   const handleImportClick = () => {
@@ -170,81 +294,9 @@ const StudentsPage = () => {
     }
   }
 
-  const filteredStudents = useMemo(() => {
-    return students.filter((student) => {
-      const query = searchQuery.toLowerCase().trim()
-
-      if (query) {
-        const rawName =
-          student.studentName ??
-          student.name ??
-          student.account?.fullName ??
-          ""
-
-        const rawId = student.studentId ?? student.id ?? ""
-
-        const rawClass =
-          student.placement?.class?.name ??
-          student.placement?.classId ??
-          student.class ??
-          ""
-
-        const rawGuardian =
-          student.guardians?.[0]?.name ??
-          student.guardian?.name ??
-          ""
-
-        const matchesSearch =
-          String(rawName).toLowerCase().includes(query) ||
-          String(rawId).toLowerCase().includes(query) ||
-          String(rawClass).toLowerCase().includes(query) ||
-          String(rawGuardian).toLowerCase().includes(query)
-
-        if (!matchesSearch) {
-          return false
-        }
-      }
-
-      if (
-        advancedFilters.academicStanding &&
-        student.status !== advancedFilters.academicStanding
-      ) {
-        return false
-      }
-
-      if (
-        advancedFilters.gradeLevel &&
-        student.placement?.classId !== advancedFilters.gradeLevel
-      ) {
-        return false
-      }
-
-      if (
-        advancedFilters.major &&
-        student.placement?.academicTrack !== advancedFilters.major
-      ) {
-        return false
-      }
-
-      if (
-        advancedFilters.minGpa &&
-        Number(student.currentGpa ?? 0) <
-          Number.parseFloat(advancedFilters.minGpa)
-      ) {
-        return false
-      }
-
-      if (
-        advancedFilters.minAttendance &&
-        Number(student.attendanceRate ?? 0) <
-          Number.parseFloat(advancedFilters.minAttendance)
-      ) {
-        return false
-      }
-
-      return true
-    })
-  }, [students, searchQuery, advancedFilters])
+  const activeFilterCount = Object.values(
+    advancedFilters
+  ).filter(Boolean).length
 
   return (
     <div className="flex h-screen min-h-0 w-full flex-col space-y-4 overflow-hidden px-6 pt-6 pb-4">
@@ -286,7 +338,11 @@ const StudentsPage = () => {
             className="w-[200px]"
           />
 
-          <StudentRegistryFilter onApplyFilters={setAdvancedFilters} />
+          <StudentRegistryFilter
+            activeFilterCount={activeFilterCount}
+            classes={classOptions}
+            onApplyFilters={setAdvancedFilters}
+          />
 
           {canWrite ? (
             <>
@@ -363,15 +419,15 @@ const StudentsPage = () => {
           <div className="h-full w-full overflow-x-auto">
             <div className="min-w-max pr-4">
               {activeTab === "overview" && (
-                <StudentOverviewTable data={filteredStudents} />
+                <StudentOverviewTable data={students} />
               )}
 
               {activeTab === "personal-info" && (
-                <StudentPersonalInfoTable data={filteredStudents} />
+                <StudentPersonalInfoTable data={students} />
               )}
 
               {activeTab === "financial-info" && (
-                <StudentFinancialTable data={filteredStudents} />
+                <StudentFinancialTable data={students} />
               )}
             </div>
           </div>

@@ -29,15 +29,32 @@ import {
 // --- TYPE DEF MATRIX SCHEMAS ---
 export type FilterFieldType = "checkbox-group" | "combobox" | "number" | "text"
 
+export type FilterOption =
+  | string
+  | { label: string; value: string }
+
+function optionValue(option: FilterOption): string {
+  return typeof option === "string"
+    ? option
+    : option.value
+}
+
+function optionLabel(option: FilterOption): string {
+  return typeof option === "string"
+    ? option
+    : option.label
+}
+
 export interface FilterField {
   id: string
   label: string
   type: FilterFieldType
   placeholder?: string
   /** String choices required for checkbox-groups or selection dropdown listings */
-  options?: readonly string[]
+  options?: readonly FilterOption[]
   /** Dynamic conditions applied to standard attributes (e.g. min/max thresholds) */
   min?: string | number
+  max?: string | number
 }
 
 interface DynamicFilterPopoverProps {
@@ -61,6 +78,7 @@ export function DynamicFilterPopover({
 }: DynamicFilterPopoverProps) {
   // Unified state record containing all contextual fields data points
   const [values, setValues] = useState<Record<string, any>>({})
+  const [open, setOpen] = useState(false)
 
   // Reset values when switching domains to clean past metadata entries
   useEffect(() => {
@@ -73,15 +91,22 @@ export function DynamicFilterPopover({
 
   const handleReset = () => {
     setValues({})
+    onApplyFilters({})
+    setOpen(false)
   }
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     onApplyFilters(values)
+    setOpen(false)
   }
 
   return (
-    <Popover modal={false}>
+    <Popover
+      modal={false}
+      open={open}
+      onOpenChange={setOpen}
+    >
       <PopoverTrigger asChild>
         <Button 
           variant="ghost"
@@ -118,18 +143,28 @@ export function DynamicFilterPopover({
                       <div className="space-y-2">
                         <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">{field.label}</span>
                         <div className="grid grid-cols-3 gap-2 pt-1 pl-0.5">
-                          {field.options.map((option) => (
-                            <Field key={option} orientation="horizontal" className="items-center">
-                              <Checkbox 
-                                id={`${field.id}-${option}`} 
-                                checked={currentValue === option} 
-                                onCheckedChange={(checked) => handleUpdateValue(field.id, checked ? option : null)} 
-                              />
-                              <FieldLabel htmlFor={`${field.id}-${option}`} className="text-xs font-normal cursor-pointer select-none">
-                                {option}
-                              </FieldLabel>
-                            </Field>
-                          ))}
+                          {field.options.map((option) => {
+                            const value = optionValue(option)
+                            const label = optionLabel(option)
+
+                            return (
+                              <Field key={value} orientation="horizontal" className="items-center">
+                                <Checkbox
+                                  id={`${field.id}-${value}`}
+                                  checked={currentValue === value}
+                                  onCheckedChange={(checked) =>
+                                    handleUpdateValue(
+                                      field.id,
+                                      checked ? value : null
+                                    )
+                                  }
+                                />
+                                <FieldLabel htmlFor={`${field.id}-${value}`} className="text-xs font-normal cursor-pointer select-none">
+                                  {label}
+                                </FieldLabel>
+                              </Field>
+                            )
+                          })}
                         </div>
                       </div>
                     )}
@@ -140,8 +175,8 @@ export function DynamicFilterPopover({
                         <FieldLabel htmlFor={field.id} className="text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
                           {field.label}
                         </FieldLabel>
-                        <Combobox 
-                          items={field.options as string[]} 
+                        <Combobox
+                          items={field.options.map(optionValue)}
                           value={currentValue || ""} 
                           onValueChange={(val) => handleUpdateValue(field.id, val || "")}
                         >
@@ -149,7 +184,16 @@ export function DynamicFilterPopover({
                           <ComboboxContent>
                             <ComboboxEmpty className="text-xs py-2 text-center text-muted-foreground">No matches located.</ComboboxEmpty>
                             <ComboboxList>
-                              {(item) => <ComboboxItem key={item} value={item} className="text-xs">{item}</ComboboxItem>}
+                              {(item) => {
+                                const option = field.options?.find(
+                                  (candidate) => optionValue(candidate) === item
+                                )
+                                return (
+                                  <ComboboxItem key={item} value={item} className="text-xs">
+                                    {option ? optionLabel(option) : item}
+                                  </ComboboxItem>
+                                )
+                              }}
                             </ComboboxList>
                           </ComboboxContent>
                         </Combobox>
@@ -166,6 +210,7 @@ export function DynamicFilterPopover({
                           id={field.id}
                           type={field.type}
                           min={field.min}
+                          max={field.max}
                           value={currentValue || ""}
                           onChange={(e) => handleUpdateValue(field.id, e.target.value)}
                           placeholder={field.placeholder} 

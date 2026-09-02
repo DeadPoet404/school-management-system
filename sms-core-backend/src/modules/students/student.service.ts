@@ -25,6 +25,16 @@ interface PaymentType {
   createdAt: Date;
 }
 
+interface StudentFilters {
+  search?: string;
+  status?: string;
+  classId?: string;
+  gender?: string;
+  boardingStatus?: string;
+  minGpa?: string;
+  minAttendance?: string;
+}
+
 export class StudentService {
   constructor(private repo: IStudentRepository = new StudentRepository()) {}
 
@@ -142,24 +152,16 @@ export class StudentService {
     return this.getFilteredPaginated({}, skip, take);
   }
 
-  async getAllFiltered(filters: {
-    search?: string;
-    status?: string;
-    classId?: string;
-    gender?: string;
-    boardingStatus?: string;
-  }) {
+  async getAllFiltered(filters: StudentFilters) {
     const where = this.buildWhereClause(filters);
     return this.repo.findAllFiltered(where);
   }
 
-    async getFilteredPaginated(filters: {
-    search?: string;
-    status?: string;
-    classId?: string;
-    gender?: string;
-    boardingStatus?: string;
-  }, skip: number, take: number) {
+  async getFilteredPaginated(
+    filters: StudentFilters,
+    skip: number,
+    take: number,
+  ) {
     const where = this.buildWhereClause(filters);
     const [data, total] = await Promise.all([
       this.repo.findAllFiltered(where, skip, take),
@@ -168,47 +170,170 @@ export class StudentService {
     return { data, total };
   }
 
-  private buildWhereClause(filters: {
-    search?: string;
-    status?: string;
-    classId?: string;
-    gender?: string;
-    boardingStatus?: string;
-  }): Prisma.StudentWhereInput {
+  private buildWhereClause(
+    filters: StudentFilters,
+  ): Prisma.StudentWhereInput {
     const where: Prisma.StudentWhereInput = {};
 
     if (filters.search?.trim()) {
       const term = filters.search.trim();
+      const textFilter = {
+        contains: term,
+        mode: 'insensitive' as const,
+      };
+
       where.OR = [
-        { studentName: { contains: term, mode: 'insensitive' } },
-        { studentId: { contains: term, mode: 'insensitive' } },
+        { studentName: textFilter },
+        { studentId: textFilter },
+        {
+          account: {
+            is: { portalEmail: textFilter },
+          },
+        },
+        {
+          guardians: {
+            some: {
+              OR: [
+                { name: textFilter },
+                { phone: textFilter },
+                { email: textFilter },
+              ],
+            },
+          },
+        },
+        {
+          placement: {
+            is: {
+              OR: [
+                { academicTrack: textFilter },
+                {
+                  class: {
+                    is: {
+                      OR: [
+                        { name: textFilter },
+                        { section: textFilter },
+                      ],
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        },
       ];
     }
 
     if (filters.status?.trim()) {
-      where.status = filters.status.trim() as EntityStatus;
+      const status = filters.status.trim().toUpperCase();
+      const allowedStatuses = Object.values(EntityStatus) as string[];
+
+      if (!allowedStatuses.includes(status)) {
+        throw new AppError(400, 'Invalid student status filter.');
+      }
+
+      where.status = status as EntityStatus;
     }
 
     const placementFilter: Prisma.PlacementWhereInput = {};
+
     if (filters.classId?.trim()) {
       placementFilter.classId = filters.classId.trim();
     }
+
     if (filters.boardingStatus?.trim()) {
-      placementFilter.boardingStatus = filters.boardingStatus.trim();
+      const boardingStatus = filters.boardingStatus
+        .trim()
+        .toUpperCase();
+
+      if (boardingStatus === 'DAY') {
+        placementFilter.boardingStatus = {
+          in: [
+            'DAY',
+            'Day',
+            'DAY_STUDENT',
+            'Day Student',
+          ],
+        };
+      } else if (boardingStatus === 'BOARDING') {
+        placementFilter.boardingStatus = {
+          in: [
+            'BOARDING',
+            'Boarding',
+            'BOARDING_STUDENT',
+            'Boarding Student',
+          ],
+        };
+      } else {
+        throw new AppError(
+          400,
+          'Invalid boarding-status filter.',
+        );
+      }
     }
+
     if (Object.keys(placementFilter).length > 0) {
       where.placement = placementFilter;
     }
 
-    const demographicsFilter: Prisma.DemographicsWhereInput = {};
     if (filters.gender?.trim()) {
-      demographicsFilter.gender = filters.gender.trim();
+      const gender = filters.gender.trim();
+      where.demographics = {
+        gender: {
+          equals: gender,
+          mode: 'insensitive',
+        },
+      };
     }
-    if (Object.keys(demographicsFilter).length > 0) {
-      where.demographics = demographicsFilter;
+
+    const minGpa = this.parseMinimumFilter(
+      filters.minGpa,
+      'minimum GPA',
+      0,
+      4,
+    );
+
+    if (minGpa !== undefined) {
+      where.currentGpa = { gte: minGpa };
+    }
+
+    const minAttendance = this.parseMinimumFilter(
+      filters.minAttendance,
+      'minimum attendance',
+      0,
+      100,
+    );
+
+    if (minAttendance !== undefined) {
+      where.attendanceRate = {
+        gte: minAttendance,
+      };
     }
 
     return where;
+  }
+
+  private parseMinimumFilter(
+    raw: string | undefined,
+    label: string,
+    minimum: number,
+    maximum: number,
+  ): number | undefined {
+    if (!raw?.trim()) return undefined;
+
+    const value = Number(raw);
+
+    if (
+      !Number.isFinite(value) ||
+      value < minimum ||
+      value > maximum
+    ) {
+      throw new AppError(
+        400,
+        `Invalid ${label} filter.`,
+      );
+    }
+
+    return value;
   }
 
   async getById(id: string) {

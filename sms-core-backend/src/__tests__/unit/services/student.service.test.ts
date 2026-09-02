@@ -98,14 +98,61 @@ describe('StudentService', () => {
       expect(whereArg.OR[0].studentName.contains).toBe('john');
     });
 
-    it('should pass status filter directly', async () => {
+    it('should search identity, account, guardian, and placement fields', async () => {
       (repo.findAllFiltered as any).mockResolvedValue([]);
       (repo.countFiltered as any).mockResolvedValue(0);
 
-      await service.getFilteredPaginated({ status: 'DEPARTED' }, 0, 20);
+      await service.getFilteredPaginated({ search: 'adwoa' }, 0, 20);
+
+      const whereArg = (repo.findAllFiltered as any).mock.calls[0][0];
+      expect(whereArg.OR).toHaveLength(5);
+      expect(whereArg.OR[0].studentName.contains).toBe('adwoa');
+      expect(whereArg.OR[2].account.is.portalEmail.contains).toBe('adwoa');
+      expect(whereArg.OR[3].guardians.some.OR).toHaveLength(3);
+      expect(whereArg.OR[4].placement.is.OR).toHaveLength(2);
+    });
+
+    it('should normalize and pass status filters', async () => {
+      (repo.findAllFiltered as any).mockResolvedValue([]);
+      (repo.countFiltered as any).mockResolvedValue(0);
+
+      await service.getFilteredPaginated({ status: 'departed' }, 0, 20);
 
       const whereArg = (repo.findAllFiltered as any).mock.calls[0][0];
       expect(whereArg.status).toBe('DEPARTED');
+    });
+
+    it('should apply class, gender, boarding, GPA, and attendance filters', async () => {
+      (repo.findAllFiltered as any).mockResolvedValue([]);
+      (repo.countFiltered as any).mockResolvedValue(0);
+
+      await service.getFilteredPaginated({
+        classId: 'class-1',
+        gender: 'female',
+        boardingStatus: 'DAY',
+        minGpa: '2.5',
+        minAttendance: '80',
+      }, 0, 20);
+
+      const whereArg = (repo.findAllFiltered as any).mock.calls[0][0];
+      expect(whereArg.placement.classId).toBe('class-1');
+      expect(whereArg.placement.boardingStatus.in).toContain('DAY_STUDENT');
+      expect(whereArg.demographics.gender).toEqual({
+        equals: 'female',
+        mode: 'insensitive',
+      });
+      expect(whereArg.currentGpa).toEqual({ gte: 2.5 });
+      expect(whereArg.attendanceRate).toEqual({ gte: 80 });
+    });
+
+    it('should reject invalid filter values', async () => {
+      await expect(
+        service.getFilteredPaginated({ status: 'UNKNOWN' }, 0, 20),
+      ).rejects.toMatchObject({ statusCode: 400 });
+
+      await expect(
+        service.getFilteredPaginated({ minAttendance: '101' }, 0, 20),
+      ).rejects.toMatchObject({ statusCode: 400 });
     });
   });
 

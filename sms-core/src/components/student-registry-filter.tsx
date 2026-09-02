@@ -1,82 +1,130 @@
 "use client"
 
 import * as React from "react"
-import { DynamicFilterPopover, type FilterField } from "@/components/dynamic-filter-popover"
+import {
+  DynamicFilterPopover,
+  type FilterField,
+  type FilterOption,
+} from "@/components/dynamic-filter-popover"
 
-// --- Domain Vocabulary Mappings for Student Cohorts ---
-const STUDENT_STATUS_OPTIONS = ["Active", "Probation", "On Leave", "Graduated"] as const
-const GRADE_LEVEL_OPTIONS = ["Freshman", "Sophomore", "Junior", "Senior"] as const
-
-const DISCIPLINARY_TRACKS = [
-  "Computer Science",
-  "Data Science",
-  "Cybersecurity",
-  "Mechanical Eng.",
-  "Business Analytics",
-  "Biochemistry",
-  "Digital Marketing",
-  "Economics"
-] as const
-
-// --- Schema Definitions for Student Advanced Search Architecture ---
-const studentFilterFields: FilterField[] = [
-  {
-    id: "academicStanding",
-    label: "Academic Registry Standing",
-    type: "checkbox-group",
-    options: STUDENT_STATUS_OPTIONS,
-  },
-  {
-    id: "gradeLevel",
-    label: "Current Grade Level Cohort",
-    type: "combobox",
-    placeholder: "Select student cohort year...",
-    options: GRADE_LEVEL_OPTIONS,
-  },
-  {
-    id: "major",
-    label: "Field of Study / Track",
-    type: "combobox",
-    placeholder: "Select academic major stream...",
-    options: DISCIPLINARY_TRACKS,
-  },
-  {
-    id: "minGpa",
-    label: "Cumulative GPA Floor Limit",
-    type: "number",
-    min: "0.0",
-    placeholder: "Show scores greater than or equal to (e.g. 3.0)",
-  },
-  {
-    id: "minAttendance",
-    label: "Minimum Attendance Threshold (%)",
-    type: "number",
-    min: 0,
-    placeholder: "Filter by attendance percentage floor (e.g. 90)",
-  }
-]
-
-interface StudentRegistryFilterProps {
-  onApplyFilters: (filters: Record<string, any>) => void
+export type StudentClassFilterOption = {
+  id: string
+  name: string
+  section?: string | null
 }
 
-export function StudentRegistryFilter({ onApplyFilters }: StudentRegistryFilterProps) {
-  const handleApply = (appliedValues: Record<string, any>) => {
-    // Normalizes empty string allocations before lifting criteria back up to parent components
+interface StudentRegistryFilterProps {
+  activeFilterCount: number
+  classes: StudentClassFilterOption[]
+  onApplyFilters: (
+    filters: Record<string, string>
+  ) => void
+}
+
+const STATUS_OPTIONS: FilterOption[] = [
+  { label: "Active", value: "ACTIVE" },
+  { label: "Inactive", value: "INACTIVE" },
+  { label: "Suspended", value: "SUSPENDED" },
+  { label: "Departed", value: "DEPARTED" },
+]
+
+const GENDER_OPTIONS: FilterOption[] = [
+  { label: "Female", value: "FEMALE" },
+  { label: "Male", value: "MALE" },
+]
+
+const BOARDING_OPTIONS: FilterOption[] = [
+  { label: "Day student", value: "DAY" },
+  { label: "Boarding student", value: "BOARDING" },
+]
+
+export function StudentRegistryFilter({
+  activeFilterCount,
+  classes,
+  onApplyFilters,
+}: StudentRegistryFilterProps) {
+  const fields = React.useMemo<FilterField[]>(
+    () => [
+      {
+        id: "status",
+        label: "Student status",
+        type: "checkbox-group",
+        options: STATUS_OPTIONS,
+      },
+      {
+        id: "classId",
+        label: "Class",
+        type: "combobox",
+        placeholder: "Select a school class...",
+        options: classes.map((item) => ({
+          label: item.section
+            ? `${item.name} — ${item.section}`
+            : item.name,
+          value: item.id,
+        })),
+      },
+      {
+        id: "gender",
+        label: "Gender",
+        type: "combobox",
+        placeholder: "Select gender...",
+        options: GENDER_OPTIONS,
+      },
+      {
+        id: "boardingStatus",
+        label: "Student type",
+        type: "combobox",
+        placeholder: "Select day or boarding...",
+        options: BOARDING_OPTIONS,
+      },
+      {
+        id: "minGpa",
+        label: "Minimum GPA",
+        type: "number",
+        min: 0,
+        max: 4,
+        placeholder: "For example, 2.5",
+      },
+      {
+        id: "minAttendance",
+        label: "Minimum attendance (%)",
+        type: "number",
+        min: 0,
+        max: 100,
+        placeholder: "For example, 80",
+      },
+    ],
+    [classes]
+  )
+
+  const handleApply = (
+    appliedValues: Record<string, unknown>
+  ) => {
     const processedFilters = Object.fromEntries(
-      Object.entries(appliedValues).filter(([_, val]) => val !== "" && val !== null)
+      Object.entries(appliedValues)
+        .filter(([, value]) =>
+          typeof value === "string" &&
+          value.trim() !== ""
+        )
+        .map(([key, value]) => [
+          key,
+          String(value).trim(),
+        ])
     )
-    
-    console.log("Student workspace criteria executed:", processedFilters)
+
     onApplyFilters(processedFilters)
   }
 
   return (
     <DynamicFilterPopover
-      fields={studentFilterFields}
+      fields={fields}
       onApplyFilters={handleApply}
-      triggerLabel=""
-      className="border-0 w-9 p-0 bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-900 data-[state=open]:bg-zinc-100 dark:data-[state=open]:bg-zinc-900"
+      triggerLabel={
+        activeFilterCount > 0
+          ? String(activeFilterCount)
+          : ""
+      }
+      className="w-9 border-0 bg-transparent p-0 hover:bg-zinc-100 data-[state=open]:bg-zinc-100 dark:hover:bg-zinc-900 dark:data-[state=open]:bg-zinc-900"
       align="end"
     />
   )

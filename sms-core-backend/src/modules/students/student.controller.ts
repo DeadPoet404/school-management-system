@@ -30,6 +30,8 @@ export class StudentController {
         classId: typeof req.query.classId === 'string' ? req.query.classId : undefined,
         gender: typeof req.query.gender === 'string' ? req.query.gender : undefined,
         boardingStatus: typeof req.query.boardingStatus === 'string' ? req.query.boardingStatus : undefined,
+        minGpa: typeof req.query.minGpa === 'string' ? req.query.minGpa : undefined,
+        minAttendance: typeof req.query.minAttendance === 'string' ? req.query.minAttendance : undefined,
       };
       const { data, total } = await this.studentService.getFilteredPaginated(filters, skip, limit);
       const safeData = toStudentListDtoForRole(data, role);
