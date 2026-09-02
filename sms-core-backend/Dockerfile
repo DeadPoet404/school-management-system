@@ -1,5 +1,5 @@
 # ── Stage 1: Builder ──
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 
 # Prisma selects its engine variant from the OpenSSL version present at
@@ -32,7 +32,7 @@ RUN cp -r node_modules/prisma /tmp/prisma-cli
 RUN npm prune --production
 
 # ── Stage 2: Runtime ──
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 
 RUN apk add --no-cache openssl wget libc6-compat
 
