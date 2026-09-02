@@ -60,6 +60,11 @@ services:
       GMAIL_USER: ""
       GMAIL_APP_PASSWORD: ""
 
+      # SMS-013: login URL embedded in faculty credential emails. Staging
+      # mail is intentionally disabled above, so dispatch reports
+      # UNCONFIGURED and this value is unused until SMTP is enabled.
+      STAFF_PORTAL_URL: ${STAFF_PORTAL_URL:-https://sms-staging.jocomfy.com}
+
     networks:
       - staging-net
 

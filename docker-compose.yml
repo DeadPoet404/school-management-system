@@ -48,6 +48,8 @@ services:
       # mailer stays disabled (skip-and-log) without both values.
       GMAIL_USER: ${GMAIL_USER:-}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
+      # SMS-013: absolute login URL embedded in faculty credential emails.
+      STAFF_PORTAL_URL: ${STAFF_PORTAL_URL:-}
       # API docs are disabled by default. When true in production, /api/docs
       # requires an authenticated ADMIN session.
       ENABLE_API_DOCS: ${ENABLE_API_DOCS:-false}
