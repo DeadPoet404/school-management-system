@@ -4,6 +4,7 @@ Documentation=file:///root/school-management-system/scripts/verify-backup.sh
 Wants=network-online.target
 After=network-online.target docker.service
 Requires=docker.service
+OnFailure=jocomfy-alert@%n.service
 
 [Service]
 Type=oneshot
@@ -11,6 +12,7 @@ User=root
 Group=root
 WorkingDirectory=/root/school-management-system
 ExecStart=/root/school-management-system/scripts/verify-backup.sh
+ExecStopPost=-/root/school-management-system/scripts/alert-backup-result.sh %n
 UMask=0077
 TimeoutStartSec=1h
 Nice=10

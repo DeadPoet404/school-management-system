@@ -1,0 +1,21 @@
+# Generic failure notifier. Attach to any unit with:
+#   OnFailure=jocomfy-alert@%n.service
+# systemd passes the failed unit name as %i.
+[Unit]
+Description=Send a Telegram alert for failed unit %i
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/root/school-management-system
+ExecStart=/root/school-management-system/scripts/alert-unit-failure.sh %i
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6

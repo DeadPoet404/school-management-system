@@ -1,6 +1,6 @@
 [Unit]
-Description=Jocomfy encrypted database backup to Cloudflare R2
-Documentation=file:///root/school-management-system/scripts/backup-to-r2.sh
+Description=Jocomfy platform health, disk, and container monitor
+Documentation=file:///root/school-management-system/scripts/monitor.sh
 Wants=network-online.target
 After=network-online.target docker.service
 Requires=docker.service
@@ -11,15 +11,12 @@ Type=oneshot
 User=root
 Group=root
 WorkingDirectory=/root/school-management-system
-ExecStart=/root/school-management-system/scripts/backup-to-r2.sh
-ExecStopPost=-/root/school-management-system/scripts/alert-backup-result.sh %n
+ExecStart=/root/school-management-system/scripts/monitor.sh
 UMask=0077
-TimeoutStartSec=1h
+TimeoutStartSec=5m
 Nice=10
-IOSchedulingClass=best-effort
-IOSchedulingPriority=6
-PrivateTmp=true
 NoNewPrivileges=true
+PrivateTmp=true
 ProtectSystem=full
 ProtectKernelTunables=true
 ProtectKernelModules=true
