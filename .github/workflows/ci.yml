@@ -1,18 +1,32 @@
-name: CI
+name: SMS CI
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   pull_request:
-    branches: [main]
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sms-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
 
 jobs:
-  backend-ci:
-    name: Backend (Lint + Build + Test)
+  backend:
+    name: Backend - lint, build, test
     runs-on: ubuntu-latest
+
     services:
       postgres:
-        image: postgres:16-alpine
+        image: postgres:17-alpine
         env:
           POSTGRES_USER: sms_user
           POSTGRES_PASSWORD: ci_strong_password_123456
@@ -20,66 +34,146 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U sms_user -d sms_db"
           --health-interval 10s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 10
+
     defaults:
       run:
         working-directory: sms-core-backend
+
     env:
+      NODE_ENV: test
       DATABASE_URL: postgresql://sms_user:ci_strong_password_123456@localhost:5432/sms_db?schema=public
-      # prisma migrate deploy uses directUrl when present (schema.prisma);
-      # CI keeps its own Postgres service, so both point at it.
       DIRECT_URL: postgresql://sms_user:ci_strong_password_123456@localhost:5432/sms_db?schema=public
-      JWT_SECRET: ci-secret-that-is-at-least-sixteen-characters
-      JWT_REFRESH_SECRET: ci-refresh-secret-at-least-sixteen-chars
-      COOKIE_SECRET: ci-cookie-secret-at-least-sixteen-chars
+      JWT_SECRET: ci-jwt-secret-that-is-at-least-thirty-two-characters
+      JWT_REFRESH_SECRET: ci-refresh-secret-that-is-at-least-thirty-two-characters
+      COOKIE_SECRET: ci-cookie-secret-that-is-at-least-thirty-two-characters
+      COOKIE_SECURE: "false"
+      COOKIE_SAME_SITE: lax
+      COOKIE_DOMAIN: ""
+      CORS_ORIGINS: http://localhost:3000
+      RATE_LIMIT_WINDOW_MS: "60000"
+      RATE_LIMIT_MAX_REQUESTS: "1000"
+      AUTH_RATE_LIMIT_MAX_REQUESTS: "1000"
+      ENABLE_API_DOCS: "false"
+      RUN_SEED: "false"
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: sms-core-backend/package-lock.json
-      - run: npm ci
-      - run: npx prisma generate
-      - name: Run Prisma migrations
-        run: npx prisma migrate deploy
-      - run: npm run lint
-      - run: npm run build
-      - run: npm run test
-      - run: npm run test:coverage
-      - uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: sms-core-backend/coverage/
 
-  frontend-ci:
-    name: Frontend (Lint + Build)
+      - name: Install backend dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Apply Prisma migrations
+        run: npx prisma migrate deploy
+
+      - name: Lint backend
+        run: npm run lint
+
+      - name: Build backend
+        run: npm run build
+
+      - name: Test backend
+        run: npm run test
+
+      - name: Test backend with coverage
+        run: npm run test:coverage
+
+      - name: Upload backend coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: sms-core-backend/coverage/
+          if-no-files-found: ignore
+
+  frontend:
+    name: Management frontend - lint and build
     runs-on: ubuntu-latest
+
     defaults:
       run:
         working-directory: sms-core
+
+    env:
+      NEXT_PUBLIC_API_URL: /api
+      BACKEND_URL: http://localhost:5000
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: sms-core/package-lock.json
-      - run: npm ci
-      - run: npm run lint
-      - run: NEXT_PUBLIC_API_URL=http://localhost:5000/api npm run build
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Lint frontend
+        run: npm run lint
+
+      - name: Build frontend
+        run: npm run build
+
+  compose-config:
+    name: Docker Compose config validation
+    runs-on: ubuntu-latest
+
+    env:
+      DATABASE_URL: postgresql://sms_user:ci_strong_password_123456@postgres:5432/sms_db?schema=public
+      DIRECT_URL: postgresql://sms_user:ci_strong_password_123456@postgres:5432/sms_db?schema=public
+      JWT_SECRET: ci-jwt-secret-that-is-at-least-thirty-two-characters
+      JWT_REFRESH_SECRET: ci-refresh-secret-that-is-at-least-thirty-two-characters
+      COOKIE_SECRET: ci-cookie-secret-that-is-at-least-thirty-two-characters
+      COOKIE_SECURE: "false"
+      COOKIE_SAME_SITE: lax
+      COOKIE_DOMAIN: ""
+      CORS_ORIGINS: http://localhost:3000
+      RUN_SEED: "false"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate docker compose config
+        run: docker compose config --quiet
 
   docker-build:
-    name: Docker Build Verification
+    name: Docker image build verification
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [backend-ci, frontend-ci]
+    needs:
+      - backend
+      - frontend
+      - compose-config
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Build backend image
-        run: docker build -t sms-backend ./sms-core-backend
+        run: docker build -t sms-backend-ci ./sms-core-backend
+
       - name: Build frontend image
-        run: docker build -t sms-frontend ./sms-core
+        run: |
+          docker build \
+            --build-arg NEXT_PUBLIC_API_URL=/api \
+            --build-arg BACKEND_URL=http://backend:5000 \
+            -t sms-frontend-ci \
+            ./sms-core
