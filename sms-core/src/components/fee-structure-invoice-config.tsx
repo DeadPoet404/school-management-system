@@ -4,11 +4,11 @@ import * as React from "react"
 import { useMemo, useState, useCallback, useEffect } from "react"
 import { fetchWithAuth } from "@/lib/fetch-with-auth"
 import { useClasses } from "@/lib/api/reference"
+import { ClassTabStrip } from "@/components/class-tab-strip"
 import { 
   DollarSign, 
   Plus, 
   Trash2, 
-  Layers, 
   Calendar, 
   Receipt, 
   ShieldAlert, 
@@ -18,7 +18,6 @@ import {
   Zap
 } from "lucide-react"
 import { toast } from "sonner"
-import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -125,9 +124,6 @@ export function FeeStructureInvoiceConfig() {
     return feeMatrixState[activeSection] || { components: [], billingConfig: { issueDate: "", dueDate: "", allowInstallments: true, lateFeeRate: "" } }
   }, [feeMatrixState, activeSection])
 
-  const mid = Math.ceil(academicSections.length / 2) || 0
-  const lowerAcademicTier = useMemo(() => academicSections.slice(0, mid), [academicSections, mid])
-  const upperAcademicTier = useMemo(() => academicSections.slice(mid), [academicSections, mid])
   const activeSectionLabel = useMemo(
     () => academicSections.find(s => s.id === activeSection)?.label || "",
     [activeSection, academicSections],
@@ -276,59 +272,13 @@ export function FeeStructureInvoiceConfig() {
       </div>
 
       {/* GRADED SECTION HUD MATRIX SELECTOR LINE */}
-      <div className="mt-5 shrink-0 flex flex-col gap-1.5 max-w-3xl">
-        <Label className="text-[11px] font-bold text-stone-400 dark:text-zinc-500 uppercase tracking-wider flex items-center gap-1">
-          <Layers className="h-3 w-3" /> Select Institutional Grade Tier
-        </Label>
-        
-        <div className="w-full flex flex-col gap-2.5">
-          {/* Lower Tier Group */}
-          <div className="w-full flex items-center bg-stone-100 dark:bg-zinc-900/50 p-1.5 rounded-lg border border-stone-200/40 dark:border-zinc-800/40">
-            {lowerAcademicTier.map((section, idx) => (
-              <React.Fragment key={section.id}>
-                <button
-                  type="button"
-                  onClick={() => setActiveSection(section.id)}
-                  className={cn(
-                    "flex-1 text-center py-1 rounded text-[11px] font-medium transition-all tracking-tight truncate px-1",
-                    activeSection === section.id
-                      ? "bg-white dark:bg-zinc-800 text-stone-900 dark:text-zinc-50 shadow-sm border border-stone-200/20 dark:border-zinc-700/30 font-semibold"
-                      : "text-stone-500 dark:text-zinc-400 hover:text-stone-800 dark:hover:text-zinc-200 hover:bg-stone-50/60 dark:hover:bg-zinc-900/20"
-                  )}
-                >
-                  {section.label}
-                </button>
-                {idx < lowerAcademicTier.length - 1 && (
-                  <div className="h-3 w-[1px] bg-stone-300 dark:bg-zinc-700 shrink-0 mx-0.5" />
-                )}
-              </React.Fragment>
-            ))}
-          </div>
-
-          {/* Upper Tier Group */}
-          <div className="w-full flex items-center bg-stone-100 dark:bg-zinc-900/50 p-1.5 rounded-lg border border-stone-200/40 dark:border-zinc-800/40">
-            {upperAcademicTier.map((section, idx) => (
-              <React.Fragment key={section.id}>
-                <button
-                  type="button"
-                  onClick={() => setActiveSection(section.id)}
-                  className={cn(
-                    "flex-1 text-center py-1 rounded text-[11px] font-medium transition-all tracking-tight truncate px-1",
-                    activeSection === section.id
-                      ? "bg-white dark:bg-zinc-800 text-stone-900 dark:text-zinc-50 shadow-sm border border-stone-200/20 dark:border-zinc-700/30 font-semibold"
-                      : "text-stone-500 dark:text-zinc-400 hover:text-stone-800 dark:hover:text-zinc-200 hover:bg-stone-50/60 dark:hover:bg-zinc-900/20"
-                  )}
-                >
-                  {section.label}
-                </button>
-                {idx < upperAcademicTier.length - 1 && (
-                  <div className="h-3 w-[1px] bg-stone-300 dark:bg-zinc-700 shrink-0 mx-0.5" />
-                )}
-              </React.Fragment>
-            ))}
-          </div>
-        </div>
-      </div>
+      <ClassTabStrip
+        sections={academicSections}
+        activeSection={activeSection}
+        onSelect={setActiveSection}
+        label="Select Institutional Grade Tier"
+        className="max-w-5xl"
+      />
 
       <hr className="border-stone-200 dark:border-zinc-800 shrink-0 mt-5 mb-6" />
 

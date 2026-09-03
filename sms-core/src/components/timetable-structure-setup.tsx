@@ -7,7 +7,6 @@ import {
   Clock,
   Coffee,
   GraduationCap,
-  Layers,
   Link2,
   Loader2,
   Plus,
@@ -18,7 +17,7 @@ import { toast } from "sonner"
 
 import { fetchWithAuth } from "@/lib/fetch-with-auth"
 import { useClasses, useTeachers, type ReferenceClass } from "@/lib/api/reference"
-import { cn } from "@/lib/utils"
+import { ClassTabStrip } from "@/components/class-tab-strip"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -286,9 +285,6 @@ export function TimetableStructureSetup() {
     })()
   }
 
-  const mid = Math.ceil(academicSections.length / 2) || 0
-  const lowerAcademicTier = academicSections.slice(0, mid)
-  const upperAcademicTier = academicSections.slice(mid)
 
   const updateCurrentMatrix = (
     updater: (matrix: SectionTimeMatrix) => SectionTimeMatrix
@@ -484,52 +480,13 @@ export function TimetableStructureSetup() {
         </p>
       </div>
 
-      <div className="mt-5 shrink-0 max-w-5xl">
-        <Label className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-stone-400">
-          <Layers className="h-3 w-3" />
-          Select Class
-        </Label>
-
-        <div className="mt-2 space-y-2">
-          <div className="flex overflow-x-auto rounded-lg border border-stone-200/60 bg-stone-100 p-1.5">
-            {lowerAcademicTier.map((section) => (
-              <button
-                key={section.id}
-                type="button"
-                onClick={() => setActiveSection(section.id)}
-                className={cn(
-                  "min-w-[76px] flex-1 rounded px-2 py-1.5 text-center text-[11px] font-medium transition-all",
-                  activeSection === section.id
-                    ? "border border-stone-200/40 bg-white font-semibold text-stone-900 shadow-sm"
-                    : "text-stone-500 hover:bg-stone-50 hover:text-stone-800"
-                )}
-              >
-                {section.label}
-              </button>
-            ))}
-          </div>
-
-          {upperAcademicTier.length > 0 && (
-            <div className="flex overflow-x-auto rounded-lg border border-stone-200/60 bg-stone-100 p-1.5">
-              {upperAcademicTier.map((section) => (
-                <button
-                  key={section.id}
-                  type="button"
-                  onClick={() => setActiveSection(section.id)}
-                  className={cn(
-                    "min-w-[76px] flex-1 rounded px-2 py-1.5 text-center text-[11px] font-medium transition-all",
-                    activeSection === section.id
-                      ? "border border-stone-200/40 bg-white font-semibold text-stone-900 shadow-sm"
-                      : "text-stone-500 hover:bg-stone-50 hover:text-stone-800"
-                  )}
-                >
-                  {section.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      <ClassTabStrip
+        sections={academicSections}
+        activeSection={activeSection}
+        onSelect={setActiveSection}
+        label="Select Class"
+        className="max-w-5xl"
+      />
 
       <div className="mt-5 mb-4 shrink-0 border-t border-stone-200 dark:border-stone-800" />
 
