@@ -259,7 +259,7 @@ export default function StudentAttendancePage() {
                   Class
                 </p>
                 <p className="mt-1 text-zinc-700 dark:text-zinc-300">
-                  {student?.placement?.classId ?? "Unassigned"}
+                  {student?.placement?.class?.name ?? "Unassigned"}
                 </p>
               </div>
 

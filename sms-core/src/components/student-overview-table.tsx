@@ -103,11 +103,13 @@ export function StudentOverviewTable({ data: initialData }: StudentOverviewTable
     else if (rawGender === "FEMALE") cleanGender = "Female"
     else if (rawGender) cleanGender = rawGender.charAt(0).toUpperCase() + rawGender.slice(1).toLowerCase()
 
-    const rawClass = student.placement?.classId || student.class
+    // Show the human class label ("Nursery 1A"), never Class.id — the
+    // canonical identifier is a UUID and was previously rendered raw.
+    const className = student.placement?.class?.name
     const rawTrack = student.placement?.academicTrack || student.grade
-    const assignedClass = (rawClass && rawClass !== "N/A")
-      ? `${rawTrack || ""} ${rawClass}`.trim()
-      : rawTrack || "Unassigned"
+    const assignedClass = className
+      ? className
+      : (rawTrack && rawTrack !== "LEGACY_UNSPECIFIED" ? rawTrack : "Unassigned")
 
     const internalStudentId = student.id
     const attendanceRouteId = internalStudentId || student.studentId
