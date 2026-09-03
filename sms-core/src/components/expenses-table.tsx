@@ -4,6 +4,7 @@ import * as React from "react"
 import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { UniversalDataTable, DataTableColumn } from "@/components/universal-data-table"
+import { ExpenseCards } from "@/components/mobile/ledger-transaction-cards"
 import { useExpenses } from "@/lib/api/finance"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -83,8 +84,14 @@ export function ExpensesTable() {
   }
 
   return (
-    <div className="w-full pt-2">
-      <UniversalDataTable data={data?.data ?? []} columns={columns} rowId={(e: Expense) => e.id} emptyMessage="No operational expenditure accounts matched this filter set." pagination={data?.pagination} onPageChange={setPage} />
-    </div>
+    <>
+      <div className="hidden w-full pt-2 lg:block">
+        <UniversalDataTable data={data?.data ?? []} columns={columns} rowId={(e: Expense) => e.id} emptyMessage="No operational expenditure accounts matched this filter set." pagination={data?.pagination} onPageChange={setPage} />
+      </div>
+
+      <div className="w-full pt-2 lg:hidden">
+        <ExpenseCards rows={data?.data ?? []} pagination={data?.pagination} onPageChange={setPage} />
+      </div>
+    </>
   );
 }

@@ -7,6 +7,7 @@ import {
   UniversalDataTable,
   DataTableColumn,
 } from "@/components/universal-data-table"
+import { CollectionCards } from "@/components/mobile/ledger-transaction-cards"
 import { useCollections } from "@/lib/api/finance"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -138,15 +139,21 @@ export function CollectionsTable() {
   }
 
   return (
-    <div className="w-full pt-2">
-      <UniversalDataTable
-        data={data?.data ?? []}
-        columns={columns}
-        rowId={(collection: Collection) => collection.id}
-        emptyMessage="No historical revenue inflows logged for this balancing context."
-        pagination={data?.pagination}
-        onPageChange={setPage}
-      />
-    </div>
+    <>
+      <div className="hidden w-full pt-2 lg:block">
+        <UniversalDataTable
+          data={data?.data ?? []}
+          columns={columns}
+          rowId={(collection: Collection) => collection.id}
+          emptyMessage="No historical revenue inflows logged for this balancing context."
+          pagination={data?.pagination}
+          onPageChange={setPage}
+        />
+      </div>
+
+      <div className="w-full pt-2 lg:hidden">
+        <CollectionCards rows={data?.data ?? []} pagination={data?.pagination} onPageChange={setPage} />
+      </div>
+    </>
   )
 }

@@ -7,6 +7,7 @@ import {
   UniversalDataTable,
   DataTableColumn,
 } from "@/components/universal-data-table"
+import { PayrollCards } from "@/components/mobile/ledger-transaction-cards"
 import { usePayroll, type PayrollRecord } from "@/lib/api/finance"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -137,15 +138,21 @@ export function PayrollTable() {
   }
 
   return (
-    <div className="w-full pt-2">
-      <UniversalDataTable
-        data={data?.data ?? []}
-        columns={columns}
-        rowId={(record) => record.id}
-        emptyMessage="No organizational payroll allocations found for this ledger period."
-        pagination={data?.pagination}
-        onPageChange={setPage}
-      />
-    </div>
+    <>
+      <div className="hidden w-full pt-2 lg:block">
+        <UniversalDataTable
+          data={data?.data ?? []}
+          columns={columns}
+          rowId={(record) => record.id}
+          emptyMessage="No organizational payroll allocations found for this ledger period."
+          pagination={data?.pagination}
+          onPageChange={setPage}
+        />
+      </div>
+
+      <div className="w-full pt-2 lg:hidden">
+        <PayrollCards rows={data?.data ?? []} pagination={data?.pagination} onPageChange={setPage} />
+      </div>
+    </>
   )
 }

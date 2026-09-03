@@ -192,38 +192,40 @@ export default function FinancialLedgerConsole() {
   }
 
   return (
-    <div className="w-full pt-6 pl-3 bg-transparent">
-      <div className="pl-3 pr-6">
+    <div className="w-full pt-4 pl-1 bg-transparent sm:pt-6 sm:pl-3">
+      <div className="px-3 sm:pl-3 sm:pr-6">
         
         {/* Main Header Module Viewport Container */}
         <div className="space-y-1">
-          <h1 className="text-4xl tracking-tight font-semibold text-foreground">
+          <h1 className="text-2xl tracking-tight font-semibold text-foreground sm:text-4xl">
             School Finance Database
           </h1>
-          <p className="text-sm text-muted-foreground max-w-[700px]">
+          <p className="max-w-[700px] text-xs text-muted-foreground sm:text-sm">
             Centralized accounting console for global rules, invoicing generation, fee collections auditing, and operating expenditures.
           </p>
         </div>
         
         {/* Dynamic Control Action & Search Utility Row */}
-        <div className="flex items-center justify-between pt-8 pb-3 w-full border-b border-transparent">
+        <div className="flex w-full flex-col gap-3 pt-5 pb-3 lg:flex-row lg:items-center lg:justify-between lg:pt-8 lg:gap-4">
           {/* Section Dynamic Label Viewport Indicator */}
-          <p className="text-xl tracking-tight text-foreground font-medium whitespace-nowrap">
+          <p className="text-lg tracking-tight text-foreground font-medium whitespace-nowrap lg:text-xl">
             {currentTabContext.heading}
           </p>
           
           {/* Context Action Matrix */}
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-2.5 lg:gap-4">
             {/* Search and Parametric Selection Pipeline */}
-            <div className="flex items-center gap-2">
+            <div className="flex w-full items-center gap-2 lg:w-auto">
               <UniversalSearch 
                 value={searchQuery} 
                 onChange={(value: string) => setSearchQuery(value)} 
                 placeholder={`Search ${currentTabContext.heading.toLowerCase()}...`}
+                className="w-full lg:w-[220px]"
               />
               <DynamicFilterPopover 
                 fields={LEDGER_FILTER_SCHEMAS[activeTab]} 
                 onApplyFilters={handleApplyFilters} 
+                className="h-11 w-11 shrink-0 lg:h-9 lg:w-9"
               />
             </div>
 
@@ -234,7 +236,7 @@ export default function FinancialLedgerConsole() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-9 w-9 rounded-md bg-[#fafafa] text-stone-500 border border-stone-200 transition-colors shadow-none outline-none focus:ring-0 focus-visible:ring-0 hover:bg-[#f0f0f0] focus:bg-[#f0f0f0] active:bg-[#f0f0f0] dark:bg-zinc-900 dark:text-zinc-200 dark:border-zinc-800 dark:hover:bg-zinc-800 dark:focus:bg-zinc-800"
+                className="h-11 w-11 rounded-md bg-[#fafafa] text-stone-500 border border-stone-200 transition-colors shadow-none outline-none focus:ring-0 focus-visible:ring-0 hover:bg-[#f0f0f0] focus:bg-[#f0f0f0] active:bg-[#f0f0f0] dark:bg-zinc-900 dark:text-zinc-200 dark:border-zinc-800 dark:hover:bg-zinc-800 dark:focus:bg-zinc-800 lg:h-9 lg:w-9"
                 aria-label="Export financial statement template"
               >
                 <DownloadIcon className="h-4 w-4" />
@@ -242,7 +244,7 @@ export default function FinancialLedgerConsole() {
             </div>
             
             {/* Primary Ledger Action Trigger */}
-            <Button size="sm" className="h-9 rounded-lg font-medium shadow-xs">
+            <Button size="sm" className="h-11 rounded-lg font-medium shadow-xs lg:h-9">
               <AddIcon className="mr-2 h-4 w-4" />
               {currentTabContext.actionText}
             </Button>

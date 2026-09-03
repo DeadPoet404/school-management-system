@@ -7,6 +7,7 @@ import {
   UniversalDataTable,
   DataTableColumn,
 } from "@/components/universal-data-table"
+import { InvoiceCards } from "@/components/mobile/ledger-transaction-cards"
 import { useInvoices } from "@/lib/api/finance"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -93,8 +94,21 @@ export function InvoicesTable() {
   }
 
   return (
-    <div className="w-full pt-2">
-      <UniversalDataTable data={data?.data ?? []} columns={columns} rowId={(invoice: Invoice) => invoice.id} emptyMessage="No financial invoice statements found." pagination={data?.pagination} onPageChange={setPage} />
-    </div>
+    <>
+      <div className="hidden w-full pt-2 lg:block">
+        <UniversalDataTable
+          data={data?.data ?? []}
+          columns={columns}
+          rowId={(invoice: Invoice) => invoice.id}
+          emptyMessage="No financial invoice statements found."
+          pagination={data?.pagination}
+          onPageChange={setPage}
+        />
+      </div>
+
+      <div className="w-full pt-2 lg:hidden">
+        <InvoiceCards rows={data?.data ?? []} pagination={data?.pagination} onPageChange={setPage} />
+      </div>
+    </>
   )
 }
