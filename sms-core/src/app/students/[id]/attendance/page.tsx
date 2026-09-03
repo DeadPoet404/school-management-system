@@ -26,6 +26,7 @@ type AttendancePayload = {
     enrollmentDate?: string
     placement?: {
       classId?: string | null
+    class?: { name?: string | null; section?: string | null } | null
       academicTrack?: string | null
       boardingStatus?: string | null
     } | null
