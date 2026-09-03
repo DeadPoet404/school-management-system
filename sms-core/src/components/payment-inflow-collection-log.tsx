@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useMemo, useState, useCallback, useEffect } from "react"
+import { useMemo, useState, useCallback, useEffect, useRef } from "react"
 import {
   Layers,
   DollarSign,
@@ -113,13 +113,24 @@ export function PaymentInflowCollectionLog() {
     return dbStudents.find(s => s.studentName === formState.studentName)
   }, [dbStudents, formState.studentName])
 
-  const mid = Math.ceil(academicSections.length / 2) || 0
-  const lowerAcademicTier = useMemo(() => academicSections.slice(0, mid), [academicSections, mid])
-  const upperAcademicTier = useMemo(() => academicSections.slice(mid), [academicSections, mid])
   const activeSectionLabel = useMemo(
     () => academicSections.find(s => s.id === activeSection)?.label || "",
     [activeSection, academicSections],
   )
+
+  // Keep the selected class visible: with 27 classes the strip overflows, and
+  // a tab restored from state can sit off-screen. Scroll it into view without
+  // moving the page itself.
+  const tabStripRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (!activeSection) return
+    const strip = tabStripRef.current
+    if (!strip) return
+    const el = strip.querySelector<HTMLButtonElement>(`[data-section-id="${activeSection}"]`)
+    if (!el) return
+    const left = el.offsetLeft - strip.clientWidth / 2 + el.clientWidth / 2
+    strip.scrollTo({ left: Math.max(0, left), behavior: "smooth" })
+  }, [activeSection, academicSections])
 
   // --- UNIFIED DATA RECOVERY MATRIX ---
   const fetchSectionData = useCallback(async (sectionId: string) => {
@@ -229,21 +240,33 @@ export function PaymentInflowCollectionLog() {
       </div>
 
       {/* DUAL LAYER COHORT TRACK HUD FRAME */}
-      <div className="mt-5 shrink-0 flex flex-col gap-1.5 max-w-3xl">
+      <div className="mt-5 shrink-0 flex flex-col gap-1.5">
         <Label className="text-[11px] font-bold text-stone-400 uppercase tracking-wider flex items-center gap-1">
           <Layers className="h-3 w-3" /> Select Institutional Grade Tier
         </Label>
 
-        <div className="w-full flex flex-col gap-2.5">
-          {/* Lower Tier Block */}
-          <div className="w-full flex items-center bg-stone-100 dark:bg-zinc-900/50 p-1.5 rounded-lg border border-stone-200/40 dark:border-zinc-800/40">
-            {lowerAcademicTier.map((section, idx) => (
+        {/* Single horizontally scrollable strip. Buttons size to their text
+            (no flex-1, no truncate) so full class names such as
+            "Pre-School (Crèche)" are always legible, and the ladder order
+            from the API is preserved end to end instead of being split
+            across two rows mid-stage. */}
+        <div
+          ref={tabStripRef}
+          role="tablist"
+          aria-label="Select class"
+          className="w-full overflow-x-auto overscroll-x-contain [scrollbar-width:thin] bg-stone-100 dark:bg-zinc-900/50 p-1.5 rounded-lg border border-stone-200/40 dark:border-zinc-800/40"
+        >
+          <div className="flex items-center w-max">
+            {academicSections.map((section, idx) => (
               <React.Fragment key={section.id}>
                 <button
                   type="button"
+                  role="tab"
+                  data-section-id={section.id}
+                  aria-selected={activeSection === section.id}
                   onClick={() => setActiveSection(section.id)}
                   className={cn(
-                    "flex-1 text-center py-1 rounded text-[11px] font-medium transition-all tracking-tight truncate px-1",
+                    "shrink-0 whitespace-nowrap text-center py-1 px-3 rounded text-[11px] font-medium transition-all tracking-tight",
                     activeSection === section.id
                       ? "bg-white dark:bg-zinc-800 text-stone-900 dark:text-zinc-50 shadow-sm border border-stone-200/20 dark:border-zinc-700/30 font-semibold"
                       : "text-stone-500 dark:text-zinc-400 hover:text-stone-800 dark:hover:text-zinc-200 hover:bg-stone-50/60 dark:hover:bg-zinc-900/20"
@@ -251,29 +274,7 @@ export function PaymentInflowCollectionLog() {
                 >
                   {section.label}
                 </button>
-                {idx < lowerAcademicTier.length - 1 && (
-                  <div className="h-3 w-[1px] bg-stone-300 dark:bg-zinc-700 shrink-0 mx-0.5" />
-                )}
-              </React.Fragment>
-            ))}
-          </div>
-
-          {/* Upper Tier Block */}
-          <div className="w-full flex items-center bg-stone-100 dark:bg-zinc-900/50 p-1.5 rounded-lg border border-stone-200/40 dark:border-zinc-800/40">
-            {upperAcademicTier.map((section, idx) => (
-              <React.Fragment key={section.id}>
-                <button
-                  type="button"
-                  onClick={() => setActiveSection(section.id)}
-                  className={cn(
-                    "flex-1 text-center py-1 rounded text-[11px] font-medium transition-all tracking-tight truncate px-1", activeSection === section.id
-                      ? "bg-white dark:bg-zinc-800 text-stone-900 dark:text-zinc-50 shadow-sm border border-stone-200/20 dark:border-zinc-700/30 font-semibold"
-                      : "text-stone-500 dark:text-zinc-400 hover:text-stone-800 dark:hover:text-zinc-200 hover:bg-stone-50/60 dark:hover:bg-zinc-900/20"
-                  )}
-                >
-                  {section.label}
-                </button>
-                {idx < upperAcademicTier.length - 1 && (
+                {idx < academicSections.length - 1 && (
                   <div className="h-3 w-[1px] bg-stone-300 dark:bg-zinc-700 shrink-0 mx-0.5" />
                 )}
               </React.Fragment>
