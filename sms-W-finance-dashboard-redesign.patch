@@ -1,0 +1,1230 @@
+diff --git a/sms-core/src/app/finance/page.tsx b/sms-core/src/app/finance/page.tsx
+index e1d6cb3..c428c12 100644
+--- a/sms-core/src/app/finance/page.tsx
++++ b/sms-core/src/app/finance/page.tsx
+@@ -1,34 +1,11 @@
+ // app/finance/page.tsx
+-import * as React from "react"
+-import FinanceOverviewAnalytics from "@/components/finance-overview-analytics"
+-import FinancialLedgerConsole from "@/components/financial-ledger-console"
+-
+-// 1. STRONGLY TYPED MATRIX VIEWS
+-type FinanceViewToken = "dashboard" | "table" | "payroll" | "ledgers"
+-
+-interface PageProps {
+-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
++import { Suspense } from "react"
++import FinanceWorkspace from "@/components/finance-workspace"
++
++export default function FinancePage() {
++  return (
++    <Suspense fallback={null}>
++      <FinanceWorkspace />
++    </Suspense>
++  )
+ }
+-
+-export default async function FinancePage({ searchParams }: PageProps) {
+-  // Resolve asynchronous Next.js search parameter stream
+-  const resolvedParams = await searchParams
+-  const viewToken = (resolvedParams.view as FinanceViewToken) || "dashboard"
+-
+-  // 2. SCALABLE VIEW MAPPING ENGINE
+-  // Easily register future sub-modules here without breaking layout flows
+-  switch (viewToken) {
+-    case "table":
+-      return <FinancialLedgerConsole />
+-      
+-    // Case handles for future core layout expansions:
+-    // case "payroll":
+-    //   return <PayrollLedgersView initialTab="payroll" />
+-    // case "ledgers":
+-    //   return <PayrollLedgersView initialTab="ledgers" />
+-
+-    case "dashboard":
+-    default:
+-      return <FinanceOverviewAnalytics />
+-  }
+-}
+\ No newline at end of file
+diff --git a/sms-core/src/components/finance-dashboard.tsx b/sms-core/src/components/finance-dashboard.tsx
+new file mode 100644
+index 0000000..a013307
+--- /dev/null
++++ b/sms-core/src/components/finance-dashboard.tsx
+@@ -0,0 +1,487 @@
++"use client"
++
++import * as React from "react"
++import {
++  Banknote,
++  FileText,
++  Receipt,
++  ReceiptText,
++  TrendingDown,
++  TrendingUp,
++  Wallet,
++  WalletCards,
++} from "lucide-react"
++import {
++  Bar,
++  BarChart,
++  CartesianGrid,
++  XAxis,
++} from "recharts"
++
++import {
++  Card,
++  CardContent,
++  CardDescription,
++  CardHeader,
++  CardTitle,
++} from "@/components/ui/card"
++import {
++  ChartContainer,
++  ChartTooltip,
++  ChartTooltipContent,
++  type ChartConfig,
++} from "@/components/ui/chart"
++import {
++  useFinanceDashboard,
++  type FinanceDashboardData,
++} from "@/lib/api/finance"
++import { cn } from "@/lib/utils"
++
++const CURRENCY = new Intl.NumberFormat("en-GH", {
++  style: "currency",
++  currency: "GHS",
++  maximumFractionDigits: 0,
++})
++
++const fmtGhs = (value: number) =>
++  CURRENCY.format(Number.isFinite(value) ? value : 0)
++
++const num = (value: unknown): number => {
++  const parsed = typeof value === "number" ? value : Number(value ?? 0)
++  return Number.isFinite(parsed) ? parsed : 0
++}
++
++const WINDOWS = [30, 90, 180] as const
++
++const chartConfig = {
++  collected: {
++    label: "Collected",
++    color: "#16a34a",
++  },
++  outflows: {
++    label: "Outflows",
++    color: "#e11d48",
++  },
++} satisfies ChartConfig
++
++type IconComponent = React.ComponentType<{ className?: string }>
++
++function sumTrend(
++  data: FinanceDashboardData | undefined,
++  key: "collected" | "invoiced" | "expenses" | "payroll" | "outflows" | "netCashflow"
++) {
++  return (data?.trend ?? []).reduce((sum, point) => sum + num(point[key]), 0)
++}
++
++function trendHasData(data: FinanceDashboardData | undefined) {
++  return (data?.trend ?? []).some(
++    (point) =>
++      num(point.collected) > 0 ||
++      num(point.invoiced) > 0 ||
++      num(point.outflows) > 0
++  )
++}
++
++function KpiCard({
++  icon: Icon,
++  label,
++  value,
++  sub,
++  tone,
++}: {
++  icon: IconComponent
++  label: string
++  value: string
++  sub: string
++  tone: "emerald" | "rose" | "amber" | "ink"
++}) {
++  const toneClasses = {
++    emerald:
++      "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400",
++    rose: "bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400",
++    amber:
++      "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400",
++    ink: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200",
++  }[tone]
++
++  return (
++    <Card className="h-full rounded-2xl border border-border/60 bg-card shadow-none">
++      <CardContent className="flex items-start justify-between gap-3 p-4 sm:p-5">
++        <div className="min-w-0">
++          <CardDescription className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
++            {label}
++          </CardDescription>
++          <p className="mt-2 truncate text-2xl font-bold tracking-tight text-foreground sm:text-[27px]">
++            {value}
++          </p>
++          <p className="mt-1 truncate text-[11px] font-medium text-muted-foreground">
++            {sub}
++          </p>
++        </div>
++
++        <span
++          className={cn(
++            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
++            toneClasses
++          )}
++        >
++          <Icon className="h-4.5 w-4.5" />
++        </span>
++      </CardContent>
++    </Card>
++  )
++}
++
++function FinanceDashboardSkeleton() {
++  return (
++    <div className="flex flex-col gap-5 sm:gap-6">
++      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
++        {Array.from({ length: 4 }).map((_, index) => (
++          <div
++            key={index}
++            className="h-[120px] animate-pulse rounded-2xl border border-border/60 bg-muted/40"
++          />
++        ))}
++      </div>
++
++      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
++        <div className="h-[360px] animate-pulse rounded-2xl border border-border/60 bg-muted/40 lg:col-span-2" />
++        <div className="h-[360px] animate-pulse rounded-2xl border border-border/60 bg-muted/40" />
++      </div>
++
++      <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
++        {Array.from({ length: 3 }).map((_, index) => (
++          <div
++            key={index}
++            className="h-[150px] animate-pulse rounded-2xl border border-border/60 bg-muted/40"
++          />
++        ))}
++      </div>
++    </div>
++  )
++}
++
++export default function FinanceDashboard() {
++  const [days, setDays] = React.useState<number>(90)
++  const { data, isLoading, isError, isFetching, refetch } =
++    useFinanceDashboard(days)
++
++  const totals = data?.totals
++  const counts = data?.counts
++
++  // Window (trend) figures — internally consistent with the chart below.
++  const windowCollected = sumTrend(data, "collected")
++  const windowExpenses = sumTrend(data, "expenses")
++  const windowPayroll = sumTrend(data, "payroll")
++  const windowOutflows = sumTrend(data, "outflows")
++  const windowNet = sumTrend(data, "netCashflow")
++
++  // Lifetime figures straight from the backend summary.
++  const lifetimeOutstanding = num(totals?.outstanding)
++  const lifetimeInvoiced = num(totals?.invoiced)
++  const lifetimeInvoicePayments = num(totals?.invoicePayments)
++  const coveragePct =
++    lifetimeInvoiced > 0
++      ? Math.min(
++          100,
++          Math.round((lifetimeInvoicePayments / lifetimeInvoiced) * 100)
++        )
++      : 0
++
++  const hasTrend = trendHasData(data)
++  const trendEmpty =
++    !isLoading && !isError && data && !trendHasData(data)
++
++  if (isLoading) return <FinanceDashboardSkeleton />
++
++  if (isError) {
++    return (
++      <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-8 text-center">
++        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
++          <TrendingDown className="h-5 w-5" />
++        </div>
++        <p className="text-sm font-semibold">Unable to load finance data</p>
++        <p className="max-w-md text-xs text-muted-foreground">
++          Check that the backend is reachable and your account has finance
++          access, then try again.
++        </p>
++        <button
++          type="button"
++          onClick={() => void refetch()}
++          className="rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
++        >
++          Retry
++        </button>
++      </div>
++    )
++  }
++
++  const netPositive = windowNet >= 0
++
++  return (
++    <div className="flex flex-col gap-5 sm:gap-6">
++      {/* ── KPI strip ── */}
++      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
++        <KpiCard
++          icon={netPositive ? TrendingUp : TrendingDown}
++          label="Net Cashflow"
++          value={fmtGhs(windowNet)}
++          sub={`last ${days} days · collected − outflows`}
++          tone={netPositive ? "emerald" : "rose"}
++        />
++
++        <KpiCard
++          icon={Wallet}
++          label="Cash Collected"
++          value={fmtGhs(windowCollected)}
++          sub={`last ${days} days · ${num(counts?.collections) || "—"} receipts all-time`}
++          tone="emerald"
++        />
++
++        <KpiCard
++          icon={ReceiptText}
++          label="Outstanding Receivables"
++          value={fmtGhs(lifetimeOutstanding)}
++          sub={`${num(counts?.openInvoices) || 0} open of ${num(counts?.invoices) || 0} invoices`}
++          tone="amber"
++        />
++
++        <KpiCard
++          icon={Banknote}
++          label="Outflows"
++          value={fmtGhs(windowOutflows)}
++          sub={`last ${days} days · expenses ${fmtGhs(windowExpenses)} · payroll ${fmtGhs(windowPayroll)}`}
++          tone="rose"
++        />
++      </div>
++
++      {/* ── Cashflow chart + receivables side panel ── */}
++      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
++        <Card className="rounded-2xl border border-border/60 bg-card shadow-none lg:col-span-2">
++          <CardHeader className="flex flex-col gap-3 px-4 pt-5 sm:flex-row sm:items-start sm:justify-between sm:px-6">
++            <div>
++              <CardTitle className="text-base font-semibold tracking-tight">
++                Cashflow
++              </CardTitle>
++              <CardDescription>
++                Collections vs expenses + payroll — last {days} days.
++                {isFetching ? " Refreshing…" : ""}
++              </CardDescription>
++            </div>
++
++            <div className="inline-flex w-fit items-center gap-0.5 rounded-lg bg-muted p-0.5">
++              {WINDOWS.map((window) => (
++                <button
++                  key={window}
++                  type="button"
++                  onClick={() => setDays(window)}
++                  className={cn(
++                    "h-7 rounded-md px-2.5 text-xs font-medium transition-colors",
++                    days === window
++                      ? "bg-background text-foreground shadow-sm"
++                      : "text-muted-foreground hover:text-foreground"
++                  )}
++                >
++                  {window}d
++                </button>
++              ))}
++            </div>
++          </CardHeader>
++
++          <CardContent className="px-2 pt-2 pb-3 sm:px-3">
++            {trendEmpty || !hasTrend ? (
++              <div className="flex h-[280px] flex-col items-center justify-center gap-1 px-6 text-center">
++                <p className="text-sm font-semibold text-foreground">
++                  No finance activity in this window yet
++                </p>
++                <p className="max-w-sm text-xs text-muted-foreground">
++                  Invoices, collections or expenses recorded in the last{" "}
++                  {days} days will appear here.
++                </p>
++              </div>
++            ) : (
++              <ChartContainer
++                config={chartConfig}
++                className="h-[300px] w-full lg:h-[320px]"
++              >
++                <BarChart
++                  accessibilityLayer
++                  data={data?.trend ?? []}
++                  margin={{ left: 4, right: 8, top: 8 }}
++                >
++                  <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.35} />
++                  <XAxis
++                    dataKey="date"
++                    tickLine={false}
++                    axisLine={false}
++                    tickMargin={8}
++                    minTickGap={40}
++                    tickFormatter={(value: string) =>
++                      new Date(value).toLocaleDateString("en-US", {
++                        month: "short",
++                        day: "numeric",
++                      })
++                    }
++                  />
++                  <ChartTooltip
++                    cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }}
++                    content={
++                      <ChartTooltipContent
++                        className="w-[190px]"
++                        labelFormatter={(value: unknown) =>
++                          new Date(String(value)).toLocaleDateString("en-US", {
++                            month: "short",
++                            day: "numeric",
++                            year: "numeric",
++                          })
++                        }
++                        formatter={(value) => (
++                          <span className="font-mono text-xs font-medium tabular-nums">
++                            {fmtGhs(Number(value))}
++                          </span>
++                        )}
++                      />
++                    }
++                  />
++                  <Bar
++                    dataKey="collected"
++                    fill="var(--color-collected)"
++                    radius={[3, 3, 0, 0]}
++                  />
++                  <Bar
++                    dataKey="outflows"
++                    fill="var(--color-outflows)"
++                    radius={[3, 3, 0, 0]}
++                  />
++                </BarChart>
++              </ChartContainer>
++            )}
++          </CardContent>
++        </Card>
++
++        <Card className="rounded-2xl border border-border/60 bg-card shadow-none">
++          <CardHeader className="px-4 pt-5 sm:px-6">
++            <CardTitle className="text-base font-semibold tracking-tight">
++              Receivables
++            </CardTitle>
++            <CardDescription>All-time billing position</CardDescription>
++          </CardHeader>
++
++          <CardContent className="flex flex-1 flex-col gap-5 px-4 sm:px-6">
++            <div>
++              <p className="text-3xl font-bold tracking-tight text-amber-600 dark:text-amber-400">
++                {fmtGhs(lifetimeOutstanding)}
++              </p>
++              <p className="mt-1 text-xs font-medium text-muted-foreground">
++                Open balance to collect
++              </p>
++            </div>
++
++            <div>
++              <div className="mb-1.5 flex items-center justify-between text-xs font-medium">
++                <span className="text-muted-foreground">
++                  Collection coverage
++                </span>
++                <span className="font-semibold text-foreground">
++                  {coveragePct}%
++                </span>
++              </div>
++              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
++                <div
++                  className="h-full rounded-full bg-emerald-500 transition-all"
++                  style={{ width: `${coveragePct}%` }}
++                />
++              </div>
++              <p className="mt-1.5 text-[11px] font-medium text-muted-foreground">
++                {fmtGhs(lifetimeInvoicePayments)} of {fmtGhs(lifetimeInvoiced)}{" "}
++                invoiced collected
++              </p>
++            </div>
++
++            <div className="mt-auto space-y-2 border-t border-border/60 pt-4">
++              <div className="flex items-center justify-between text-xs font-medium">
++                <span className="text-muted-foreground">Paid invoices</span>
++                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
++                  {num(counts?.paidInvoices) || 0}
++                </span>
++              </div>
++              <div className="flex items-center justify-between text-xs font-medium">
++                <span className="text-muted-foreground">Partial</span>
++                <span className="font-semibold text-amber-600 dark:text-amber-400">
++                  {num(counts?.partialInvoices) || 0}
++                </span>
++              </div>
++              <div className="flex items-center justify-between text-xs font-medium">
++                <span className="text-muted-foreground">Open</span>
++                <span className="font-semibold text-rose-600 dark:text-rose-400">
++                  {num(counts?.openInvoices) || 0}
++                </span>
++              </div>
++            </div>
++          </CardContent>
++        </Card>
++      </div>
++
++      {/* ── Billing / payroll / expenses snapshot ── */}
++      <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
++        <Card className="rounded-2xl border border-border/60 bg-card shadow-none">
++          <CardContent className="flex items-start justify-between gap-3 p-4 sm:p-5">
++            <div className="min-w-0">
++              <CardDescription className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
++                Billing
++              </CardDescription>
++              <p className="mt-2 truncate text-xl font-bold tracking-tight">
++                {fmtGhs(lifetimeInvoiced)}
++              </p>
++              <p className="mt-1 truncate text-[11px] font-medium text-muted-foreground">
++                {num(counts?.invoices) || 0} invoices issued all-time
++              </p>
++            </div>
++            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
++              <FileText className="h-4.5 w-4.5" />
++            </span>
++          </CardContent>
++        </Card>
++
++        <Card className="rounded-2xl border border-border/60 bg-card shadow-none">
++          <CardContent className="flex items-start justify-between gap-3 p-4 sm:p-5">
++            <div className="min-w-0">
++              <CardDescription className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
++                Payroll
++              </CardDescription>
++              <p className="mt-2 truncate text-xl font-bold tracking-tight">
++                {fmtGhs(num(totals?.payroll))}
++              </p>
++              <p className="mt-1 truncate text-[11px] font-medium text-muted-foreground">
++                {num(counts?.pendingPayroll) || 0} pending ·{" "}
++                {num(counts?.payroll) || 0} records
++              </p>
++            </div>
++            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400">
++              <WalletCards className="h-4.5 w-4.5" />
++            </span>
++          </CardContent>
++        </Card>
++
++        <Card className="rounded-2xl border border-border/60 bg-card shadow-none">
++          <CardContent className="flex items-start justify-between gap-3 p-4 sm:p-5">
++            <div className="min-w-0">
++              <CardDescription className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
++                Operating Expenses
++              </CardDescription>
++              <p className="mt-2 truncate text-xl font-bold tracking-tight">
++                {fmtGhs(num(totals?.expenses))}
++              </p>
++              <p className="mt-1 truncate text-[11px] font-medium text-muted-foreground">
++                {num(counts?.expenses) || 0} expense records all-time
++              </p>
++            </div>
++            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600 dark:bg-violet-950/30 dark:text-violet-400">
++              <Receipt className="h-4.5 w-4.5" />
++            </span>
++          </CardContent>
++        </Card>
++      </div>
++    </div>
++  )
++}
+diff --git a/sms-core/src/components/finance-overview-analytics.tsx b/sms-core/src/components/finance-overview-analytics.tsx
+deleted file mode 100644
+index 51d35c5..0000000
+--- a/sms-core/src/components/finance-overview-analytics.tsx
++++ /dev/null
+@@ -1,511 +0,0 @@
+-"use client"
+-
+-import * as React from "react"
+-import { AlertCircle, TrendingUp } from "lucide-react"
+-import {
+-  Bar,
+-  BarChart,
+-  CartesianGrid,
+-  Line,
+-  LineChart,
+-  XAxis,
+-} from "recharts"
+-
+-import {
+-  Card,
+-  CardContent,
+-  CardDescription,
+-  CardFooter,
+-  CardHeader,
+-  CardTitle,
+-} from "@/components/ui/card"
+-
+-import {
+-  ChartContainer,
+-  ChartTooltip,
+-  ChartTooltipContent,
+-  type ChartConfig,
+-} from "@/components/ui/chart"
+-
+-import {
+-  useFinanceDashboard,
+-  type FinanceDashboardData,
+-  type FinanceDashboardTrendPoint,
+-} from "@/lib/api/finance"
+-
+-type FinanceMetricKey =
+-  | "collected"
+-  | "invoiced"
+-  | "outflows"
+-  | "netCashflow"
+-
+-const currencyFormatter = new Intl.NumberFormat("en-GH", {
+-  style: "currency",
+-  currency: "GHS",
+-  maximumFractionDigits: 0,
+-})
+-
+-const chartConfig = {
+-  collected: {
+-    label: "Collections",
+-    color: "#E85002",
+-  },
+-  invoiced: {
+-    label: "Invoiced",
+-    color: "#18181b",
+-  },
+-  outflows: {
+-    label: "Outflows",
+-    color: "#71717a",
+-  },
+-  netCashflow: {
+-    label: "Net Cashflow",
+-    color: "#16a34a",
+-  },
+-  outstanding: {
+-    label: "Outstanding",
+-    color: "#dc2626",
+-  },
+-  payroll: {
+-    label: "Payroll",
+-    color: "#9333ea",
+-  },
+-  expenses: {
+-    label: "Expenses",
+-    color: "#2563eb",
+-  },
+-} satisfies ChartConfig
+-
+-const metrics: Array<{
+-  key: FinanceMetricKey
+-  label: string
+-  color: string
+-}> = [
+-  {
+-    key: "collected",
+-    label: "Collections",
+-    color: "var(--color-collected)",
+-  },
+-  {
+-    key: "invoiced",
+-    label: "Invoiced",
+-    color: "var(--color-invoiced)",
+-  },
+-  {
+-    key: "outflows",
+-    label: "Outflows",
+-    color: "var(--color-outflows)",
+-  },
+-  {
+-    key: "netCashflow",
+-    label: "Net Cashflow",
+-    color: "var(--color-netCashflow)",
+-  },
+-]
+-
+-function formatCurrency(value: number) {
+-  return currencyFormatter.format(Number.isFinite(value) ? value : 0)
+-}
+-
+-function formatDate(
+-  value: string,
+-  options: Intl.DateTimeFormatOptions = {
+-    month: "short",
+-    day: "numeric",
+-  }
+-) {
+-  return new Date(value).toLocaleDateString("en-US", options)
+-}
+-
+-/*
+-  Temporary visual fallback data.
+-
+-  This is used only when the finance dashboard endpoint returns no
+-  analytics data. Once the backend endpoint returns live trends,
+-  this component automatically switches to real API data.
+-*/
+-const demoFinanceTrend: FinanceDashboardTrendPoint[] = Array.from(
+-  { length: 90 },
+-  (_, index) => {
+-    const date = new Date("2026-04-24T12:00:00")
+-    date.setDate(date.getDate() + index)
+-
+-    const weekday = date.getDay()
+-    const multiplier = weekday === 0 || weekday === 6 ? 0.3 : 1
+-
+-    const invoiced = Math.round(
+-      (4500 + ((index * 571) % 16500) + Math.sin(index / 5) * 2600) *
+-        multiplier
+-    )
+-
+-    const collected = Math.round(
+-      (3200 + ((index * 437) % 12800) + Math.cos(index / 4) * 2100) *
+-        multiplier
+-    )
+-
+-    const expenses = Math.round(
+-      (1200 + ((index * 251) % 6000) + Math.sin(index / 6) * 800) *
+-        multiplier
+-    )
+-
+-    const payroll =
+-      index % 30 === 25
+-        ? 78000
+-        : index % 30 === 26
+-          ? 26000
+-          : 0
+-
+-    const outflows = expenses + payroll
+-
+-    return {
+-      date: date.toISOString().slice(0, 10),
+-      invoiced,
+-      collected,
+-      expenses,
+-      payroll,
+-      outflows,
+-      netCashflow: collected - outflows,
+-      outstanding: Math.max(
+-        0,
+-        205000 + index * 920 + Math.sin(index / 7) * 14500
+-      ),
+-    }
+-  }
+-)
+-
+-function hasUsefulTrendData(trend: FinanceDashboardTrendPoint[]) {
+-  return trend.some(
+-    (point) =>
+-      point.collected > 0 ||
+-      point.invoiced > 0 ||
+-      point.outflows > 0 ||
+-      point.expenses > 0
+-  )
+-}
+-
+-function FinanceSkeleton() {
+-  return (
+-    <div className="flex flex-col gap-5 p-2 md:p-1">
+-      <div className="h-[430px] animate-pulse rounded-xl border bg-muted/40" />
+-
+-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+-        {Array.from({ length: 4 }).map((_, index) => (
+-          <div
+-            key={index}
+-            className="h-[210px] animate-pulse rounded-xl border bg-muted/40"
+-          />
+-        ))}
+-      </div>
+-    </div>
+-  )
+-}
+-
+-function FinanceError({ onRetry }: { onRetry: () => void }) {
+-  return (
+-    <div className="flex min-h-[420px] flex-col items-center justify-center gap-3 p-8 text-center">
+-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600">
+-        <AlertCircle className="h-5 w-5" />
+-      </div>
+-
+-      <div className="space-y-1">
+-        <h2 className="text-sm font-semibold">Unable to load finance data</h2>
+-        <p className="max-w-md text-xs text-muted-foreground">
+-          Check that the backend is running and that your account has finance
+-          access.
+-        </p>
+-      </div>
+-
+-      <button
+-        type="button"
+-        onClick={onRetry}
+-        className="rounded-md border px-3 py-1.5 text-xs font-medium transition hover:bg-muted"
+-      >
+-        Retry
+-      </button>
+-    </div>
+-  )
+-}
+-
+-function FinanceTrendCard({
+-  title,
+-  description,
+-  footer,
+-  data,
+-  dataKey,
+-  currency = true,
+-}: {
+-  title: string
+-  description: string
+-  footer: string
+-  data: FinanceDashboardTrendPoint[]
+-  dataKey: keyof typeof chartConfig
+-  currency?: boolean
+-}) {
+-  const total = data.reduce(
+-    (sum, item) => sum + Number(item[dataKey] ?? 0),
+-    0
+-  )
+-
+-  return (
+-    <Card className="gap-0 overflow-hidden py-0 shadow-sm">
+-      <CardHeader className="gap-1 px-5 pt-5 pb-2">
+-        <CardDescription className="text-xs font-medium uppercase tracking-wide">
+-          {title}
+-        </CardDescription>
+-
+-        <CardTitle className="text-2xl font-semibold tracking-tight">
+-          {currency ? formatCurrency(total) : total.toLocaleString()}
+-        </CardTitle>
+-
+-        <p className="text-xs text-muted-foreground">{description}</p>
+-      </CardHeader>
+-
+-      <CardContent className="px-3 pt-1 pb-2">
+-        <ChartContainer config={chartConfig} className="h-[105px] w-full">
+-          <LineChart
+-            accessibilityLayer
+-            data={data}
+-            margin={{ top: 8, right: 8, left: 8, bottom: 0 }}
+-          >
+-            <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.35} />
+-
+-            <XAxis dataKey="date" hide />
+-
+-            <ChartTooltip
+-              cursor={false}
+-              content={
+-                <ChartTooltipContent
+-                  hideLabel={false}
+-                  labelFormatter={(value) =>
+-                    formatDate(String(value), {
+-                      month: "short",
+-                      day: "numeric",
+-                      year: "numeric",
+-                    })
+-                  }
+-                  formatter={(value) => (
+-                    <span className="font-mono font-medium tabular-nums">
+-                      {currency
+-                        ? formatCurrency(Number(value))
+-                        : Number(value).toLocaleString()}
+-                    </span>
+-                  )}
+-                />
+-              }
+-            />
+-
+-            <Line
+-              type="monotone"
+-              dataKey={dataKey}
+-              stroke={`var(--color-${dataKey})`}
+-              strokeWidth={2}
+-              dot={false}
+-              activeDot={{ r: 4 }}
+-            />
+-          </LineChart>
+-        </ChartContainer>
+-      </CardContent>
+-
+-      <CardFooter className="border-t px-5 py-3">
+-        <p className="text-xs text-muted-foreground">{footer}</p>
+-      </CardFooter>
+-    </Card>
+-  )
+-}
+-
+-function buildDisplayData(
+-  data: FinanceDashboardData | undefined
+-): FinanceDashboardTrendPoint[] {
+-  if (data && hasUsefulTrendData(data.trend)) {
+-    return data.trend
+-  }
+-
+-  return demoFinanceTrend
+-}
+-
+-export default function FinanceOverviewAnalytics() {
+-  const [activeMetric, setActiveMetric] =
+-    React.useState<FinanceMetricKey>("collected")
+-
+-  const { data, isLoading, isError, refetch, isFetching } =
+-    useFinanceDashboard(90)
+-
+-  const trend = React.useMemo(() => buildDisplayData(data), [data])
+-
+-  const totals = React.useMemo(() => {
+-    return {
+-      collected: trend.reduce((sum, item) => sum + item.collected, 0),
+-      invoiced: trend.reduce((sum, item) => sum + item.invoiced, 0),
+-      outflows: trend.reduce((sum, item) => sum + item.outflows, 0),
+-      netCashflow: trend.reduce((sum, item) => sum + item.netCashflow, 0),
+-      outstanding: trend.at(-1)?.outstanding ?? 0,
+-    }
+-  }, [trend])
+-
+-  if (isLoading) {
+-    return <FinanceSkeleton />
+-  }
+-
+-  if (isError) {
+-    return <FinanceError onRetry={() => void refetch()} />
+-  }
+-
+-  return (
+-    <div className="flex flex-col gap-5 p-2 md:p-1">
+-      <Card className="gap-0 overflow-hidden py-0 shadow-sm">
+-        <CardHeader className="flex flex-col items-stretch gap-0 border-b p-0 lg:flex-row">
+-          <div className="flex flex-1 flex-col justify-center gap-1 px-6 pt-5 pb-4 lg:py-0">
+-            <CardTitle className="text-xl">Finance Overview</CardTitle>
+-
+-            <CardDescription>
+-              Collections, invoices, operating outflows, and net cashflow across
+-              the last 90 days.
+-              {isFetching ? " Refreshing..." : ""}
+-            </CardDescription>
+-          </div>
+-
+-          <div className="grid grid-cols-2 border-t sm:grid-cols-4 lg:border-t-0">
+-            {metrics.map((metric) => {
+-              const isActive = activeMetric === metric.key
+-
+-              return (
+-                <button
+-                  key={metric.key}
+-                  type="button"
+-                  data-active={isActive}
+-                  onClick={() => setActiveMetric(metric.key)}
+-                  className="relative flex min-w-[145px] flex-col justify-center gap-1 border-r border-b px-5 py-4 text-left transition-colors last:border-r-0 hover:bg-muted/40 data-[active=true]:bg-muted/50 sm:border-b-0 lg:px-7 lg:py-6"
+-                >
+-                  <span className="text-xs text-muted-foreground">
+-                    {metric.label}
+-                  </span>
+-
+-                  <span
+-                    className="text-lg font-bold tracking-tight lg:text-xl"
+-                    style={{
+-                      color: isActive ? metric.color : "hsl(var(--foreground))",
+-                    }}
+-                  >
+-                    {formatCurrency(totals[metric.key])}
+-                  </span>
+-                </button>
+-              )
+-            })}
+-          </div>
+-        </CardHeader>
+-
+-        <CardContent className="px-3 pt-5 pb-4 sm:px-6">
+-          <ChartContainer
+-            config={chartConfig}
+-            className="aspect-auto h-[320px] w-full"
+-          >
+-            <BarChart
+-              accessibilityLayer
+-              data={trend}
+-              margin={{
+-                left: 12,
+-                right: 12,
+-              }}
+-            >
+-              <CartesianGrid vertical={false} />
+-
+-              <XAxis
+-                dataKey="date"
+-                tickLine={false}
+-                axisLine={false}
+-                tickMargin={8}
+-                minTickGap={34}
+-                tickFormatter={(value) => formatDate(String(value))}
+-              />
+-
+-              <ChartTooltip
+-                cursor={false}
+-                content={
+-                  <ChartTooltipContent
+-                    className="w-[175px]"
+-                    labelFormatter={(value) =>
+-                      formatDate(String(value), {
+-                        month: "short",
+-                        day: "numeric",
+-                        year: "numeric",
+-                      })
+-                    }
+-                    formatter={(value) => (
+-                      <span className="font-mono font-medium tabular-nums">
+-                        {formatCurrency(Number(value))}
+-                      </span>
+-                    )}
+-                  />
+-                }
+-              />
+-
+-              <Bar
+-                dataKey={activeMetric}
+-                fill={`var(--color-${activeMetric})`}
+-                radius={[4, 4, 0, 0]}
+-              />
+-            </BarChart>
+-          </ChartContainer>
+-        </CardContent>
+-      </Card>
+-
+-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+-        <FinanceTrendCard
+-          title="Cash Collected"
+-          description="Payments posted to treasury"
+-          footer="Daily receipts across all sections"
+-          data={trend}
+-          dataKey="collected"
+-        />
+-
+-        <FinanceTrendCard
+-          title="Outstanding Balances"
+-          description="Current unpaid fee exposure"
+-          footer="Balances requiring collection follow-up"
+-          data={trend}
+-          dataKey="outstanding"
+-        />
+-
+-        <FinanceTrendCard
+-          title="Payroll Burn"
+-          description="Faculty and staff payroll obligation"
+-          footer="Monthly salary disbursement activity"
+-          data={trend}
+-          dataKey="payroll"
+-        />
+-
+-        <FinanceTrendCard
+-          title="Operating Expenses"
+-          description="Approved operational expense activity"
+-          footer="Supplies, utilities, transport, and operations"
+-          data={trend}
+-          dataKey="expenses"
+-        />
+-      </div>
+-
+-      <Card className="shadow-sm">
+-        <CardHeader>
+-          <CardTitle className="flex items-center gap-2 text-base">
+-            Finance activity is available for analysis
+-            <TrendingUp className="h-4 w-4 text-emerald-600" />
+-          </CardTitle>
+-
+-          <CardDescription>
+-            Live API trend data is used whenever it is available. Rich visual
+-            fallback data is used only when the finance analytics endpoint is
+-            empty.
+-          </CardDescription>
+-        </CardHeader>
+-
+-        <CardFooter className="border-t px-6 py-3">
+-          <p className="text-xs text-muted-foreground">
+-            Current outstanding receivables:{" "}
+-            <span className="font-medium text-foreground">
+-              {formatCurrency(totals.outstanding)}
+-            </span>
+-          </p>
+-        </CardFooter>
+-      </Card>
+-    </div>
+-  )
+-}
+\ No newline at end of file
+diff --git a/sms-core/src/components/finance-workspace.tsx b/sms-core/src/components/finance-workspace.tsx
+new file mode 100644
+index 0000000..d598d86
+--- /dev/null
++++ b/sms-core/src/components/finance-workspace.tsx
+@@ -0,0 +1,73 @@
++"use client"
++
++import * as React from "react"
++import { usePathname, useRouter, useSearchParams } from "next/navigation"
++import { LayoutDashboard, ReceiptText } from "lucide-react"
++import FinanceDashboard from "@/components/finance-dashboard"
++import FinancialLedgerConsole from "@/components/financial-ledger-console"
++import { cn } from "@/lib/utils"
++
++type FinanceViewToken = "dashboard" | "table"
++
++/**
++ * Finance page view manager: an always-visible Dashboard / Financial Ledgers
++ * switcher (sticky, so it stays reachable while the ledgers scroll) that
++ * mirrors the chosen view into the ?view= query param. This is the only
++ * place the finance view toggle lives — it is intentionally absent from
++ * every other Workspace page.
++ */
++export default function FinanceWorkspace() {
++  const router = useRouter()
++  const pathname = usePathname()
++  const searchParams = useSearchParams()
++
++  const view = (searchParams.get("view") as FinanceViewToken | null) ?? "dashboard"
++
++  const setView = React.useCallback(
++    (next: FinanceViewToken) => {
++      const params = new URLSearchParams(searchParams.toString())
++      params.set("view", next)
++      router.push(`${pathname}?${params.toString()}`, { scroll: false })
++    },
++    [router, pathname, searchParams]
++  )
++
++  const views: Array<{ id: FinanceViewToken; label: string; icon: React.ComponentType<{ className?: string }> }> = [
++    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
++    { id: "table", label: "Financial Ledgers", icon: ReceiptText },
++  ]
++
++  return (
++    <div className="flex min-h-0 flex-1 flex-col">
++      {/* Sticky switcher — visible at every breakpoint, never an overlay. */}
++      <div className="sticky top-0 z-30 border-b border-border/60 bg-background/95 px-1 py-2 backdrop-blur sm:px-1">
++        <div className="inline-flex w-full items-center gap-0.5 rounded-lg bg-muted p-1 sm:w-auto">
++          {views.map(({ id, label, icon: Icon }) => {
++            const isActive = view === id
++            return (
++              <button
++                key={id}
++                type="button"
++                onClick={() => setView(id)}
++                aria-pressed={isActive}
++                className={cn(
++                  "inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-all sm:min-h-8 sm:flex-none sm:text-xs",
++                  isActive
++                    ? "bg-background text-foreground shadow-sm"
++                    : "text-muted-foreground hover:text-foreground"
++                )}
++              >
++                <Icon className="h-4 w-4" />
++                <span>{label}</span>
++              </button>
++            )
++          })}
++        </div>
++      </div>
++
++      <div className="min-h-0 flex-1 py-4 sm:py-5">
++        {view === "dashboard" ? <FinanceDashboard /> : <FinancialLedgerConsole />}
++      </div>
++    </div>
++  )
++}
+diff --git a/sms-core/src/components/view-toggle.tsx b/sms-core/src/components/view-toggle.tsx
+deleted file mode 100644
+index 824539d..0000000
+--- a/sms-core/src/components/view-toggle.tsx
++++ /dev/null
+@@ -1,54 +0,0 @@
+-"use client"
+-
+-import * as React from "react"
+-import { useRouter, useSearchParams, usePathname } from "next/navigation"
+-import { Button } from "@/components/ui/button"
+-import { LayoutDashboard, ReceiptText } from "lucide-react"
+-
+-export function ViewToggle() {
+-  const router = useRouter()
+-  const searchParams = useSearchParams()
+-  const pathname = usePathname()
+-  
+-  // FIX: Changed fallback to 'dashboard' to perfectly match your page's fresh load state
+-  const currentView = searchParams.get("view") || "dashboard"
+-
+-  const setView = (viewToken: string) => {
+-    const params = new URLSearchParams(searchParams.toString())
+-    params.set("view", viewToken)
+-    // Clear phase shifting by ensuring route updates relative to pathname cleanly without scroll reset
+-    router.push(`${pathname}?${params.toString()}`, { scroll: false })
+-  }
+-
+-  return (
+-    <div className="inline-flex items-center rounded-lg bg-zinc-100 p-1 dark:bg-zinc-900 border border-zinc-200/50 dark:border-zinc-800/50 gap-0.5 select-none shadow-xs">
+-      <Button
+-        variant="ghost"
+-        size="sm"
+-        onClick={() => setView("dashboard")}
+-        className={`h-7 text-xs font-medium px-3 gap-1.5 rounded-md transition-all ${
+-          currentView === "dashboard"
+-            ? "bg-white text-zinc-900 shadow-xs border border-zinc-200/20 dark:bg-zinc-950 dark:text-zinc-50 dark:border-zinc-800/40"
+-            : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+-        }`}
+-      >
+-        <LayoutDashboard className="h-3.5 w-3.5" />
+-        <span>Dashboard</span>
+-      </Button>
+-      
+-      <Button
+-        variant="ghost"
+-        size="sm"
+-        onClick={() => setView("table")}
+-        className={`h-7 text-xs font-medium px-3 gap-1.5 rounded-md transition-all ${
+-          currentView === "table"
+-            ? "bg-white text-zinc-900 shadow-xs border border-zinc-200/20 dark:bg-zinc-950 dark:text-zinc-50 dark:border-zinc-800/40"
+-            : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+-        }`}
+-      >
+-        <ReceiptText className="h-3.5 w-3.5" />
+-        <span>Financial Ledgers</span>
+-      </Button>
+-    </div>
+-  )
+-}
+\ No newline at end of file
+diff --git a/sms-core/src/components/workspace-layout.tsx b/sms-core/src/components/workspace-layout.tsx
+index 2abc44f..e91e7f9 100644
+--- a/sms-core/src/components/workspace-layout.tsx
++++ b/sms-core/src/components/workspace-layout.tsx
+@@ -1,12 +1,10 @@
+ "use client"
+ 
+ import * as React from "react"
+-import { Suspense } from "react"
+ import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
+ import { TooltipProvider } from "@/components/ui/tooltip"
+ import { AppSidebar } from "@/components/app-sidebar"
+ import { Separator } from "@/components/ui/separator"
+-import { ViewToggle } from "@/components/view-toggle"
+ import { useAuth } from "@/lib/auth-context"
+ import { ProtectedRoute } from "@/components/protected-route"
+ import { usePathname } from "next/navigation"
+@@ -38,12 +36,6 @@ export function WorkspaceLayout({ children }: { children: React.ReactNode }) {
+             </header>
+ 
+             <div className="relative flex-1 flex flex-col min-h-0">
+-              <div className="absolute top-4 right-6 z-40 hidden md:block">
+-                <Suspense fallback={<div className="h-9 w-[220px] bg-zinc-100 dark:bg-zinc-900 animate-pulse rounded-lg" />}>
+-                  <ViewToggle />
+-                </Suspense>
+-              </div>
+-
+               <main className="w-full flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar flex flex-col">
+                 {pathAllowed ? children : <AccessDeniedPanel role={role} onLogout={logout} />}
+               </main>

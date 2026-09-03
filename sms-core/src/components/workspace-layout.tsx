@@ -1,12 +1,10 @@
 "use client"
 
 import * as React from "react"
-import { Suspense } from "react"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { AppSidebar } from "@/components/app-sidebar"
 import { Separator } from "@/components/ui/separator"
-import { ViewToggle } from "@/components/view-toggle"
 import { useAuth } from "@/lib/auth-context"
 import { ProtectedRoute } from "@/components/protected-route"
 import { usePathname } from "next/navigation"
@@ -38,12 +36,6 @@ export function WorkspaceLayout({ children }: { children: React.ReactNode }) {
             </header>
 
             <div className="relative flex-1 flex flex-col min-h-0">
-              <div className="absolute top-4 right-6 z-40 hidden md:block">
-                <Suspense fallback={<div className="h-9 w-[220px] bg-zinc-100 dark:bg-zinc-900 animate-pulse rounded-lg" />}>
-                  <ViewToggle />
-                </Suspense>
-              </div>
-
               <main className="w-full flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar flex flex-col">
                 {pathAllowed ? children : <AccessDeniedPanel role={role} onLogout={logout} />}
               </main>
