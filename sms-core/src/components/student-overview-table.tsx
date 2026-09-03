@@ -5,14 +5,17 @@ import * as React from "react"
 import Link from "next/link"
 import { FileText, KeyRound, Pencil } from "lucide-react"
 import { UniversalDataTable, type DataTableColumn } from "@/components/universal-data-table"
+import { StudentOverviewCards } from "@/components/mobile/student-overview-cards"
 import { fetchWithAuth } from "@/lib/fetch-with-auth"
 import {
   StudentPasswordResetDialog,
   type StudentPasswordResetTarget,
 } from "@/components/student-password-reset-dialog"
 
-type StudentOverviewRow = {
+export type StudentOverviewRow = {
   id: string
+  /** Internal (UUID) identifier used to build edit/attendance routes. */
+  internalId?: string
   studentName: string
   gender: string
   class: string
@@ -116,6 +119,7 @@ export function StudentOverviewTable({ data: initialData }: StudentOverviewTable
 
     return {
       id: student.studentId || "—",
+      internalId: attendanceRouteId || undefined,
       studentName: student.studentName || "Unknown Student",
       gender: cleanGender,
       class: assignedClass,
@@ -322,12 +326,18 @@ export function StudentOverviewTable({ data: initialData }: StudentOverviewTable
 
   return (
     <>
-      <UniversalDataTable
-        data={normalizedData}
-        columns={columns}
-        rowId={(student) => student.id}
-        emptyMessage="No student overview records found."
-      />
+      <div className="hidden lg:block">
+        <UniversalDataTable
+          data={normalizedData}
+          columns={columns}
+          rowId={(student) => student.id}
+          emptyMessage="No student overview records found."
+        />
+      </div>
+
+      <div className="lg:hidden">
+        <StudentOverviewCards rows={normalizedData} canWrite={canWrite} />
+      </div>
 
       {passwordResetTarget && (
         <StudentPasswordResetDialog

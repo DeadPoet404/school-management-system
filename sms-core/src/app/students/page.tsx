@@ -299,7 +299,7 @@ const StudentsPage = () => {
   ).filter(Boolean).length
 
   return (
-    <div className="flex h-screen min-h-0 w-full flex-col space-y-4 overflow-hidden px-6 pt-6 pb-4">
+    <div className="flex h-screen min-h-0 w-full flex-col space-y-3 overflow-hidden px-4 pt-4 pb-4 sm:space-y-4 sm:px-6 sm:pt-6">
       <input
         ref={fileInputRef}
         type="file"
@@ -310,11 +310,11 @@ const StudentsPage = () => {
       />
 
       <div className="shrink-0">
-        <h1 className="text-4xl font-medium tracking-tight text-foreground">
+        <h1 className="text-2xl font-medium tracking-tight text-foreground sm:text-4xl">
           Student Management System
         </h1>
 
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
           Comprehensive student management system for tracking academic
           performance, enrollment status, guardian relationships, and financial
           standing.
@@ -416,21 +416,46 @@ const StudentsPage = () => {
             </Button>
           </div>
         ) : (
-          <div className="h-full w-full overflow-x-auto">
-            <div className="min-w-max pr-4">
+          <>
+            {/* ── Desktop: wide data tables (unchanged) ── */}
+            <div className="hidden h-full w-full overflow-x-auto lg:block">
+              <div className="min-w-max pr-4">
+                {activeTab === "overview" && (
+                  <StudentOverviewTable data={students} />
+                )}
+
+                {activeTab === "personal-info" && (
+                  <StudentPersonalInfoTable data={students} />
+                )}
+
+                {activeTab === "financial-info" && (
+                  <StudentFinancialTable data={students} />
+                )}
+              </div>
+            </div>
+
+            {/* ── Mobile: card-first views ── */}
+            <div className="h-full w-full overflow-y-auto overscroll-contain lg:hidden">
               {activeTab === "overview" && (
                 <StudentOverviewTable data={students} />
               )}
 
-              {activeTab === "personal-info" && (
-                <StudentPersonalInfoTable data={students} />
-              )}
-
-              {activeTab === "financial-info" && (
-                <StudentFinancialTable data={students} />
+              {(activeTab === "personal-info" ||
+                activeTab === "financial-info") && (
+                <div className="flex flex-col items-center justify-center gap-2 px-6 py-16 text-center">
+                  <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+                    {studentTabs.find((tab) => tab.value === activeTab)?.title}{" "}
+                    is optimised for larger screens
+                  </p>
+                  <p className="max-w-72 text-xs leading-relaxed text-zinc-400 dark:text-zinc-500">
+                    {studentTabs.find((tab) => tab.value === activeTab)
+                      ?.description ?? "Use a desktop view for this data."}{" "}
+                    Switch to a tablet or desktop for the full record.
+                  </p>
+                </div>
               )}
             </div>
-          </div>
+          </>
         )}
       </div>
     </div>
