@@ -4,6 +4,8 @@ import "timepicker-ui/main.css"
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { OperationsSidebar } from "@/components/operations-sidebar"
+import { OperationsMobileHome } from "@/components/mobile/operations-mobile-home"
+import { useIsMobile } from "@/hooks/use-mobile"
 import {
   defaultOperationsModuleIdForRole,
   findOperationsModuleForRole,
@@ -14,6 +16,7 @@ export default function OperationsPage() {
   const router = useRouter()
   const { user } = useAuth()
   const role = user?.role ?? null
+  const isMobile = useIsMobile()
 
   const defaultId = React.useMemo(
     () => defaultOperationsModuleIdForRole(role) ?? "class-gen",
@@ -56,6 +59,13 @@ export default function OperationsPage() {
       ? resolvedModule.action.component
       : null
   }, [activeModule, role, defaultId])
+
+  // Mobile cannot fit the persistent sub-sidebar + workspace two-pane. Swap to
+  // a module home grid with full-width workspace + back bar (see
+  // OperationsMobileHome). Desktop behaviour is unchanged.
+  if (isMobile) {
+    return <OperationsMobileHome role={role} />
+  }
 
   return (
     <div className="w-full h-full min-h-0 bg-zinc-50/40 dark:bg-zinc-950/20 flex justify-center overflow-hidden">
