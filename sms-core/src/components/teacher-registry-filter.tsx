@@ -67,7 +67,7 @@ export function TeacherRegistryFilter({ onApplyFilters }: TeacherRegistryFilterP
       fields={teacherFilterFields}
       onApplyFilters={handleApply}
       triggerLabel=""
-      className="border-0 w-9 p-0 bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-900 data-[state=open]:bg-zinc-100 dark:data-[state=open]:bg-zinc-900"
+      className="h-11 w-11 lg:h-9 lg:w-9 border-0 p-0 bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-900 data-[state=open]:bg-zinc-100 dark:data-[state=open]:bg-zinc-900"
       align="end"
     />
   )

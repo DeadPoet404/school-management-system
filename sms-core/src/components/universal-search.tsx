@@ -61,7 +61,7 @@ export function UniversalSearch({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         className={cn(
-          "pl-9 h-9 rounded-lg bg-background text-sm transition-colors border border-zinc-200 dark:border-zinc-800 focus-visible:ring-1 focus-visible:ring-zinc-400 focus-visible:border-zinc-400 dark:focus-visible:ring-zinc-700 dark:focus-visible:border-zinc-700",
+          "pl-9 h-11 lg:h-9 rounded-lg bg-background text-sm transition-colors border border-zinc-200 dark:border-zinc-800 focus-visible:ring-1 focus-visible:ring-zinc-400 focus-visible:border-zinc-400 dark:focus-visible:ring-zinc-700 dark:focus-visible:border-zinc-700",
           showShortcut ? "pr-14" : "pr-3"
         )}
         {...props}

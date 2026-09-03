@@ -124,7 +124,7 @@ export function StudentRegistryFilter({
           ? String(activeFilterCount)
           : ""
       }
-      className="w-9 border-0 bg-transparent p-0 hover:bg-zinc-100 data-[state=open]:bg-zinc-100 dark:hover:bg-zinc-900 dark:data-[state=open]:bg-zinc-900"
+      className="h-11 w-11 lg:h-9 lg:w-9 border-0 bg-transparent p-0 hover:bg-zinc-100 data-[state=open]:bg-zinc-100 dark:hover:bg-zinc-900 dark:data-[state=open]:bg-zinc-900"
       align="end"
     />
   )

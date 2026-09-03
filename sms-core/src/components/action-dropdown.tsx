@@ -45,7 +45,7 @@ export function ActionDropdown({
           variant="ghost"
           size="sm"
           className={`
-            h-9
+            h-11 lg:h-9
             rounded-md
             bg-[#fafafa]
             text-stone-500

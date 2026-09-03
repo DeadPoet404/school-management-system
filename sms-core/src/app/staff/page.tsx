@@ -308,12 +308,12 @@ export default function StaffPage() {
           />
         </div>
 
-        <div className="flex shrink-0 flex-wrap items-center gap-3">
+        <div className="flex w-full flex-wrap items-center gap-2.5 lg:w-auto lg:flex-nowrap lg:shrink-0 lg:gap-3">
           <UniversalSearch
             value={searchQuery}
             onChange={setSearchQuery}
             placeholder="Search staff, IDs..."
-            className="w-[200px]"
+            className="w-full lg:w-[200px]"
           />
 
           <ActionDropdown
@@ -336,7 +336,7 @@ export default function StaffPage() {
           <Button
             variant="outline"
             onClick={() => router.push("/staff/departure")}
-            className="h-9 gap-1.5 border-zinc-200 px-3 text-xs font-medium tracking-wide text-zinc-700 shadow-none transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900/60"
+            className="h-11 lg:h-9 gap-1.5 border-zinc-200 px-3 text-xs font-medium tracking-wide text-zinc-700 shadow-none transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900/60"
           >
             <UserMinus className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
             <span>Record Exit</span>
@@ -344,7 +344,7 @@ export default function StaffPage() {
 
           <Button
             onClick={() => router.push("/staff/add")}
-            className="h-9 gap-1.5 bg-zinc-900 px-3 text-xs font-medium tracking-wide text-zinc-50 shadow-none transition-colors hover:bg-zinc-800/90 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-200/90"
+            className="h-11 lg:h-9 gap-1.5 bg-zinc-900 px-3 text-xs font-medium tracking-wide text-zinc-50 shadow-none transition-colors hover:bg-zinc-800/90 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-200/90"
           >
             <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
             <span>Add Staff Member</span>
