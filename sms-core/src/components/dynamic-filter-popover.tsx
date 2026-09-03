@@ -121,7 +121,12 @@ export function DynamicFilterPopover({
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent className="w-[420px] rounded-lg shadow-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 animate-in fade-in zoom-in-95 duration-150" align={align}>
+      <PopoverContent
+        className="w-[420px] max-w-[calc(100vw-1rem)] rounded-lg shadow-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 animate-in fade-in zoom-in-95 duration-150"
+        align={align}
+        collisionPadding={8}
+      >
+        <div className="max-h-[min(560px,calc(100dvh-8rem))] overflow-y-auto overscroll-contain">
         <div className="grid gap-4">
           
           <div className="space-y-1">
@@ -142,7 +147,7 @@ export function DynamicFilterPopover({
                     {field.type === "checkbox-group" && field.options && (
                       <div className="space-y-2">
                         <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">{field.label}</span>
-                        <div className="grid grid-cols-3 gap-2 pt-1 pl-0.5">
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-2 pt-1 pl-0.5 sm:grid-cols-3">
                           {field.options.map((option) => {
                             const value = optionValue(option)
                             const label = optionLabel(option)
@@ -244,6 +249,7 @@ export function DynamicFilterPopover({
 
             </FieldGroup>
           </form>
+        </div>
         </div>
       </PopoverContent>
     </Popover>
