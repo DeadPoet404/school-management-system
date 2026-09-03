@@ -252,10 +252,39 @@ async function main() {
     }
   }
 
+  // ── 7) Mark first-start setup COMPLETE so the demo opens straight to the
+  // dashboard (no /setup wizard, no "demo data without a school profile"
+  // block). The base seed creates the school + admin but not the singleton
+  // SystemConfig row; the app treats a null setupCompletedAt as "needs setup"
+  // and redirects admins to /setup. Write it here (demo-only seed) with a
+  // realistic profile and setupCompletedAt set.
+  await prisma.systemConfig.upsert({
+    where: { id: 1 },
+    update: {
+      setupCompletedAt: new Date(),
+      setupVersion: 1,
+    },
+    create: {
+      id: 1,
+      schoolName: process.env.DEMO_SCHOOL_NAME || "Horizon Heights Academy",
+      schoolCode: process.env.DEMO_SCHOOL_CODE || "HHA-DEMO",
+      motto: "Excellence in education",
+      address: "123 Demonstration Avenue, Accra, Ghana",
+      phone: "+233 20 000 0000",
+      email: "demo@horizonheights.edu.gh",
+      country: "GH",
+      timezone: "Africa/Accra",
+      currency: "GHS",
+      setupCompletedAt: new Date(),
+      setupVersion: 1,
+    },
+  });
+
   console.log("✓ Demo finance seed complete.");
   console.log(
     `  Invoices: ${invoiceRows.length} · Collections: ${collections.length} · Expenses: ${expenses.length} · StaffPayroll: ${staffPayroll.length} · TeacherPayroll: ${teacherPayroll.length}`,
   );
+  console.log("  First-start setup marked complete (SystemConfig) — demo opens to the dashboard.");
 }
 
 main()
