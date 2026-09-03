@@ -156,7 +156,7 @@ async function main() {
     console.log('REFUSING TO PROCEED — unrecognised class labels:\n');
     for (const cls of unmapped) {
       const counts = await referenceCounts(cls.id);
-      console.log('  "%s"  placements=%d', cls.name, counts.placements);
+      console.log(`  "${cls.name}"  placements=${counts.placements}`);
     }
     console.log('\nAdd each to the EXPLICIT map, then re-run.');
     console.log('Guessing where these belong risks filing children in the wrong year.');
@@ -172,7 +172,7 @@ async function main() {
     const members = groups.get(canonical) ?? [];
 
     if (members.length === 0) {
-      console.log('CREATE  %-14s (no existing class maps here)', canonical);
+      console.log(`CREATE   ${canonical.padEnd(14)} (no existing class maps here)`);
       creates += 1;
       if (apply) {
         await prisma.class.create({
@@ -192,69 +192,89 @@ async function main() {
     const losers = scored.slice(1);
 
     if (survivor.cls.name !== canonical) {
-      console.log('RENAME  %-28s -> %-14s (placements=%d)',
-        `"${survivor.cls.name}"`, canonical, survivor.counts.placements);
+      console.log(
+        `RENAME   ${`"${survivor.cls.name}"`.padEnd(28)} -> ${canonical.padEnd(14)}` +
+        ` students=${String(survivor.counts.placements).padStart(3)}`,
+      );
       renames += 1;
     } else {
-      console.log('KEEP    %-14s (placements=%d)', canonical, survivor.counts.placements);
+      console.log(
+        `KEEP     ${canonical.padEnd(45)} students=${String(survivor.counts.placements).padStart(3)}`,
+      );
     }
 
-    if (apply) {
-      await prisma.class.update({
-        where: { id: survivor.cls.id },
-        data: { name: canonical, section: sectionOf(canonical), isActive: true, deletedAt: null },
-      });
-    }
-
+    // Class.name is @unique. When a loser already occupies the canonical
+    // name (e.g. an empty seeded "Creche" while the survivor is
+    // "Pre-School (Crèche)"), the losers must be renamed out of the way
+    // BEFORE the survivor can take it. Renaming the survivor first would
+    // violate the constraint and abort the run part-way through.
     for (const loser of losers) {
       const c = loser.counts;
-      console.log('  MERGE "%s" -> %s (placements=%d grades=%d collections=%d)',
-        loser.cls.name, canonical, c.placements, c.grades, c.collections);
+      console.log(
+        `  MERGE  ${`"${loser.cls.name}"`.padEnd(28)} -> ${canonical.padEnd(14)}` +
+        ` moves=${String(c.placements).padStart(3)} grades=${c.grades} collections=${c.collections}`,
+      );
       merges += 1;
       movedPlacements += c.placements;
 
       if (c.timetables > 0 || c.fees > 0) {
-        console.log('    note: timetable=%d fee=%d config(s) on the merged class are left in place',
-          c.timetables, c.fees);
-        console.log('    (sectionId is unique per class; re-create them against %s if needed)', canonical);
+        console.log(
+          `    note: ${c.timetables} timetable / ${c.fees} fee config(s) remain on the merged class`,
+        );
+        console.log(
+          `    (sectionId is unique per class; re-create them against ${canonical} if needed)`,
+        );
       }
 
       if (!apply) continue;
 
-      // Repoint every non-unique reference, then retire the duplicate.
+      // Repoint every non-unique reference, then retire the duplicate. The
+      // rename frees the canonical name for the survivor and records where
+      // the class went, so the merge stays auditable.
       await prisma.$transaction([
         prisma.placement.updateMany({ where: { classId: loser.cls.id }, data: { classId: survivor.cls.id } }),
         prisma.gradeRecord.updateMany({ where: { classId: loser.cls.id }, data: { classId: survivor.cls.id } }),
         prisma.paymentCollection.updateMany({ where: { sectionId: loser.cls.id }, data: { sectionId: survivor.cls.id } }),
         prisma.class.update({
           where: { id: loser.cls.id },
-          data: { isActive: false, name: `${loser.cls.name} (merged into ${canonical})` },
+          data: {
+            isActive: false,
+            name: `[merged->${canonical}] ${loser.cls.name}`.slice(0, 190),
+          },
         }),
       ]);
       deactivations += 1;
+    }
+
+    // Losers are now renamed out of the way, so this cannot collide.
+    if (apply) {
+      await prisma.class.update({
+        where: { id: survivor.cls.id },
+        data: { name: canonical, section: sectionOf(canonical), isActive: true, deletedAt: null },
+      });
     }
   }
 
   for (const cls of preserved) {
     const counts = await referenceCounts(cls.id);
-    console.log('\nPRESERVED "%s" placements=%d', cls.name, counts.placements);
+    console.log(`\nPRESERVED "${cls.name}" students=${counts.placements}`);
     if (counts.placements > 0) {
-      console.log('  %d student(s) have no real class. The registrar must assign them.', counts.placements);
+      console.log(`  ${counts.placements} student(s) have no real class. The registrar must assign them.`);
     }
   }
 
   console.log('\n--- SUMMARY ---');
-  console.log('renamed:            %d', renames);
-  console.log('merged away:        %d', merges);
-  console.log('created:            %d', creates);
-  console.log('deactivated:        %d', deactivations);
-  console.log('placements moved:   %d', movedPlacements);
+  console.log(`renamed:            ${renames}`);
+  console.log(`merged away:        ${merges}`);
+  console.log(`created:            ${creates}`);
+  console.log(`deactivated:        ${deactivations}`);
+  console.log(`placements moved:   ${movedPlacements}`);
 
   if (apply) {
     const active = await prisma.class.count({ where: { isActive: true, deletedAt: null } });
     const orphaned = await prisma.placement.count({ where: { classId: null } });
-    console.log('\nactive classes now: %d (ladder is %d)', active, LADDER.length);
-    console.log('placements with no class: %d', orphaned);
+    console.log(`\nactive classes now: ${active} (ladder is ${LADDER.length})`);
+    console.log(`placements with no class: ${orphaned}`);
   } else {
     console.log('\nRe-run with --apply to write these changes.');
     console.log('Take a database backup first.');
