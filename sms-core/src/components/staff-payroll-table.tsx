@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { UniversalDataTable, type DataTableColumn } from "@/components/universal-data-table"
+import { StaffPayrollCards } from "@/components/mobile/staff-payroll-cards"
 
 export type StaffPayrollRow = {
   id: string
@@ -66,11 +67,19 @@ export function StaffPayrollTable({ data: rawStaff }: StaffPayrollTableProps) {
   ], [])
 
   return (
-    <UniversalDataTable
-      data={transformedData}
-      columns={columns}
-      rowId={(record) => record.id}
-      emptyMessage="No financial ledger profiles match current payroll cycles."
-    />
+    <>
+      <div className="hidden lg:block">
+        <UniversalDataTable
+          data={transformedData}
+          columns={columns}
+          rowId={(record) => record.id}
+          emptyMessage="No financial ledger profiles match current payroll cycles."
+        />
+      </div>
+
+      <div className="lg:hidden">
+        <StaffPayrollCards rows={transformedData} />
+      </div>
+    </>
   )
 }

@@ -5,6 +5,7 @@ import {
   UniversalDataTable,
   type DataTableColumn,
 } from "@/components/universal-data-table"
+import { StaffPerformanceCards } from "@/components/mobile/staff-performance-cards"
 import { fetchWithAuth } from "@/lib/fetch-with-auth"
 
 type StaffPerformanceApiRow = {
@@ -276,11 +277,19 @@ export function StaffWorkforceTable({ data: visibleStaff = [] }: StaffWorkforceT
   }
 
   return (
-    <UniversalDataTable
-      data={transformedData}
-      columns={columns}
-      rowId={(record) => record.id}
-      emptyMessage="No staff performance metrics match current distribution arrays."
-    />
+    <>
+      <div className="hidden lg:block">
+        <UniversalDataTable
+          data={transformedData}
+          columns={columns}
+          rowId={(record) => record.id}
+          emptyMessage="No staff performance metrics match current distribution arrays."
+        />
+      </div>
+
+      <div className="lg:hidden">
+        <StaffPerformanceCards rows={transformedData} />
+      </div>
+    </>
   )
 }

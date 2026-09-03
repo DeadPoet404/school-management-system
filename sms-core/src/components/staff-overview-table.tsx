@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { UniversalDataTable, type DataTableColumn } from "@/components/universal-data-table"
+import { StaffOverviewCards } from "@/components/mobile/staff-overview-cards"
 import { fetchWithAuth } from "@/lib/fetch-with-auth"
 
 
@@ -163,11 +164,19 @@ export function StaffOverviewTable({ data: initialData }: StaffOverviewTableProp
   }
 
   return (
-    <UniversalDataTable
-      data={transformedData}
-      columns={columns}
-      rowId={(record) => record.id}
-      emptyMessage="No staff core registry metrics discovered."
-    />
+    <>
+      <div className="hidden lg:block">
+        <UniversalDataTable
+          data={transformedData}
+          columns={columns}
+          rowId={(record) => record.id}
+          emptyMessage="No staff core registry metrics discovered."
+        />
+      </div>
+
+      <div className="lg:hidden">
+        <StaffOverviewCards rows={transformedData} />
+      </div>
+    </>
   )
 }

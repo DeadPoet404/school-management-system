@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { UniversalDataTable, type DataTableColumn } from "@/components/universal-data-table"
+import { StaffProfileCards } from "@/components/mobile/staff-profile-cards"
 import { fetchWithAuth } from "@/lib/fetch-with-auth"
 
 
@@ -180,11 +181,19 @@ export function StaffProfileTable({ data: initialData }: StaffProfileTableProps)
   }
 
   return (
-    <UniversalDataTable
-      data={transformedData}
-      columns={columns}
-      rowId={(record) => record.id}
-      emptyMessage="No staff profile records matched."
-    />
+    <>
+      <div className="hidden lg:block">
+        <UniversalDataTable
+          data={transformedData}
+          columns={columns}
+          rowId={(record) => record.id}
+          emptyMessage="No staff profile records matched."
+        />
+      </div>
+
+      <div className="lg:hidden">
+        <StaffProfileCards rows={transformedData} />
+      </div>
+    </>
   )
 }
