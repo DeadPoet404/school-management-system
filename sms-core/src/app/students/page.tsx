@@ -314,11 +314,6 @@ const StudentsPage = () => {
           Student Management System
         </h1>
 
-        <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
-          Comprehensive student management system for tracking academic
-          performance, enrollment status, guardian relationships, and financial
-          standing.
-        </p>
       </div>
 
       <div className="flex w-full shrink-0 flex-col justify-between gap-4 border-b border-zinc-100 pt-4 pb-3 dark:border-zinc-900 lg:flex-row lg:items-center">

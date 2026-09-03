@@ -332,10 +332,6 @@ export default function TeachersPage() {
           Teacher Management System
         </h1>
 
-        <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
-          Comprehensive teacher management system for tracking employment
-          status, qualifications, class assignments, and compensation records.
-        </p>
       </div>
 
       <div className="flex w-full shrink-0 flex-col justify-between gap-4 border-b border-zinc-100 pt-4 pb-3 dark:border-zinc-900 lg:flex-row lg:items-center">
