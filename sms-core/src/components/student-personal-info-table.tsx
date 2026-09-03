@@ -2,10 +2,13 @@
 
 import * as React from "react"
 import { UniversalDataTable, type DataTableColumn } from "@/components/universal-data-table"
+import { StudentPersonalInfoCards } from "@/components/mobile/student-personal-info-cards"
 import { fetchWithAuth } from "@/lib/fetch-with-auth";
 
 export type StudentPersonalInfoRow = {
   id: string
+  /** Internal (UUID) identifier used to build edit routes. */
+  internalId?: string
   studentMeta: React.ReactNode
   email: string
   religion: string
@@ -116,6 +119,7 @@ export function StudentPersonalInfoTable({ data: initialData }: StudentPersonalI
 
       return {
         id: fallbackId,
+        internalId: item.id || item.studentId || undefined,
         studentMeta: (
           <span className="text-zinc-900 dark:text-zinc-100 font-medium tracking-tight">
             {rawName}
@@ -192,11 +196,19 @@ export function StudentPersonalInfoTable({ data: initialData }: StudentPersonalI
   }
 
   return (
-    <UniversalDataTable
-      data={transformedData}
-      columns={columns}
-      rowId={(record) => record.id}
-      emptyMessage="No student core registry metrics discovered."
-    />
+    <>
+      <div className="hidden lg:block">
+        <UniversalDataTable
+          data={transformedData}
+          columns={columns}
+          rowId={(record) => record.id}
+          emptyMessage="No student core registry metrics discovered."
+        />
+      </div>
+
+      <div className="lg:hidden">
+        <StudentPersonalInfoCards rows={transformedData} />
+      </div>
+    </>
   )
 }

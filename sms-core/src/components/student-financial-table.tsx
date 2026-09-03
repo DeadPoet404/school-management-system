@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { UniversalDataTable, type DataTableColumn } from "@/components/universal-data-table"
+import { StudentFinancialCards } from "@/components/mobile/student-financial-cards"
 
 export type StudentFinancialRow = {
   id: string
@@ -176,11 +177,19 @@ export function StudentFinancialTable({ data: rawStudents }: StudentFinancialTab
 ], [])
 
   return (
-    <UniversalDataTable
-      data={transformedData}
-      columns={columns}
-      rowId={(record) => record.id}
-      emptyMessage="No core financial metrics mapped to active student bodies."
-    />
+    <>
+      <div className="hidden lg:block">
+        <UniversalDataTable
+          data={transformedData}
+          columns={columns}
+          rowId={(record) => record.id}
+          emptyMessage="No core financial metrics mapped to active student bodies."
+        />
+      </div>
+
+      <div className="lg:hidden">
+        <StudentFinancialCards rows={transformedData} />
+      </div>
+    </>
   )
 }

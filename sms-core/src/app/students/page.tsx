@@ -434,25 +434,18 @@ const StudentsPage = () => {
               </div>
             </div>
 
-            {/* ── Mobile: card-first views ── */}
+            {/* ── Mobile: card-first views (each table self-gates below lg) ── */}
             <div className="h-full w-full overflow-y-auto overscroll-contain lg:hidden">
               {activeTab === "overview" && (
                 <StudentOverviewTable data={students} />
               )}
 
-              {(activeTab === "personal-info" ||
-                activeTab === "financial-info") && (
-                <div className="flex flex-col items-center justify-center gap-2 px-6 py-16 text-center">
-                  <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-                    {studentTabs.find((tab) => tab.value === activeTab)?.title}{" "}
-                    is optimised for larger screens
-                  </p>
-                  <p className="max-w-72 text-xs leading-relaxed text-zinc-400 dark:text-zinc-500">
-                    {studentTabs.find((tab) => tab.value === activeTab)
-                      ?.description ?? "Use a desktop view for this data."}{" "}
-                    Switch to a tablet or desktop for the full record.
-                  </p>
-                </div>
+              {activeTab === "personal-info" && (
+                <StudentPersonalInfoTable data={students} />
+              )}
+
+              {activeTab === "financial-info" && (
+                <StudentFinancialTable data={students} />
               )}
             </div>
           </>
