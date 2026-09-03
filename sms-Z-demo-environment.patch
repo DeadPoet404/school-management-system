@@ -1,0 +1,777 @@
+diff --git a/deploy/demo/README.md b/deploy/demo/README.md
+new file mode 100644
+index 0000000..060df13
+--- /dev/null
++++ b/deploy/demo/README.md
+@@ -0,0 +1,27 @@
++# Demo Environment (sms-demo.jocomfy.com)
++
++A sales/investor showcase environment running **only fake, seeded data**. It is
++NOT connected to production or staging in any way, and never should be.
++
++- Runs the same `sms-core` frontend + `sms-core-backend` images as everywhere
++  else, but on a **separate Docker network and ports**, capped lower than
++  production so it can never starve the host.
++- Points at a **dedicated Supabase project** (`sms-demo`) that you seed once
++  with the base seeder **plus** `demo-finance-seed.ts` for a rich, month-spread
++  finance history (so the dashboards and ledgers you built look lived-in).
++- Sits behind Cloudflare Access (email one-time PIN) for the investors you add.
++  It is gated, not public.
++
++## Layout
++
++- `deploy/demo/docker-compose.yml` — `demo-backend` (512m / 0.75 CPU) and
++  `demo-frontend` (384m / 0.5 CPU), isolated network, private host ports.
++- `deploy/demo/demo.env.example` — copy to `/etc/jocomfy-demo/demo.env`.
++- `deploy/demo/validate-env.sh` — sanity checks before you deploy.
++- `sms-core-backend/prisma/demo-finance-seed.ts` — extra fake finance history
++  for the demo DB (run **after** the base seed, against the same empty DB).
++
++## One-time setup
++
++See `docs/DEMO-RUNBOOK.md` for the full step-by-step (DB, DNS, Caddy,
++Cloudflare Access, seeding, walkthrough).
+diff --git a/deploy/demo/demo.env.example b/deploy/demo/demo.env.example
+new file mode 100644
+index 0000000..acc9601
+--- /dev/null
++++ b/deploy/demo/demo.env.example
+@@ -0,0 +1,52 @@
++# ── Demo (sms-demo.jocomfy.com) environment ─────────────────────────────
++# Mirrors the staging/production compose conventions, but isolated, fake-data
++# only, and capped lower. Copy to /etc/jocomfy-demo/demo.env and edit.
++
++# --- Database (DEDICATED demo Supabase project — NEVER prod/staging) -------
++# Transaction pooler (port 6543) for runtime.
++DATABASE_URL=postgresql://postgres.<your-demo-ref>:[YOUR-PASSWORD]@aws-1-eu-west-1.pooler.supabase.com:6543/postgres
++# Direct connection (port 5432) — used ONLY by Prisma migrations and seeding.
++DIRECT_URL=postgresql://postgres.<your-demo-ref>:[YOUR-PASSWORD]@aws-1-eu-west-1.pooler.supabase.com:5432/postgres
++
++# --- Auth secrets (generate fresh; NEVER copy prod/staging values) ---------
++JWT_SECRET=replace_with_a_long_random_demo_secret_at_least_32_chars
++JWT_REFRESH_SECRET=replace_with_another_long_random_demo_secret
++COOKIE_SECRET=replace_with_yet_another_long_random_demo_secret
++
++# --- Runtime / security ----------------------------------------------------
++NODE_ENV=production
++LOG_LEVEL=info
++PORT=5200
++# Demo stays behind Cloudflare Access + the app login. Strict CORS to the demo
++# origin only.
++CORS_ORIGINS=https://sms-demo.jocomfy.com
++COOKIE_SECURE=true
++COOKIE_SAME_SITE=lax
++COOKIE_DOMAIN=
++RATE_LIMIT_WINDOW_MS=60000
++RATE_LIMIT_MAX_REQUESTS=200
++AUTH_RATE_LIMIT_MAX_REQUESTS=10
++# Public app URL, used in emails/links.
++STAFF_PORTAL_URL=https://sms-demo.jocomfy.com
++APP_URL=https://sms-demo.jocomfy.com
++NEXT_PUBLIC_APP_ENV=demo
++
++# --- Seed control (entrypoint honors these on `up`) -------------------------
++# Seed ONLY the very first time against the empty demo DB. Leave RUN_SEED=false
++# afterwards so restarts never touch the data. FORCE_SEED is intentionally a
++# separate, explicit switch (also refuses non-empty unless FORCE_SEED=true).
++RUN_SEED=false
++FORCE_SEED=false
++
++# ── Intentionally blank (demo must never send real mail/payments) ──────────
++# validate-env.sh FAILS if any of these are non-empty in demo, exactly like
++# staging. Real providers are only ever configured in production.
++PAYSTACK_SECRET_KEY=
++PAYSTACK_CALLBACK_URL=
++GOOGLE_CLIENT_ID=
++GMAIL_USER=
++GMAIL_APP_PASSWORD=
++ARKESEL_API_KEY=
++ARKESEL_SENDER_ID=
++META_WA_ACCESS_TOKEN=
++META_WA_PHONE_NUMBER_ID=
+diff --git a/deploy/demo/docker-compose.yml b/deploy/demo/docker-compose.yml
+new file mode 100644
+index 0000000..a736f23
+--- /dev/null
++++ b/deploy/demo/docker-compose.yml
+@@ -0,0 +1,100 @@
++# ── DEMO environment (sms-demo.jocomfy.com) ────────────────────────────────
++# Sales/investor showcase running ONLY fake, seeded data on its own network,
++# capped low so it can never starve production on the same host.
++#
++# Usage:
++#   ENVF=/etc/jocomfy-demo/demo.env
++#   COMPOSE="docker compose --env-file $ENVF -f deploy/demo/docker-compose.yml"
++#   bash deploy/demo/validate-env.sh
++#   $COMPOSE config >/dev/null && echo OK
++#   $COMPOSE build
++#   $COMPOSE up -d
++x-logging: &default-logging
++  driver: json-file
++  options:
++    max-size: "10m"
++    max-file: "3"
++
++services:
++  demo-backend:
++    image: jocomfy-demo-backend:latest
++    build:
++      context: ../../sms-core-backend
++    restart: unless-stopped
++    networks: [demo-net]
++    ports:
++      - "127.0.0.1:5200:5200"
++    environment:
++      DATABASE_URL: ${DATABASE_URL}
++      # DIRECT_URL (5432) is ONLY for Prisma migrations/seeding — the Supabase
++      # transaction pooler cannot run DDL. Same pattern as production.
++      DIRECT_URL: ${DIRECT_URL:-}
++      NODE_ENV: production
++      PORT: "5200"
++      LOG_LEVEL: ${LOG_LEVEL:-info}
++      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
++      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-200}
++      AUTH_RATE_LIMIT_MAX_REQUESTS: ${AUTH_RATE_LIMIT_MAX_REQUESTS:-10}
++      JWT_SECRET: ${JWT_SECRET}
++      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
++      COOKIE_SECRET: ${COOKIE_SECRET}
++      COOKIE_SECURE: ${COOKIE_SECURE:-true}
++      COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-lax}
++      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
++      CORS_ORIGINS: ${CORS_ORIGINS:-https://sms-demo.jocomfy.com}
++      STAFF_PORTAL_URL: ${STAFF_PORTAL_URL:-https://sms-demo.jocomfy.com}
++      APP_URL: ${APP_URL:-https://sms-demo.jocomfy.com}
++      # ── Seed control (honored by docker-entrypoint.sh) ──
++      RUN_SEED: ${RUN_SEED:-false}
++      FORCE_SEED: ${FORCE_SEED:-false}
++      # ── Intentionally blank in demo ──
++      PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:-}
++      PAYSTACK_API_BASE_URL: ${PAYSTACK_API_BASE_URL:-https://api.paystack.co}
++      PAYSTACK_CALLBACK_URL: ${PAYSTACK_CALLBACK_URL:-}
++      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
++      GMAIL_USER: ${GMAIL_USER:-}
++      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
++      ARKESEL_API_KEY: ${ARKESEL_API_KEY:-}
++      ARKESEL_SENDER_ID: ${ARKESEL_SENDER_ID:-}
++      META_WA_ACCESS_TOKEN: ${META_WA_ACCESS_TOKEN:-}
++      META_WA_PHONE_NUMBER_ID: ${META_WA_PHONE_NUMBER_ID:-}
++    healthcheck:
++      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:5200/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
++      interval: 30s
++      timeout: 5s
++      start_period: 40s
++      retries: 5
++    mem_limit: 512m
++    cpus: 0.75
++    logging: *default-logging
++
++  demo-frontend:
++    image: jocomfy-demo-frontend:latest
++    build:
++      context: ../../sms-core
++      args:
++        NEXT_PUBLIC_API_URL: /api
++        NEXT_PUBLIC_APP_ENV: demo
++        BACKEND_URL: http://demo-backend:5200
++    restart: unless-stopped
++    networks: [demo-net]
++    ports:
++      - "127.0.0.1:3202:3000"
++    environment:
++      NODE_ENV: production
++      PORT: "3000"
++      HOSTNAME: "0.0.0.0"
++      NEXT_PUBLIC_API_URL: /api
++      NEXT_PUBLIC_APP_ENV: demo
++      # Server-side rewrites point at the demo backend container.
++      BACKEND_URL: http://demo-backend:5200
++    depends_on:
++      demo-backend:
++        condition: service_healthy
++    mem_limit: 384m
++    cpus: 0.5
++    logging: *default-logging
++
++networks:
++  demo-net:
++    driver: bridge
+diff --git a/deploy/demo/validate-env.sh b/deploy/demo/validate-env.sh
+new file mode 100644
+index 0000000..a486f88
+--- /dev/null
++++ b/deploy/demo/validate-env.sh
+@@ -0,0 +1,117 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++ENV_FILE="${1:-/etc/jocomfy-demo/demo.env}"
++# The DEMO Supabase project ref — you set this to your actual project ref.
++# IMPORTANT: this must NEVER equal the prod or staging project ref.
++EXPECTED_PROJECT_REF="${EXPECTED_DEMO_PROJECT_REF:-bgrmomfudlozpkdmlpdn}"
++EXPECTED_HOST="aws-1-eu-west-1.pooler.supabase.com"
++
++if [ ! -f "$ENV_FILE" ]; then
++  echo "ERROR: Demo environment file not found: $ENV_FILE" >&2
++  exit 1
++fi
++
++MODE="$(stat -c '%a' "$ENV_FILE")"
++if [ "$MODE" != "600" ]; then
++  echo "ERROR: $ENV_FILE must have permission mode 600; found $MODE." >&2
++  exit 1
++fi
++
++set -a
++# shellcheck disable=SC1090
++source "$ENV_FILE"
++set +a
++
++required_values=(
++  DATABASE_URL
++  DIRECT_URL
++  JWT_SECRET
++  JWT_REFRESH_SECRET
++  COOKIE_SECRET
++  CORS_ORIGINS
++)
++
++for variable in "${required_values[@]}"; do
++  if [ -z "${!variable:-}" ]; then
++    echo "ERROR: Required demo value is empty: $variable" >&2
++    exit 1
++  fi
++done
++
++# The demo MUST point at the demo project only.
++if [[ "$DATABASE_URL" != *"postgres.${EXPECTED_PROJECT_REF}:"* ]]; then
++  echo "ERROR: DATABASE_URL does not use the expected demo project." >&2
++  exit 1
++fi
++if [[ "$DATABASE_URL" != *"${EXPECTED_HOST}:6543/"* ]]; then
++  echo "ERROR: DATABASE_URL is not using the demo transaction pooler." >&2
++  exit 1
++fi
++if [[ "$DIRECT_URL" != *"postgres.${EXPECTED_PROJECT_REF}:"* ]]; then
++  echo "ERROR: DIRECT_URL does not use the expected demo project." >&2
++  exit 1
++fi
++if [[ "$DIRECT_URL" != *"${EXPECTED_HOST}:5432/"* ]]; then
++  echo "ERROR: DIRECT_URL is not using the demo session pooler." >&2
++  exit 1
++fi
++
++if [ "$DATABASE_URL" = "$DIRECT_URL" ]; then
++  echo "ERROR: Runtime and migration URLs must use different pooler ports." >&2
++  exit 1
++fi
++
++if [ "$JWT_SECRET" = "$JWT_REFRESH_SECRET" ]; then
++  echo "ERROR: JWT secrets must be different." >&2
++  exit 1
++fi
++
++if [ "${#JWT_SECRET}" -lt 32 ] ||
++   [ "${#JWT_REFRESH_SECRET}" -lt 32 ] ||
++   [ "${#COOKIE_SECRET}" -lt 32 ]; then
++  echo "ERROR: Demo secrets must contain at least 32 characters." >&2
++  exit 1
++fi
++
++if [ "${COOKIE_SECURE:-}" != "true" ]; then
++  echo "ERROR: Demo cookies must be Secure." >&2
++  exit 1
++fi
++
++# The seeder must stay OFF after the one-time seed so restarts never wipe data.
++if [ "${RUN_SEED:-}" != "false" ]; then
++  echo "ERROR: RUN_SEED must remain false after the one-time demo seed." >&2
++  exit 1
++fi
++
++if [[ "$CORS_ORIGINS" != *"https://sms-demo.jocomfy.com"* ]]; then
++  echo "ERROR: Demo CORS origins are incomplete." >&2
++  exit 1
++fi
++
++# Demo must never have real integrations (same rule as staging).
++disabled_integrations=(
++  PAYSTACK_SECRET_KEY
++  PAYSTACK_CALLBACK_URL
++  GOOGLE_CLIENT_ID
++  ARKESEL_API_KEY
++  ARKESEL_SENDER_ID
++  META_WA_PHONE_NUMBER_ID
++  META_WA_ACCESS_TOKEN
++  GMAIL_USER
++  GMAIL_APP_PASSWORD
++)
++
++for variable in "${disabled_integrations[@]}"; do
++  if [ -n "${!variable:-}" ]; then
++    echo "ERROR: Live integration must be disabled in demo: $variable" >&2
++    exit 1
++  fi
++done
++
++echo "Demo environment validation: PASS"
++echo "Project reference: $EXPECTED_PROJECT_REF"
++echo "Runtime pooler: $EXPECTED_HOST:6543"
++echo "Migration pooler: $EXPECTED_HOST:5432"
++echo "External payment and communication integrations: DISABLED"
+diff --git a/docs/DEMO-RUNBOOK.md b/docs/DEMO-RUNBOOK.md
+new file mode 100644
+index 0000000..ff8991a
+--- /dev/null
++++ b/docs/DEMO-RUNBOOK.md
+@@ -0,0 +1,181 @@
++# Demo Environment Runbook (sms-demo.jocomfy.com)
++
++Sales / investor showcase running **only fake seeded data**. It is isolated
++from production and staging on every axis: separate Supabase project, separate
++Docker network/ports, separate secrets, capped lower, behind Cloudflare Access.
++
++> **Guardrail:** the demo must NEVER point at the prod or staging database.
++> The validator (`deploy/demo/validate-env.sh`) refuses to run unless the
++> DATABASE_URL matches the demo project ref.
++
++---
++
++## 1. Prerequisites (one-time)
++
++- You have a **dedicated Supabase project** for the demo (e.g. `sms-demo`).
++  Free tier is fine. Save its database password. Note its **project ref**
++  (e.g. `bgrmomfudlozpkdmlpdn`) and region host.
++- Supabase **free projects pause after ~7 days idle** — before any
++  presentation, hit the demo URL or the Supabase dashboard to wake it.
++- A **Cloudflare account** with the `sms-demo.jocomfy.com` zone, and Zero
++  Trust email one-time-PIN enabled (Settings → Authentication → Login methods →
++  **One-time PIN**).
++
++---
++
++## 2. Create the demo env file (on the server)
++
++```bash
++sudo mkdir -p /etc/jocomfy-demo
++sudo install -o root -g root -m 600 /dev/null /etc/jocomfy-demo/demo.env
++sudo nano /etc/jocomfy-demo/demo.env   # paste + fill values
++```
++
++Fill from `deploy/demo/demo.env.example`. Key values:
++
++| Variable | Value |
++|---|---|
++| `DATABASE_URL` | `postgresql://postgres.<ref>:<pw>@<host>.pooler.supabase.com:6543/postgres` |
++| `DIRECT_URL` | same host but **:5432** (migrations/seed only) |
++| `JWT_SECRET` / `JWT_REFRESH_SECRET` / `COOKIE_SECRET` | 3 distinct random ≥32-char secrets (`openssl rand -base64 48`) |
++| `CORS_ORIGINS` | `https://sms-demo.jocomfy.com` |
++| `COOKIE_SECURE` | `true` |
++
++Leave every integration blank. Keep `RUN_SEED=false` until the one-time seed.
++
++## 3. Validate + build + start (first boot)
++
++```bash
++cd /root/school-management-system
++git pull origin main
++
++ENVF=/etc/jocomfy-demo/demo.env
++COMPOSE="docker compose --env-file $ENVF -f deploy/demo/docker-compose.yml"
++
++bash deploy/demo/validate-env.sh          # expect: PASS
++$COMPOSE config >/dev/null && echo "interpolation OK"
++$COMPOSE build
++$COMPOSE up -d demo-backend               # migrates on entrypoint (empty DB)
++$COMPOSE ps
++curl -sS http://127.0.0.1:5200/api/health
++```
++
++The backend entrypoint runs `prisma migrate deploy` against the demo DB and
++starts the server. Then:
++
++### 4. Seed the demo database (one-time, fake data only)
++
++The base seeder creates the org + accounts. The finance seed adds the lived-in
++finance history. Both must run against the **empty** demo DB.
++
++```bash
++cd /root/school-management-system/sms-core-backend
++
++# 4a. Base seed (org + accounts; guard: refuses non-empty unless FORCE=true)
++DATABASE_URL="$DIRECT_URL" NODE_ENV=development \
++  npx ts-node -r tsconfig-paths/register prisma/seed.ts
++
++# 4b. Finance-rich history (after base seed)
++DATABASE_URL="$DIRECT_URL" NODE_ENV=development \
++  npx ts-node -r tsconfig-paths/register prisma/demo-finance-seed.ts
++```
++
++When both finish, flip the seed switch back off so restarts never touch data:
++
++```bash
++sudo sed -i 's/^RUN_SEED=.*/RUN_SEED=false/' /etc/jocomfy-demo/demo.env
++# (entrypoint only seeds when RUN_SEED=true; leave false from here on)
++```
++
++## 5. Add a DNS record (Cloudflare dashboard)
++
++`Add record` for **sms-demo** pointing at the server IP (same as your other
++`*.jocomfy.com` records — Caddy serves by Host). Grey-cloud or orange-cloud
++both work since you'll gate with Access; keep **Proxied** on for Access to
++work at the edge.
++
++## 6. Add the route to Caddy
++
++Edit the Caddyfile that already proxies your other hosts (you found it at
++`/root/…/jocomfy-site/Caddyfile` or wherever your caddy project lives). Add a
++host block mirroring `sms-staging` but pointing at the demo containers:
++
++```
++sms-demo.jocomfy.com {
++    import common_security
++
++    header {
++        X-Robots-Tag "noindex, nofollow, noarchive"
++    }
++
++    route {
++        @not_cloudflare not remote_ip 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
++        respond @not_cloudflare "Direct demo-origin access is not permitted." 403
++
++        @api path /api /api/*
++        reverse_proxy @api demo-backend:5200
++
++        reverse_proxy demo-frontend:3000
++    }
++}
++```
++
++Then reload Caddy:
++
++```bash
++docker exec jocomfy-site-caddy-1 caddy validate --config /etc/caddy/Caddyfile
++docker exec jocomfy-site-caddy-1 caddy reload   --config /etc/caddy/Caddyfile
++```
++
++(The exact Caddy container/paths depend on how your caddy is mounted; match
++how you already edit the file for the other hosts.)
++
++## 7. Gate it with Cloudflare Access (email one-time PIN)
++
++In Cloudflare Zero Trust:
++
++1. **Access → Applications → Add an application** → Self-hosted.
++2. Domain: `sms-demo.jocomfy.com`, name "SMS Demo".
++3. **Policy:** Allow. Login method **Email — One-time PIN**. Include the
++   investors' email addresses (add each as a value, e.g. `investor@example.com`
++   or a whole company domain).
++4. Save. Now `https://sms-demo.jocomfy.com` shows the Access prompt; a listed
++   email gets a magic code, then reaches the app login.
++
++To revoke someone later: remove their email from the policy (or add a Block
++policy above Allow).
++
++## 8. Verify the full demo
++
++- Sign in with the seeded **admin** account: `admin@sms.local` /
++  `AdminDev2026!` (from the base seeder). Demo staff share the default
++  password from the seed.
++- Walk the modules: `/dashboard`, `/finance` (dashboard + Financial Ledgers +
++  the create/record/export tools you wired), `/students`, `/staff`,
++  `/teachers`, `/operations`.
++- The finance screens should show the seeded history (invoices/collections/
++  expenses/payroll) so it looks lived-in.
++
++## 9. Hand out access
++
++Give an investor the URL `https://sms-demo.jocomfy.com`. Their first visit
++prompts for their email → they receive a one-time code → they sign into the
++app with the demo admin credentials you provide. You control both layers
++(Access list + app login) and can revoke either at any time.
++
++## Day-to-day / maintenance
++
++- **Restart demo:** `$COMPOSE restart demo-backend demo-frontend`
++- **Rebuild after a code change:** `git pull` then `$COMPOSE build` +
++  `$COMPOSE up -d`
++- **Demo went stale after an app upgrade:** you can re-seed from scratch by
++  pointing at the empty demo DB with `FORCE=true` on the base seed then the
++  finance seed — never run them against a non-demo DB.
++- **Remove the whole demo:** `$COMPOSE down -v` (removes containers + the
++  demo-net network), delete the Caddy block + DNS record + Access app, and
++  delete/disable the Supabase project.
++
++## Rolling back / deleting
++
++Same as prod but scoped: checkout the previous commit, `$COMPOSE build`
++`demo-backend demo-frontend`, `up -d`. Or tear down entirely per above.
+diff --git a/sms-core-backend/prisma/demo-finance-seed.ts b/sms-core-backend/prisma/demo-finance-seed.ts
+new file mode 100644
+index 0000000..29de4b2
+--- /dev/null
++++ b/sms-core-backend/prisma/demo-finance-seed.ts
+@@ -0,0 +1,264 @@
++// ───────────────────────────────────────────────────────────────────────────
++// DEMO finance-history seed — run against the EMPTY demo database AFTER the
++// base seed (`prisma/seed.ts`) has created the org (classes, placements,
++// students, staff, teachers).
++//
++// It does NOT create schools/people — it only makes the finance module look
++// lived-in for investor demos:
++//   • per-student invoices with realistic paid / partial / unpaid states,
++//   • daily payment collections spread over the last ~6 months,
++//   • operating expenses over the last ~6 months,
++//   • payroll records for every staff + teacher,
++//   • a few ledger accounts (chart of accounts),
++//   • billing-ledger balances + payment receipts per student.
++//
++// Written against the REAL Prisma models:
++//   - PaymentCollection.sectionId  references Class.id (a class "section")
++//   - LedgerAccount uses debit/credit columns (code is the @id)
++//   - StaffPayroll / TeacherPayroll use salaryStatus (PayrollStatus) + have
++//     unique staffId/teacherId and required clearanceTier
++//   - Invoice needs a unique invoiceNo
++//   - Student has studentName; BillingLedger.studentId is unique
++//
++// ── Recommended invocation (from sms-core-backend) ─────────────────────────
++//   DATABASE_URL=<demo-DIRECT-5432> NODE_ENV=development \
++//     npx ts-node -r tsconfig-paths/register prisma/demo-finance-seed.ts
++// ───────────────────────────────────────────────────────────────────────────
++import { ExpenseStatus, InvoiceStatus, PrismaClient } from "@prisma/client";
++
++const prisma = new PrismaClient();
++
++function rand(min: number, max: number) {
++  return Math.floor(Math.random() * (max - min + 1)) + min;
++}
++function daysAgoISO(days: number) {
++  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
++}
++function fmt(n: number) {
++  return n.toFixed(2);
++}
++// deterministic per-run serials for unique invoiceNo / receiptNumber.
++let invCounter = 0;
++let recCounter = 0;
++function nextInvoiceNo() {
++  invCounter += 1;
++  return `DM-INV-${String(invCounter).padStart(5, "0")}`;
++}
++function nextReceiptNo() {
++  recCounter += 1;
++  return `DM-REC-${String(recCounter).padStart(5, "0")}`;
++}
++
++const AMOUNT = 2160;
++const PAYMENT_METHODS = ["Mobile Money", "Bank Transfer", "Cash", "Card / POS", "Cheque"];
++const EXPENSE_CATEGORIES = ["Utilities", "Maintenance", "Supplies", "Equipment", "Logistics"];
++const EXPENSE_VENDORS = [
++  "Accra Water Company",
++  "ECG Power Distribution",
++  "Horizon IT Supplies Ltd",
++  "Classroom Furniture Co.",
++  "Campus Security Services",
++  "Lab Equipment Traders",
++  "Book Distributors GH",
++  "Transport & Logistics Services",
++];
++const ALLOCATION_TARGETS = [
++  "Tuition & Core Academic",
++  "Laboratory & IT Infrastructure",
++  "Medical & Health Services",
++  "Sports & Extra-Curricular",
++  "Library & Resource Center",
++];
++
++async function main() {
++  if (process.env.NODE_ENV === "production") {
++    throw new Error("DEMO SEED PRODUCTION GUARD: cannot run in production.");
++  }
++
++  const [students, staff, teachers, classes] = await Promise.all([
++    prisma.student.findMany({ select: { id: true, studentName: true } }),
++    prisma.staff.findMany({ select: { id: true } }),
++    prisma.teacher.findMany({ select: { id: true } }),
++    prisma.class.findMany({ select: { id: true, name: true } }),
++  ]);
++
++  if (students.length === 0 || classes.length === 0) {
++    throw new Error(
++      "DEMO SEED: no students/classes found. Run the base seed first (npm run seed) on an empty DB.",
++    );
++  }
++  const existing = await prisma.invoice.count();
++  if (existing > 0 && process.env.FORCE !== "true") {
++    throw new Error(
++      "DEMO SEED SAFETY GUARD: finance data already exists. Use FORCE=true to erase & reseed.",
++    );
++  }
++
++  const classIds = classes.map((c) => c.id);
++  const payPeriod = (() => {
++    const d = new Date();
++    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
++  })();
++
++  console.log(
++    `Demo finance seed: ${students.length} students, ${staff.length} staff, ${teachers.length} teachers, ${classes.length} classes.`,
++  );
++
++  // ── 1) Invoices per student (realistic mix) ──
++  const invoiceRows = [];
++  const issueBase = Date.now() - 40 * 24 * 60 * 60 * 1000;
++  for (const student of students) {
++    const total = AMOUNT;
++    const roll = Math.random();
++    let paid = total;
++    let status: InvoiceStatus = "PAID";
++    if (roll > 0.78) {
++      paid = Math.round(total * (rand(30, 70) / 100));
++      status = "PARTIAL";
++    } else if (roll > 0.6) {
++      paid = 0;
++      status = "UNPAID";
++    }
++    invoiceRows.push({
++      invoiceNo: nextInvoiceNo(),
++      studentId: student.id,
++      description: "Term Fees",
++      amount: fmt(total),
++      paidAmount: fmt(paid),
++      status,
++      dueDate: new Date(issueBase + 45 * 24 * 60 * 60 * 1000),
++      createdAt: new Date(issueBase),
++    });
++  }
++
++  // ── 2) Collections over ~180 days (valid Class.id as sectionId) ──
++  const collections = [];
++  const startCol = Date.now() - 180 * 24 * 60 * 60 * 1000;
++  for (const student of students) {
++    const count = rand(1, 3);
++    for (let c = 0; c < count; c++) {
++      const when = new Date(startCol + Math.random() * (Date.now() - startCol));
++      collections.push({
++        receiptNumber: nextReceiptNo(),
++        sectionId: classIds[rand(0, classIds.length - 1)],
++        studentName: student.studentName,
++        amountPaid: fmt(rand(50, AMOUNT)),
++        paymentMethod: PAYMENT_METHODS[rand(0, PAYMENT_METHODS.length - 1)],
++        referenceNo: `DM-${Math.random().toString(36).slice(2, 10).toUpperCase()}`,
++        allocationTarget: ALLOCATION_TARGETS[rand(0, ALLOCATION_TARGETS.length - 1)],
++        dateProcessed: when,
++      });
++    }
++  }
++
++  // ── 3) Expenses over ~180 days ──
++  const expenses = [];
++  for (let i = 0; i < 90; i++) {
++    const when = new Date(startCol + Math.random() * (Date.now() - startCol));
++    expenses.push({
++      expenseNo: `DM-EXP-${String(i + 1).padStart(4, "0")}`,
++      vendorName: EXPENSE_VENDORS[rand(0, EXPENSE_VENDORS.length - 1)],
++      category: EXPENSE_CATEGORIES[rand(0, EXPENSE_CATEGORIES.length - 1)],
++      description: `Demo ${EXPENSE_CATEGORIES[rand(0, EXPENSE_CATEGORIES.length - 1)]} spend`,
++      amount: fmt(rand(80, 4000)),
++      paymentMethod: PAYMENT_METHODS[rand(0, PAYMENT_METHODS.length - 1)],
++      status: Math.random() > 0.12 ? ("CLEARED" as ExpenseStatus) : ("PENDING_APPROVAL" as ExpenseStatus),
++      expenseDate: when,
++    });
++  }
++
++  // ── 4) Payroll for every staff + teacher (correct model fields) ──
++  const baseSalaries = [1800, 2400, 3000, 3600, 4200, 5400];
++  const staffPayroll = staff.map((member) => {
++    const base = baseSalaries[rand(0, baseSalaries.length - 1)];
++    const ded = rand(0, 300);
++    return {
++      staffId: member.id,
++      clearanceTier: "STANDARD",
++      baseSalary: fmt(base),
++      deductions: fmt(ded),
++      netPay: fmt(base - ded),
++      paymentRoute: "BANK_TRANSFER",
++      salaryStatus: (Math.random() > 0.08 ? "DISBURSED" : "PENDING") as "DISBURSED" | "PENDING",
++    };
++  });
++  const teacherPayroll = teachers.map((t) => {
++    const base = baseSalaries[rand(0, baseSalaries.length - 1)];
++    const ded = rand(0, 300);
++    return {
++      teacherId: t.id,
++      clearanceTier: "STANDARD",
++      baseSalary: fmt(base),
++      deductions: fmt(ded),
++      netPay: fmt(base - ded),
++      paymentRoute: "BANK_TRANSFER",
++      salaryStatus: (Math.random() > 0.08 ? "DISBURSED" : "PENDING") as "DISBURSED" | "PENDING",
++    };
++  });
++
++  // ── 5) Chart of accounts (debit/credit fields) ──
++  const ledgers = [
++    { code: "1000", accountName: "Cash & Bank", category: "ASSET", debit: "0", credit: "0" },
++    { code: "2000", accountName: "Accounts Payable", category: "LIABILITY", debit: "0", credit: "0" },
++    { code: "3000", accountName: "Accounts Receivable", category: "ASSET", debit: "0", credit: "0" },
++    { code: "4000", accountName: "Tuition Revenue", category: "REVENUE", debit: "0", credit: "0" },
++    { code: "5000", accountName: "Operating Expenses", category: "EXPENSE", debit: "0", credit: "0" },
++    { code: "6000", accountName: "Payroll Expense", category: "EXPENSE", debit: "0", credit: "0" },
++  ];
++
++  console.log("Writing demo finance records…");
++  await prisma.$transaction([
++    prisma.invoice.createMany({ data: invoiceRows as any }),
++    prisma.paymentCollection.createMany({ data: collections as any }),
++    prisma.expense.createMany({ data: expenses as any }),
++    prisma.staffPayroll.createMany({ data: staffPayroll as any, skipDuplicates: true }),
++    prisma.teacherPayroll.createMany({ data: teacherPayroll as any, skipDuplicates: true }),
++  ]);
++  for (const ledger of ledgers) {
++    await prisma.ledgerAccount.upsert({
++      where: { code: ledger.code },
++      update: {},
++      create: ledger as any,
++    });
++  }
++
++  // ── 6) Billing balances + payment receipts per student ──
++  for (const student of students) {
++    const inv = invoiceRows.find((row: any) => row.studentId === student.id);
++    const outstanding = inv ? Math.max(Number(inv.amount) - Number(inv.paidAmount), 0) : 0;
++    await prisma.billingLedger.upsert({
++      where: { studentId: student.id },
++      update: { currentBalance: fmt(outstanding) },
++      create: { studentId: student.id, initialDeposit: "0", currentBalance: fmt(outstanding) } as any,
++    });
++    // Also a Payment row (receipt) mirroring collections for the student.
++    const studentCollection = collections.find(
++      (row: any) => row.studentName === student.studentName,
++    );
++    if (studentCollection) {
++      await prisma.payment.upsert({
++        where: { receiptNo: studentCollection.receiptNumber },
++        update: {},
++        create: {
++          receiptNo: studentCollection.receiptNumber,
++          studentId: student.id,
++          description: `${studentCollection.allocationTarget} - ${studentCollection.paymentMethod}`,
++          amount: studentCollection.amountPaid,
++          paymentType: studentCollection.paymentMethod,
++        } as any,
++      });
++    }
++  }
++
++  console.log("✓ Demo finance seed complete.");
++  console.log(
++    `  Invoices: ${invoiceRows.length} · Collections: ${collections.length} · Expenses: ${expenses.length} · StaffPayroll: ${staffPayroll.length} · TeacherPayroll: ${teacherPayroll.length}`,
++  );
++}
++
++main()
++  .catch((error) => {
++    console.error(error);
++    process.exitCode = 1;
++  })
++  .finally(() => prisma.$disconnect());

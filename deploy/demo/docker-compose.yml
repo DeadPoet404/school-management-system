@@ -1,0 +1,100 @@
+# ── DEMO environment (sms-demo.jocomfy.com) ────────────────────────────────
+# Sales/investor showcase running ONLY fake, seeded data on its own network,
+# capped low so it can never starve production on the same host.
+#
+# Usage:
+#   ENVF=/etc/jocomfy-demo/demo.env
+#   COMPOSE="docker compose --env-file $ENVF -f deploy/demo/docker-compose.yml"
+#   bash deploy/demo/validate-env.sh
+#   $COMPOSE config >/dev/null && echo OK
+#   $COMPOSE build
+#   $COMPOSE up -d
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  demo-backend:
+    image: jocomfy-demo-backend:latest
+    build:
+      context: ../../sms-core-backend
+    restart: unless-stopped
+    networks: [demo-net]
+    ports:
+      - "127.0.0.1:5200:5200"
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      # DIRECT_URL (5432) is ONLY for Prisma migrations/seeding — the Supabase
+      # transaction pooler cannot run DDL. Same pattern as production.
+      DIRECT_URL: ${DIRECT_URL:-}
+      NODE_ENV: production
+      PORT: "5200"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
+      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-200}
+      AUTH_RATE_LIMIT_MAX_REQUESTS: ${AUTH_RATE_LIMIT_MAX_REQUESTS:-10}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      COOKIE_SECRET: ${COOKIE_SECRET}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-lax}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://sms-demo.jocomfy.com}
+      STAFF_PORTAL_URL: ${STAFF_PORTAL_URL:-https://sms-demo.jocomfy.com}
+      APP_URL: ${APP_URL:-https://sms-demo.jocomfy.com}
+      # ── Seed control (honored by docker-entrypoint.sh) ──
+      RUN_SEED: ${RUN_SEED:-false}
+      FORCE_SEED: ${FORCE_SEED:-false}
+      # ── Intentionally blank in demo ──
+      PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:-}
+      PAYSTACK_API_BASE_URL: ${PAYSTACK_API_BASE_URL:-https://api.paystack.co}
+      PAYSTACK_CALLBACK_URL: ${PAYSTACK_CALLBACK_URL:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GMAIL_USER: ${GMAIL_USER:-}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
+      ARKESEL_API_KEY: ${ARKESEL_API_KEY:-}
+      ARKESEL_SENDER_ID: ${ARKESEL_SENDER_ID:-}
+      META_WA_ACCESS_TOKEN: ${META_WA_ACCESS_TOKEN:-}
+      META_WA_PHONE_NUMBER_ID: ${META_WA_PHONE_NUMBER_ID:-}
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:5200/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 40s
+      retries: 5
+    mem_limit: 512m
+    cpus: 0.75
+    logging: *default-logging
+
+  demo-frontend:
+    image: jocomfy-demo-frontend:latest
+    build:
+      context: ../../sms-core
+      args:
+        NEXT_PUBLIC_API_URL: /api
+        NEXT_PUBLIC_APP_ENV: demo
+        BACKEND_URL: http://demo-backend:5200
+    restart: unless-stopped
+    networks: [demo-net]
+    ports:
+      - "127.0.0.1:3202:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+      NEXT_PUBLIC_API_URL: /api
+      NEXT_PUBLIC_APP_ENV: demo
+      # Server-side rewrites point at the demo backend container.
+      BACKEND_URL: http://demo-backend:5200
+    depends_on:
+      demo-backend:
+        condition: service_healthy
+    mem_limit: 384m
+    cpus: 0.5
+    logging: *default-logging
+
+networks:
+  demo-net:
+    driver: bridge
