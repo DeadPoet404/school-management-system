@@ -5,6 +5,8 @@ import { AppError } from '@/middleware/error.handler';
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     feeTier: { findUnique: vi.fn() },
+    class: { findUnique: vi.fn() },
+    student: { findMany: vi.fn(), findUnique: vi.fn() },
     invoice: { groupBy: vi.fn() },
     payment: { groupBy: vi.fn() },
     $transaction: vi.fn(),
@@ -53,6 +55,11 @@ describe('StudentService', () => {
     (prisma.$transaction as any).mockImplementation(async (fn: any) => fn({}));
     // Default: feeTier found
     (prisma.feeTier.findUnique as any).mockResolvedValue({ id: 'tier-uuid-a', code: 'TIER-A', amount: '2000', isActive: true });
+    // Default: enrolling class resolves to a canonical ladder rung, and the
+    // cohort has no members yet, so the first id issued is sequence 001.
+    (prisma.class.findUnique as any).mockResolvedValue({ name: 'Grade 3A' });
+    (prisma.student.findMany as any).mockResolvedValue([]);
+    (prisma.student.findUnique as any).mockResolvedValue(null);
   });
 
   // ── getById ──

@@ -5,6 +5,7 @@ import { Prisma, EntityStatus, DepartureType, TreasuryClearanceStatus } from "@p
 import { IStudentRepository } from "@/types/repositories";
 import { StudentRepository } from "./student.repository";
 import { formatInstitutionalId } from "@/utils";
+import { academicYearOf, cohortForClass, formatStudentId } from "@/lib/student-id";
 import { hashPassword } from "@/utils/hash";
 import { parseStudentImportFile, type StudentImportError, type StudentImportUploadedFile } from "./student.import";
 
@@ -409,7 +410,6 @@ export class StudentService {
       throw new AppError(400, "Missing essential guardian contact relationships from structural payload.");
     }
 
-    const uniqueStudentId = formatInstitutionalId("STU", String(new Date().getFullYear()));
     // Frontend may send either the fee tier's UUID (id) or its code (code); try both.
     const feeTier =
       (await prisma.feeTier.findUnique({ where: { id: billing.feeTierId } })) ??
@@ -436,12 +436,20 @@ export class StudentService {
     const resolvedTierId = feeTier.id;
     const computedBalance = Math.max(0, baseTariff - initialDeposit);
 
+    // Cohort id: JCS-<2-digit JHS3 completion year>-<3-digit sequence>.
+    // Derived from the class being enrolled into, so peers share a code and
+    // the id never changes at promotion. Falls back to the legacy opaque key
+    // only when the class is off-ladder, so enrollment can never hard-fail.
+    const { studentId: uniqueStudentId, cohortYear: resolvedCohortYear } =
+      await this.generateCohortStudentId(placement.classId, account.enrollmentDate);
+
     // Avoid prisma.$transaction here: Supabase transaction pooler (PgBouncer)
     // rejects interactive transactions (P2028), which surfaces as HTTP 500 on import.
     const hashedPassword = await hashPassword(account.password);
 
     const dbPayload = {
       studentId: uniqueStudentId,
+      cohortYear: resolvedCohortYear,
       studentName: account.fullName,
       enrollmentDate: new Date(account.enrollmentDate),
       status: "ACTIVE" as const,
@@ -467,6 +475,64 @@ export class StudentService {
 
     // createNestedStudent accepts optional tx; omit tx → uses root prisma client.
     return this.repo.createNestedStudent(dbPayload);
+  }
+
+  /**
+   * Allocate the next cohort id for a student entering `classId`.
+   *
+   * The sequence is per-cohort and continues from the highest number already
+   * issued, so it never reuses a departed student's id. Retries on the unique
+   * constraint to survive two concurrent enrollments racing for the same
+   * number. Returns the legacy opaque id when the class is off-ladder, so an
+   * unmapped class degrades enrollment gracefully instead of blocking it.
+   */
+  async generateCohortStudentId(
+    classId: string,
+    enrollmentDate: string | Date
+  ): Promise<{ studentId: string; cohortYear: number | null }> {
+    const cls = await prisma.class.findUnique({
+      where: { id: classId },
+      select: { name: true },
+    });
+    if (!cls) {
+      return {
+        studentId: formatInstitutionalId("STU", String(new Date().getFullYear())),
+        cohortYear: null,
+      };
+    }
+
+    const year = academicYearOf(new Date(enrollmentDate));
+    const cohort = cohortForClass(cls.name, year);
+    if (cohort === null) {
+      return {
+        studentId: formatInstitutionalId("STU", String(new Date().getFullYear())),
+        cohortYear: null,
+      };
+    }
+
+    const prefix = formatStudentId(cohort, 0).slice(0, -3);
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const peers = await prisma.student.findMany({
+        where: { studentId: { startsWith: prefix } },
+        select: { studentId: true },
+      });
+      let highest = 0;
+      for (const p of peers) {
+        const n = Number(p.studentId.slice(prefix.length));
+        if (Number.isFinite(n) && n > highest) highest = n;
+      }
+      const candidate = formatStudentId(cohort, highest + 1 + attempt);
+      const taken = await prisma.student.findUnique({
+        where: { studentId: candidate },
+        select: { id: true },
+      });
+      if (!taken) return { studentId: candidate, cohortYear: cohort };
+    }
+
+    throw new AppError(
+      409,
+      `Could not allocate a student id for cohort ${cohort} after 5 attempts.`
+    );
   }
 
   async importStudentsFromFile(file: StudentImportUploadedFile) {

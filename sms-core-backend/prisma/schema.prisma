@@ -167,6 +167,8 @@ model FeeTier {
 model Student {
   id             String       @id @default(uuid())
   studentId      String       @unique
+  legacyStudentId String?     @unique
+  cohortYear     Int?
   studentName    String
   enrollmentDate DateTime
   status         EntityStatus @default(ACTIVE)
