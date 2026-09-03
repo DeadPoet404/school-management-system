@@ -1,13 +1,15 @@
 # ── DEMO environment (sms-demo.jocomfy.com) ────────────────────────────────
-# Sales/investor showcase running ONLY fake, seeded data on its own network,
-# capped low so it can never starve production on the same host.
+# Sales/investor showcase running ONLY fake, seeded data. It shares the
+# reverse-proxy bridge that Caddy is already attached to, so Caddy can reach
+# demo-backend / demo-frontend by name with NO manual `docker network connect`
+# after recreates or reboots. It is capped low so it can never starve
+# production on the same host.
 #
 # Usage:
 #   ENVF=/etc/jocomfy-demo/demo.env
 #   COMPOSE="docker compose --env-file $ENVF -f deploy/demo/docker-compose.yml"
 #   bash deploy/demo/validate-env.sh
 #   $COMPOSE config >/dev/null && echo OK
-#   $COMPOSE build
 #   $COMPOSE up -d
 x-logging: &default-logging
   driver: json-file
@@ -21,7 +23,7 @@ services:
     build:
       context: ../../sms-core-backend
     restart: unless-stopped
-    networks: [demo-net]
+    networks: [sms-net]
     ports:
       - "127.0.0.1:5200:5200"
     environment:
@@ -45,6 +47,9 @@ services:
       STAFF_PORTAL_URL: ${STAFF_PORTAL_URL:-https://sms-demo.jocomfy.com}
       APP_URL: ${APP_URL:-https://sms-demo.jocomfy.com}
       # ── Seed control (honored by docker-entrypoint.sh) ──
+      # RUN_SEED=true + FORCE_SEED=true on the empty/first demo boot seeds the
+      # base org AND the finance history automatically, so investors log in to
+      # a fully populated demo. Leave both false afterwards.
       RUN_SEED: ${RUN_SEED:-false}
       FORCE_SEED: ${FORCE_SEED:-false}
       # ── Intentionally blank in demo ──
@@ -77,7 +82,7 @@ services:
         NEXT_PUBLIC_APP_ENV: demo
         BACKEND_URL: http://demo-backend:5200
     restart: unless-stopped
-    networks: [demo-net]
+    networks: [sms-net]
     ports:
       - "127.0.0.1:3202:3000"
     environment:
@@ -96,5 +101,9 @@ services:
     logging: *default-logging
 
 networks:
-  demo-net:
-    driver: bridge
+  # The shared reverse-proxy bridge. Caddy (jocomfy-site) is already attached
+  # to this network, so it can proxy to the demo containers by their service
+  # name with no extra wiring. Prod/staging use distinct aliases on it.
+  sms-net:
+    external: true
+    name: ${SMS_DOCKER_NETWORK:-school-management-system_sms-net}

@@ -1,0 +1,292 @@
+diff --git a/deploy/demo/docker-compose.yml b/deploy/demo/docker-compose.yml
+index a736f23..dd5e0db 100644
+--- a/deploy/demo/docker-compose.yml
++++ b/deploy/demo/docker-compose.yml
+@@ -1,13 +1,15 @@
+ # ── DEMO environment (sms-demo.jocomfy.com) ────────────────────────────────
+-# Sales/investor showcase running ONLY fake, seeded data on its own network,
+-# capped low so it can never starve production on the same host.
++# Sales/investor showcase running ONLY fake, seeded data. It shares the
++# reverse-proxy bridge that Caddy is already attached to, so Caddy can reach
++# demo-backend / demo-frontend by name with NO manual `docker network connect`
++# after recreates or reboots. It is capped low so it can never starve
++# production on the same host.
+ #
+ # Usage:
+ #   ENVF=/etc/jocomfy-demo/demo.env
+ #   COMPOSE="docker compose --env-file $ENVF -f deploy/demo/docker-compose.yml"
+ #   bash deploy/demo/validate-env.sh
+ #   $COMPOSE config >/dev/null && echo OK
+-#   $COMPOSE build
+ #   $COMPOSE up -d
+ x-logging: &default-logging
+   driver: json-file
+@@ -21,7 +23,7 @@ services:
+     build:
+       context: ../../sms-core-backend
+     restart: unless-stopped
+-    networks: [demo-net]
++    networks: [sms-net]
+     ports:
+       - "127.0.0.1:5200:5200"
+     environment:
+@@ -45,6 +47,9 @@ services:
+       STAFF_PORTAL_URL: ${STAFF_PORTAL_URL:-https://sms-demo.jocomfy.com}
+       APP_URL: ${APP_URL:-https://sms-demo.jocomfy.com}
+       # ── Seed control (honored by docker-entrypoint.sh) ──
++      # RUN_SEED=true + FORCE_SEED=true on the empty/first demo boot seeds the
++      # base org AND the finance history automatically, so investors log in to
++      # a fully populated demo. Leave both false afterwards.
+       RUN_SEED: ${RUN_SEED:-false}
+       FORCE_SEED: ${FORCE_SEED:-false}
+       # ── Intentionally blank in demo ──
+@@ -77,7 +82,7 @@ services:
+         NEXT_PUBLIC_APP_ENV: demo
+         BACKEND_URL: http://demo-backend:5200
+     restart: unless-stopped
+-    networks: [demo-net]
++    networks: [sms-net]
+     ports:
+       - "127.0.0.1:3202:3000"
+     environment:
+@@ -96,5 +101,9 @@ services:
+     logging: *default-logging
+ 
+ networks:
+-  demo-net:
+-    driver: bridge
++  # The shared reverse-proxy bridge. Caddy (jocomfy-site) is already attached
++  # to this network, so it can proxy to the demo containers by their service
++  # name with no extra wiring. Prod/staging use distinct aliases on it.
++  sms-net:
++    external: true
++    name: ${SMS_DOCKER_NETWORK:-school-management-system_sms-net}
+diff --git a/deploy/demo/validate-env.sh b/deploy/demo/validate-env.sh
+index a486f88..91b323d 100644
+--- a/deploy/demo/validate-env.sh
++++ b/deploy/demo/validate-env.sh
+@@ -2,8 +2,8 @@
+ set -euo pipefail
+ 
+ ENV_FILE="${1:-/etc/jocomfy-demo/demo.env}"
+-# The DEMO Supabase project ref — you set this to your actual project ref.
+-# IMPORTANT: this must NEVER equal the prod or staging project ref.
++# The DEMO Supabase project ref — set this to your actual demo project ref.
++# IMPORTANT: it must NEVER equal the prod or staging project ref.
+ EXPECTED_PROJECT_REF="${EXPECTED_DEMO_PROJECT_REF:-bgrmomfudlozpkdmlpdn}"
+ EXPECTED_HOST="aws-1-eu-west-1.pooler.supabase.com"
+ 
+@@ -18,10 +18,21 @@ if [ "$MODE" != "600" ]; then
+   exit 1
+ fi
+ 
+-set -a
+-# shellcheck disable=SC1090
+-source "$ENV_FILE"
+-set +a
++# Read the env file the same way docker compose does — line by line, first
++# value for each KEY — instead of `source`-ing it (bash source stumbles on
++# special characters in passwords/secrets).
++read_env() {
++  sed -n "s/^${1}=//p" "$ENV_FILE" | head -n1 | tr -d '\r'
++}
++
++DATABASE_URL="$(read_env DATABASE_URL)"
++DIRECT_URL="$(read_env DIRECT_URL)"
++JWT_SECRET="$(read_env JWT_SECRET)"
++JWT_REFRESH_SECRET="$(read_env JWT_REFRESH_SECRET)"
++COOKIE_SECRET="$(read_env COOKIE_SECRET)"
++COOKIE_SECURE="$(read_env COOKIE_SECURE)"
++CORS_ORIGINS="$(read_env CORS_ORIGINS)"
++RUN_SEED="$(read_env RUN_SEED)"
+ 
+ required_values=(
+   DATABASE_URL
+@@ -79,9 +90,11 @@ if [ "${COOKIE_SECURE:-}" != "true" ]; then
+   exit 1
+ fi
+ 
+-# The seeder must stay OFF after the one-time seed so restarts never wipe data.
++# The seeder stays OFF except during an explicit one-time seed. When you do
++# (re)seed you set RUN_SEED=true in the env, run it, then flip it back to
++# false; the validator just needs to catch it left ON by mistake.
+ if [ "${RUN_SEED:-}" != "false" ]; then
+-  echo "ERROR: RUN_SEED must remain false after the one-time demo seed." >&2
++  echo "ERROR: RUN_SEED must be false (leave it ON only during an explicit demo reseed)." >&2
+   exit 1
+ fi
+ 
+@@ -104,7 +117,8 @@ disabled_integrations=(
+ )
+ 
+ for variable in "${disabled_integrations[@]}"; do
+-  if [ -n "${!variable:-}" ]; then
++  value="$(read_env "$variable")"
++  if [ -n "${value}" ]; then
+     echo "ERROR: Live integration must be disabled in demo: $variable" >&2
+     exit 1
+   fi
+diff --git a/docs/DEMO-RUNBOOK.md b/docs/DEMO-RUNBOOK.md
+index ff8991a..af3a654 100644
+--- a/docs/DEMO-RUNBOOK.md
++++ b/docs/DEMO-RUNBOOK.md
+@@ -61,30 +61,38 @@ curl -sS http://127.0.0.1:5200/api/health
+ ```
+ 
+ The backend entrypoint runs `prisma migrate deploy` against the demo DB and
+-starts the server. Then:
++starts the server.
+ 
+-### 4. Seed the demo database (one-time, fake data only)
++### 4. Seed the demo database — AUTOMATIC, fake data only
+ 
+-The base seeder creates the org + accounts. The finance seed adds the lived-in
+-finance history. Both must run against the **empty** demo DB.
++Set `RUN_SEED=true` (and `FORCE_SEED=true` if the DB is not brand-new) in
++`demo.env`, start `demo-backend`, and the entrypoint runs **both** seeds in
++order automatically — the base org seed **then** the finance-history seed — so
++the demo comes up **fully pre-filled** (school, accounts, students, staff,
++invoices, collections, expenses, payroll, ledgers, billing). Investors log in
++and browse; there is nothing to set up.
+ 
+ ```bash
+-cd /root/school-management-system/sms-core-backend
++# In demo.env:
++#   RUN_SEED=true
++#   FORCE_SEED=true     # only needed if reseeding a DB that already has data
+ 
+-# 4a. Base seed (org + accounts; guard: refuses non-empty unless FORCE=true)
+-DATABASE_URL="$DIRECT_URL" NODE_ENV=development \
+-  npx ts-node -r tsconfig-paths/register prisma/seed.ts
++ENVF=/etc/jocomfy-demo/demo.env
++COMPOSE="docker compose --env-file $ENVF -f deploy/demo/docker-compose.yml"
+ 
+-# 4b. Finance-rich history (after base seed)
+-DATABASE_URL="$DIRECT_URL" NODE_ENV=development \
+-  npx ts-node -r tsconfig-paths/register prisma/demo-finance-seed.ts
++$COMPOSE up -d --force-recreate demo-backend
++$COMPOSE logs -f demo-backend
++# look for: Migrations complete → RUN_SEED=true … → Base seed complete →
++#           Demo finance seed complete → Seed complete → Starting application server
+ ```
+ 
+-When both finish, flip the seed switch back off so restarts never touch data:
++When seeding finishes, flip both back to false so restarts never touch data:
+ 
+ ```bash
+ sudo sed -i 's/^RUN_SEED=.*/RUN_SEED=false/' /etc/jocomfy-demo/demo.env
+-# (entrypoint only seeds when RUN_SEED=true; leave false from here on)
++sudo sed -i 's/^FORCE_SEED=.*/FORCE_SEED=false/' /etc/jocomfy-demo/demo.env
++$COMPOSE up -d                            # bring up the frontend
++$COMPOSE ps
+ ```
+ 
+ ## 5. Add a DNS record (Cloudflare dashboard)
+@@ -94,6 +102,13 @@ sudo sed -i 's/^RUN_SEED=.*/RUN_SEED=false/' /etc/jocomfy-demo/demo.env
+ both work since you'll gate with Access; keep **Proxied** on for Access to
+ work at the edge.
+ 
++> **Networking (no manual steps):** `deploy/demo/docker-compose.yml` attaches
++> the demo containers to the **external `sms-net` bridge that Caddy already
++> sits on** (same one as production). So Caddy reaches `demo-backend:5200` and
++> `demo-frontend:3000` by name with no `docker network connect` and no manual
++> rewiring after `up`/recreates/reboots. If that network is ever renamed, set
++> `SMS_DOCKER_NETWORK` to its name.
++
+ ## 6. Add the route to Caddy
+ 
+ Edit the Caddyfile that already proxies your other hosts (you found it at
+@@ -168,12 +183,13 @@ app with the demo admin credentials you provide. You control both layers
+ - **Restart demo:** `$COMPOSE restart demo-backend demo-frontend`
+ - **Rebuild after a code change:** `git pull` then `$COMPOSE build` +
+   `$COMPOSE up -d`
+-- **Demo went stale after an app upgrade:** you can re-seed from scratch by
+-  pointing at the empty demo DB with `FORCE=true` on the base seed then the
+-  finance seed — never run them against a non-demo DB.
+-- **Remove the whole demo:** `$COMPOSE down -v` (removes containers + the
+-  demo-net network), delete the Caddy block + DNS record + Access app, and
+-  delete/disable the Supabase project.
++- **Re-seed the demo to refresh fake data:** set `RUN_SEED=true` and
++  `FORCE_SEED=true` in `demo.env`, run
++  `$COMPOSE up -d --force-recreate demo-backend`, wait for the logs to show
++  both seeds complete, then flip both back to `false` and `$COMPOSE up -d`.
++- **Remove the whole demo:** `$COMPOSE down` (removes containers; the external
++  `sms-net` is left alone since prod shares it), delete the Caddy block + DNS
++  record + Access app, and delete/disable the Supabase project.
+ 
+ ## Rolling back / deleting
+ 
+diff --git a/sms-core-backend/docker-entrypoint.sh b/sms-core-backend/docker-entrypoint.sh
+index 68da39b..3aff408 100755
+--- a/sms-core-backend/docker-entrypoint.sh
++++ b/sms-core-backend/docker-entrypoint.sh
+@@ -34,14 +34,27 @@ echo "[SMS] Migrations complete."
+ # Set RUN_SEED=true in your .env before running docker compose up
+ # to populate demo accounts and sample data.
+ #
+-# The seed script is destructive and additionally refuses a non-empty
+-# database unless FORCE=true. FORCE_SEED=true is intentionally separate from
+-# RUN_SEED=true so accidental restarts cannot erase existing school records.
+-# NODE_ENV is overridden only for the seed process; the Express server keeps
++# When RUN_SEED=true the base seed runs first (org + accounts + sample data),
++# then the demo finance-history seed runs to make the finance module look
++# lived-in (invoices, collections, expenses, payroll, ledgers, billing).
++# Both scripts are destructive and refuse a non-empty database unless
++# FORCE=true. FORCE_SEED=true is intentionally separate from RUN_SEED=true so
++# accidental restarts cannot erase existing school records.
++# NODE_ENV is overridden only for the seed processes; the Express server keeps
+ # its original environment.
+ if [ "${RUN_SEED}" = "true" ]; then
+   echo "[SMS] RUN_SEED=true — running destructive-seed safety checks..."
+   FORCE="${FORCE_SEED:-false}" NODE_ENV=development node dist-seed/prisma/seed.js
++  echo "[SMS] Base seed complete."
++
++  if [ -f dist-seed/prisma/demo-finance-seed.js ]; then
++    echo "[SMS] Running demo finance-history seed..."
++    FORCE="${FORCE_SEED:-false}" NODE_ENV=development node dist-seed/prisma/demo-finance-seed.js
++    echo "[SMS] Demo finance seed complete."
++  else
++    echo "[SMS] demo-finance-seed not present in image; skipping finance seed."
++  fi
++
+   echo "[SMS] Seed complete."
+ else
+   echo "[SMS] Skipping seed (set RUN_SEED=true to seed on next boot)."
+diff --git a/sms-core-backend/prisma/demo-finance-seed.ts b/sms-core-backend/prisma/demo-finance-seed.ts
+index 29de4b2..ad3c1cb 100644
+--- a/sms-core-backend/prisma/demo-finance-seed.ts
++++ b/sms-core-backend/prisma/demo-finance-seed.ts
+@@ -169,8 +169,10 @@ async function main() {
+ 
+   // ── 4) Payroll for every staff + teacher (correct model fields) ──
+   const baseSalaries = [1800, 2400, 3000, 3600, 4200, 5400];
++  const pickBaseSalary = () =>
++    baseSalaries[rand(0, baseSalaries.length - 1)] ?? 1800;
+   const staffPayroll = staff.map((member) => {
+-    const base = baseSalaries[rand(0, baseSalaries.length - 1)];
++    const base = pickBaseSalary();
+     const ded = rand(0, 300);
+     return {
+       staffId: member.id,
+@@ -183,7 +185,7 @@ async function main() {
+     };
+   });
+   const teacherPayroll = teachers.map((t) => {
+-    const base = baseSalaries[rand(0, baseSalaries.length - 1)];
++    const base = pickBaseSalary();
+     const ded = rand(0, 300);
+     return {
+       teacherId: t.id,
+diff --git a/sms-core-backend/tsconfig.seed.json b/sms-core-backend/tsconfig.seed.json
+index e33313f..91dba56 100644
+--- a/sms-core-backend/tsconfig.seed.json
++++ b/sms-core-backend/tsconfig.seed.json
+@@ -6,6 +6,7 @@
+   },
+   "include": [
+     "src/**/*",
+-    "prisma/seed.ts"
++    "prisma/seed.ts",
++    "prisma/demo-finance-seed.ts"
+   ]
+ }

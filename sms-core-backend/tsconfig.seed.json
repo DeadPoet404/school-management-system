@@ -6,6 +6,7 @@
   },
   "include": [
     "src/**/*",
-    "prisma/seed.ts"
+    "prisma/seed.ts",
+    "prisma/demo-finance-seed.ts"
   ]
 }

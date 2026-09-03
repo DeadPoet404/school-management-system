@@ -61,30 +61,38 @@ curl -sS http://127.0.0.1:5200/api/health
 ```
 
 The backend entrypoint runs `prisma migrate deploy` against the demo DB and
-starts the server. Then:
+starts the server.
 
-### 4. Seed the demo database (one-time, fake data only)
+### 4. Seed the demo database — AUTOMATIC, fake data only
 
-The base seeder creates the org + accounts. The finance seed adds the lived-in
-finance history. Both must run against the **empty** demo DB.
+Set `RUN_SEED=true` (and `FORCE_SEED=true` if the DB is not brand-new) in
+`demo.env`, start `demo-backend`, and the entrypoint runs **both** seeds in
+order automatically — the base org seed **then** the finance-history seed — so
+the demo comes up **fully pre-filled** (school, accounts, students, staff,
+invoices, collections, expenses, payroll, ledgers, billing). Investors log in
+and browse; there is nothing to set up.
 
 ```bash
-cd /root/school-management-system/sms-core-backend
+# In demo.env:
+#   RUN_SEED=true
+#   FORCE_SEED=true     # only needed if reseeding a DB that already has data
 
-# 4a. Base seed (org + accounts; guard: refuses non-empty unless FORCE=true)
-DATABASE_URL="$DIRECT_URL" NODE_ENV=development \
-  npx ts-node -r tsconfig-paths/register prisma/seed.ts
+ENVF=/etc/jocomfy-demo/demo.env
+COMPOSE="docker compose --env-file $ENVF -f deploy/demo/docker-compose.yml"
 
-# 4b. Finance-rich history (after base seed)
-DATABASE_URL="$DIRECT_URL" NODE_ENV=development \
-  npx ts-node -r tsconfig-paths/register prisma/demo-finance-seed.ts
+$COMPOSE up -d --force-recreate demo-backend
+$COMPOSE logs -f demo-backend
+# look for: Migrations complete → RUN_SEED=true … → Base seed complete →
+#           Demo finance seed complete → Seed complete → Starting application server
 ```
 
-When both finish, flip the seed switch back off so restarts never touch data:
+When seeding finishes, flip both back to false so restarts never touch data:
 
 ```bash
 sudo sed -i 's/^RUN_SEED=.*/RUN_SEED=false/' /etc/jocomfy-demo/demo.env
-# (entrypoint only seeds when RUN_SEED=true; leave false from here on)
+sudo sed -i 's/^FORCE_SEED=.*/FORCE_SEED=false/' /etc/jocomfy-demo/demo.env
+$COMPOSE up -d                            # bring up the frontend
+$COMPOSE ps
 ```
 
 ## 5. Add a DNS record (Cloudflare dashboard)
@@ -93,6 +101,13 @@ sudo sed -i 's/^RUN_SEED=.*/RUN_SEED=false/' /etc/jocomfy-demo/demo.env
 `*.jocomfy.com` records — Caddy serves by Host). Grey-cloud or orange-cloud
 both work since you'll gate with Access; keep **Proxied** on for Access to
 work at the edge.
+
+> **Networking (no manual steps):** `deploy/demo/docker-compose.yml` attaches
+> the demo containers to the **external `sms-net` bridge that Caddy already
+> sits on** (same one as production). So Caddy reaches `demo-backend:5200` and
+> `demo-frontend:3000` by name with no `docker network connect` and no manual
+> rewiring after `up`/recreates/reboots. If that network is ever renamed, set
+> `SMS_DOCKER_NETWORK` to its name.
 
 ## 6. Add the route to Caddy
 
@@ -168,12 +183,13 @@ app with the demo admin credentials you provide. You control both layers
 - **Restart demo:** `$COMPOSE restart demo-backend demo-frontend`
 - **Rebuild after a code change:** `git pull` then `$COMPOSE build` +
   `$COMPOSE up -d`
-- **Demo went stale after an app upgrade:** you can re-seed from scratch by
-  pointing at the empty demo DB with `FORCE=true` on the base seed then the
-  finance seed — never run them against a non-demo DB.
-- **Remove the whole demo:** `$COMPOSE down -v` (removes containers + the
-  demo-net network), delete the Caddy block + DNS record + Access app, and
-  delete/disable the Supabase project.
+- **Re-seed the demo to refresh fake data:** set `RUN_SEED=true` and
+  `FORCE_SEED=true` in `demo.env`, run
+  `$COMPOSE up -d --force-recreate demo-backend`, wait for the logs to show
+  both seeds complete, then flip both back to `false` and `$COMPOSE up -d`.
+- **Remove the whole demo:** `$COMPOSE down` (removes containers; the external
+  `sms-net` is left alone since prod shares it), delete the Caddy block + DNS
+  record + Access app, and delete/disable the Supabase project.
 
 ## Rolling back / deleting
 

@@ -2,8 +2,8 @@
 set -euo pipefail
 
 ENV_FILE="${1:-/etc/jocomfy-demo/demo.env}"
-# The DEMO Supabase project ref — you set this to your actual project ref.
-# IMPORTANT: this must NEVER equal the prod or staging project ref.
+# The DEMO Supabase project ref — set this to your actual demo project ref.
+# IMPORTANT: it must NEVER equal the prod or staging project ref.
 EXPECTED_PROJECT_REF="${EXPECTED_DEMO_PROJECT_REF:-bgrmomfudlozpkdmlpdn}"
 EXPECTED_HOST="aws-1-eu-west-1.pooler.supabase.com"
 
@@ -18,10 +18,21 @@ if [ "$MODE" != "600" ]; then
   exit 1
 fi
 
-set -a
-# shellcheck disable=SC1090
-source "$ENV_FILE"
-set +a
+# Read the env file the same way docker compose does — line by line, first
+# value for each KEY — instead of `source`-ing it (bash source stumbles on
+# special characters in passwords/secrets).
+read_env() {
+  sed -n "s/^${1}=//p" "$ENV_FILE" | head -n1 | tr -d '\r'
+}
+
+DATABASE_URL="$(read_env DATABASE_URL)"
+DIRECT_URL="$(read_env DIRECT_URL)"
+JWT_SECRET="$(read_env JWT_SECRET)"
+JWT_REFRESH_SECRET="$(read_env JWT_REFRESH_SECRET)"
+COOKIE_SECRET="$(read_env COOKIE_SECRET)"
+COOKIE_SECURE="$(read_env COOKIE_SECURE)"
+CORS_ORIGINS="$(read_env CORS_ORIGINS)"
+RUN_SEED="$(read_env RUN_SEED)"
 
 required_values=(
   DATABASE_URL
@@ -79,9 +90,11 @@ if [ "${COOKIE_SECURE:-}" != "true" ]; then
   exit 1
 fi
 
-# The seeder must stay OFF after the one-time seed so restarts never wipe data.
+# The seeder stays OFF except during an explicit one-time seed. When you do
+# (re)seed you set RUN_SEED=true in the env, run it, then flip it back to
+# false; the validator just needs to catch it left ON by mistake.
 if [ "${RUN_SEED:-}" != "false" ]; then
-  echo "ERROR: RUN_SEED must remain false after the one-time demo seed." >&2
+  echo "ERROR: RUN_SEED must be false (leave it ON only during an explicit demo reseed)." >&2
   exit 1
 fi
 
@@ -104,7 +117,8 @@ disabled_integrations=(
 )
 
 for variable in "${disabled_integrations[@]}"; do
-  if [ -n "${!variable:-}" ]; then
+  value="$(read_env "$variable")"
+  if [ -n "${value}" ]; then
     echo "ERROR: Live integration must be disabled in demo: $variable" >&2
     exit 1
   fi

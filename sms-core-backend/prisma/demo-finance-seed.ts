@@ -169,8 +169,10 @@ async function main() {
 
   // ── 4) Payroll for every staff + teacher (correct model fields) ──
   const baseSalaries = [1800, 2400, 3000, 3600, 4200, 5400];
+  const pickBaseSalary = () =>
+    baseSalaries[rand(0, baseSalaries.length - 1)] ?? 1800;
   const staffPayroll = staff.map((member) => {
-    const base = baseSalaries[rand(0, baseSalaries.length - 1)];
+    const base = pickBaseSalary();
     const ded = rand(0, 300);
     return {
       staffId: member.id,
@@ -183,7 +185,7 @@ async function main() {
     };
   });
   const teacherPayroll = teachers.map((t) => {
-    const base = baseSalaries[rand(0, baseSalaries.length - 1)];
+    const base = pickBaseSalary();
     const ded = rand(0, 300);
     return {
       teacherId: t.id,

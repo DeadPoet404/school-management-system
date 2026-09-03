@@ -34,14 +34,27 @@ echo "[SMS] Migrations complete."
 # Set RUN_SEED=true in your .env before running docker compose up
 # to populate demo accounts and sample data.
 #
-# The seed script is destructive and additionally refuses a non-empty
-# database unless FORCE=true. FORCE_SEED=true is intentionally separate from
-# RUN_SEED=true so accidental restarts cannot erase existing school records.
-# NODE_ENV is overridden only for the seed process; the Express server keeps
+# When RUN_SEED=true the base seed runs first (org + accounts + sample data),
+# then the demo finance-history seed runs to make the finance module look
+# lived-in (invoices, collections, expenses, payroll, ledgers, billing).
+# Both scripts are destructive and refuse a non-empty database unless
+# FORCE=true. FORCE_SEED=true is intentionally separate from RUN_SEED=true so
+# accidental restarts cannot erase existing school records.
+# NODE_ENV is overridden only for the seed processes; the Express server keeps
 # its original environment.
 if [ "${RUN_SEED}" = "true" ]; then
   echo "[SMS] RUN_SEED=true — running destructive-seed safety checks..."
   FORCE="${FORCE_SEED:-false}" NODE_ENV=development node dist-seed/prisma/seed.js
+  echo "[SMS] Base seed complete."
+
+  if [ -f dist-seed/prisma/demo-finance-seed.js ]; then
+    echo "[SMS] Running demo finance-history seed..."
+    FORCE="${FORCE_SEED:-false}" NODE_ENV=development node dist-seed/prisma/demo-finance-seed.js
+    echo "[SMS] Demo finance seed complete."
+  else
+    echo "[SMS] demo-finance-seed not present in image; skipping finance seed."
+  fi
+
   echo "[SMS] Seed complete."
 else
   echo "[SMS] Skipping seed (set RUN_SEED=true to seed on next boot)."
