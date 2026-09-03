@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { UniversalDataTable, type DataTableColumn } from "@/components/universal-data-table"
+import { TeacherCompensationCards } from "@/components/mobile/teacher-compensation-cards"
 
 export type FacultyPayrollRow = {
   id: string
@@ -71,11 +72,19 @@ export function FacultyPayrollTable({ data: rawTeachers }: FacultyPayrollTablePr
   ], [])
 
   return (
-    <UniversalDataTable
-      data={transformedData}
-      columns={columns}
-      rowId={(record) => record.id}
-      emptyMessage="No compensation schedules map to active faculty members."
-    />
+    <>
+      <div className="hidden lg:block">
+        <UniversalDataTable
+          data={transformedData}
+          columns={columns}
+          rowId={(record) => record.id}
+          emptyMessage="No compensation schedules map to active faculty members."
+        />
+      </div>
+
+      <div className="lg:hidden">
+        <TeacherCompensationCards rows={transformedData} />
+      </div>
+    </>
   )
 }

@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { UniversalDataTable, type DataTableColumn } from "@/components/universal-data-table"
+import { TeacherAssignmentCards } from "@/components/mobile/teacher-assignment-cards"
 
 export type FacultyLoadRow = {
   id: string
@@ -57,11 +58,19 @@ export function FacultyLoadTable({ data: rawTeachers }: FacultyLoadTableProps) {
   ], [])
 
   return (
-    <UniversalDataTable
-      data={transformedData}
-      columns={columns}
-      rowId={(record) => record.id}
-      emptyMessage="No teaching allocations mapped to current curriculum layouts."
-    />
+    <>
+      <div className="hidden lg:block">
+        <UniversalDataTable
+          data={transformedData}
+          columns={columns}
+          rowId={(record) => record.id}
+          emptyMessage="No teaching allocations mapped to current curriculum layouts."
+        />
+      </div>
+
+      <div className="lg:hidden">
+        <TeacherAssignmentCards rows={transformedData} />
+      </div>
+    </>
   )
 }

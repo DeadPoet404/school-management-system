@@ -317,7 +317,7 @@ export default function TeachersPage() {
   }
 
   return (
-    <div className="flex h-screen min-h-0 w-full flex-col space-y-4 overflow-hidden px-6 pt-6 pb-4">
+    <div className="flex h-screen min-h-0 w-full flex-col space-y-3 overflow-hidden px-4 pt-4 pb-4 sm:space-y-4 sm:px-6 sm:pt-6">
       <input
         ref={fileInputRef}
         type="file"
@@ -328,11 +328,11 @@ export default function TeachersPage() {
       />
 
       <div className="shrink-0">
-        <h1 className="text-4xl font-medium tracking-tight text-foreground">
+        <h1 className="text-2xl font-medium tracking-tight text-foreground sm:text-4xl">
           Teacher Management System
         </h1>
 
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
           Comprehensive teacher management system for tracking employment
           status, qualifications, class assignments, and compensation records.
         </p>
@@ -428,8 +428,30 @@ export default function TeachersPage() {
             </Button>
           </div>
         ) : (
-          <div className="h-full w-full overflow-x-auto">
-            <div className="min-w-max pr-4">
+          <>
+            {/* ── Desktop: wide data tables (unchanged) ── */}
+            <div className="hidden h-full w-full overflow-x-auto lg:block">
+              <div className="min-w-max pr-4">
+                {activeTab === "overview" && (
+                  <TeacherOverviewTable data={filteredTeachers} />
+                )}
+
+                {activeTab === "personal-info" && (
+                  <TeacherProfileTable data={filteredTeachers} />
+                )}
+
+                {activeTab === "assignments" && (
+                  <FacultyLoadTable data={filteredTeachers} />
+                )}
+
+                {activeTab === "compensation" && (
+                  <FacultyPayrollTable data={filteredTeachers} />
+                )}
+              </div>
+            </div>
+
+            {/* ── Mobile: card-first views (each table self-gates below lg) ── */}
+            <div className="h-full w-full overflow-y-auto overscroll-contain lg:hidden">
               {activeTab === "overview" && (
                 <TeacherOverviewTable data={filteredTeachers} />
               )}
@@ -446,7 +468,7 @@ export default function TeachersPage() {
                 <FacultyPayrollTable data={filteredTeachers} />
               )}
             </div>
-          </div>
+          </>
         )}
       </div>
     </div>

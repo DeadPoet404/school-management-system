@@ -5,12 +5,15 @@ import * as React from "react"
 import Link from "next/link"
 import { Pencil } from "lucide-react"
 import { UniversalDataTable, type DataTableColumn } from "@/components/universal-data-table"
+import { TeacherOverviewCards } from "@/components/mobile/teacher-overview-cards"
 import { fetchWithAuth } from "@/lib/fetch-with-auth"
 
 // Point this to your actual running Express backend server URL
 
 export type TeacherOverviewRow = {
   id: string
+  /** Internal (UUID) identifier used to build edit routes. */
+  internalId?: string
   facultyMeta: React.ReactNode
   department: string
   subject: string
@@ -89,6 +92,7 @@ export function TeacherOverviewTable({ data: initialData }: TeacherOverviewTable
     const rawTeacherRecordId = item.id || item.teacherId
     return {
       id: item.teacherId || item.id || `TCH-${Math.floor(Math.random() * 90000)}`,
+      internalId: rawTeacherRecordId || undefined,
       facultyMeta: (
         <span className="text-zinc-900 dark:text-zinc-100 font-medium tracking-tight">
           {rawName}
@@ -163,11 +167,19 @@ export function TeacherOverviewTable({ data: initialData }: TeacherOverviewTable
   }
 
   return (
-    <UniversalDataTable
-      data={transformedData}
-      columns={columns}
-      rowId={(record) => record.id}
-      emptyMessage="No teacher core registry metrics discovered."
-    />
+    <>
+      <div className="hidden lg:block">
+        <UniversalDataTable
+          data={transformedData}
+          columns={columns}
+          rowId={(record) => record.id}
+          emptyMessage="No teacher core registry metrics discovered."
+        />
+      </div>
+
+      <div className="lg:hidden">
+        <TeacherOverviewCards rows={transformedData} />
+      </div>
+    </>
   )
 }

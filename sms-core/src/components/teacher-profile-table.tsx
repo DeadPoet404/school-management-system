@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { UniversalDataTable, type DataTableColumn } from "@/components/universal-data-table"
+import { TeacherProfileCards } from "@/components/mobile/teacher-profile-cards"
 import { fetchWithAuth } from "@/lib/fetch-with-auth"
 
 export type TeacherProfileRow = {
@@ -137,11 +138,19 @@ export function TeacherProfileTable({ data: initialData }: TeacherProfileTablePr
   }
 
   return (
-    <UniversalDataTable
-      data={transformedData}
-      columns={columns}
-      rowId={(record) => record.id}
-      emptyMessage="No teacher core registry metrics discovered."
-    />
+    <>
+      <div className="hidden lg:block">
+        <UniversalDataTable
+          data={transformedData}
+          columns={columns}
+          rowId={(record) => record.id}
+          emptyMessage="No teacher core registry metrics discovered."
+        />
+      </div>
+
+      <div className="lg:hidden">
+        <TeacherProfileCards rows={transformedData} />
+      </div>
+    </>
   )
 }
