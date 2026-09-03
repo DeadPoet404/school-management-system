@@ -42,7 +42,21 @@ export function ModuleTabs({
 
   return (
     <div
-      className={cn("relative inline-block", className)}
+      className={cn(
+        "relative inline-block max-w-full overflow-x-auto overscroll-x-contain",
+        // Slender, unobtrusive scrollbar when the tab strip overflows (e.g. 4
+        // registry tabs on a phone). Hidden until the strip is actually
+        // scrollable; touch devices scroll natively.
+        "[scrollbar-width:thin]",
+        "[&::-webkit-scrollbar]:h-1.5",
+        "[&::-webkit-scrollbar-thumb]:rounded-full",
+        "[&::-webkit-scrollbar-thumb]:bg-zinc-200",
+        "[&::-webkit-scrollbar-thumb]:hover:bg-zinc-300",
+        "[&::-webkit-scrollbar-track]:bg-transparent",
+        "dark:[&::-webkit-scrollbar-thumb]:bg-zinc-700",
+        "dark:[&::-webkit-scrollbar-thumb]:hover:bg-zinc-600",
+        className
+      )}
       onMouseLeave={() => setHoveredTab(null)}
     >
       <Tabs value={activeTab}>
