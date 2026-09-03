@@ -1,14 +1,14 @@
 "use client"
 
 import * as React from "react"
-import { useState } from "react"
+import { useMemo } from "react"
 import { Badge } from "@/components/ui/badge"
 import {
   UniversalDataTable,
   DataTableColumn,
 } from "@/components/universal-data-table"
 import { InvoiceCards } from "@/components/mobile/ledger-transaction-cards"
-import { useInvoices } from "@/lib/api/finance"
+import { useAllInvoices } from "@/lib/api/finance"
 import { Skeleton } from "@/components/ui/skeleton"
 
 export type Invoice = {
@@ -21,6 +21,8 @@ export type Invoice = {
   issueDate: string
   dueDate: string
 }
+
+const PAGE_SIZE = 20
 
 const greenBadge = "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/60"
 const amberBadge = "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/60"
@@ -79,9 +81,58 @@ function InvoicesTableSkeleton() {
   )
 }
 
-export function InvoicesTable() {
-  const [page, setPage] = useState(1)
-  const { data, isLoading, isError } = useInvoices(page, 20)
+export function InvoicesTable({
+  searchQuery = "",
+  filters = {},
+  page = 1,
+  onPageChange,
+}: {
+  searchQuery?: string
+  filters?: Record<string, unknown>
+  page?: number
+  onPageChange?: (page: number) => void
+}) {
+  const { data = [], isLoading, isError } = useAllInvoices()
+
+  const query = searchQuery.trim().toLowerCase()
+  const statusFilter = typeof filters.status === "string" ? filters.status : null
+  const minBalance =
+    typeof filters.minBalance === "string" && filters.minBalance !== ""
+      ? Number(filters.minBalance)
+      : 0
+
+  const filtered = useMemo(() => {
+    return data.filter((invoice) => {
+      if (statusFilter && invoice.status !== statusFilter) return false
+
+      const balance = invoice.totalAmount - invoice.paidAmount
+      if (minBalance > 0 && balance < minBalance) return false
+
+      if (query) {
+        const haystack = [
+          invoice.id,
+          invoice.studentId,
+          invoice.feeCategory,
+          invoice.status,
+        ]
+          .join(" ")
+          .toLowerCase()
+        if (!haystack.includes(query)) return false
+      }
+
+      return true
+    })
+  }, [data, query, statusFilter, minBalance])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const visible = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  const paginationMeta = {
+    page: safePage,
+    limit: PAGE_SIZE,
+    total: filtered.length,
+    totalPages,
+  }
 
   if (isLoading) return <InvoicesTableSkeleton />
 
@@ -93,21 +144,26 @@ export function InvoicesTable() {
     )
   }
 
+  const emptyMessage =
+    filtered.length === 0 && (query !== "" || statusFilter || minBalance > 0)
+      ? "No invoices match your search or filters."
+      : "No financial invoice statements found."
+
   return (
     <>
       <div className="hidden w-full pt-2 lg:block">
         <UniversalDataTable
-          data={data?.data ?? []}
+          data={visible}
           columns={columns}
           rowId={(invoice: Invoice) => invoice.id}
-          emptyMessage="No financial invoice statements found."
-          pagination={data?.pagination}
-          onPageChange={setPage}
+          emptyMessage={emptyMessage}
+          pagination={paginationMeta}
+          onPageChange={onPageChange}
         />
       </div>
 
       <div className="w-full pt-2 lg:hidden">
-        <InvoiceCards rows={data?.data ?? []} pagination={data?.pagination} onPageChange={setPage} />
+        <InvoiceCards rows={visible} pagination={paginationMeta} onPageChange={onPageChange} />
       </div>
     </>
   )

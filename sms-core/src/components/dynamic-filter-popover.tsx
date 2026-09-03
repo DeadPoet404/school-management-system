@@ -108,9 +108,10 @@ export function DynamicFilterPopover({
       onOpenChange={setOpen}
     >
       <PopoverTrigger asChild>
-        <Button 
+        <Button
           variant="ghost"
-          size="sm" 
+          size="sm"
+          aria-label={triggerLabel ? undefined : "Open filters"}
           className={cn(
             "h-9 rounded-md bg-[#fafafa] text-stone-500 font-normal border border-zinc-200 transition-colors shadow-none flex items-center gap-2 select-none outline-hidden focus:ring-0 focus-visible:ring-0 hover:bg-[#f0f0f0] focus:bg-[#f0f0f0] active:bg-[#f0f0f0] data-[state=open]:bg-[#f0f0f0] data-[state=open]:hover:bg-[#fafafa] dark:bg-zinc-900 dark:text-zinc-200 dark:border-zinc-800 dark:hover:bg-zinc-800 dark:focus:bg-zinc-800 dark:data-[state=open]:bg-zinc-800 dark:data-[state=open]:hover:bg-zinc-900",
             className

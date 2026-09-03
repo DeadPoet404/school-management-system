@@ -1,17 +1,19 @@
 "use client"
 
 import * as React from "react"
-import { useState } from "react"
+import { useMemo } from "react"
 import { Badge } from "@/components/ui/badge"
 import {
   UniversalDataTable,
   DataTableColumn,
 } from "@/components/universal-data-table"
 import { PayrollCards } from "@/components/mobile/ledger-transaction-cards"
-import { usePayroll, type PayrollRecord } from "@/lib/api/finance"
+import { useAllPayroll, type PayrollRecord } from "@/lib/api/finance"
 import { Skeleton } from "@/components/ui/skeleton"
 
 export type { PayrollRecord }
+
+const PAGE_SIZE = 20
 
 const greenBadge = "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/60"
 const blueBadge = "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-900/60"
@@ -19,6 +21,11 @@ const amberBadge = "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-5
 
 const currencyFormatter = (amount: number) => {
   return "GH\u20a5" + amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function displayStatus(status: PayrollRecord["status"]) {
+  if (status === "On_Hold") return "On Hold"
+  return status
 }
 
 const columns: DataTableColumn<PayrollRecord>[] = [
@@ -74,7 +81,7 @@ const columns: DataTableColumn<PayrollRecord>[] = [
   {
     key: "status",
     header: "Disbursement Status",
-    className: "w-[120py]",
+    className: "w-[130px]",
     cell: (row) => {
       let statusStyle = greenBadge
       let displayLabel = "Paid"
@@ -118,9 +125,58 @@ function PayrollTableSkeleton() {
   )
 }
 
-export function PayrollTable() {
-  const [page, setPage] = useState(1)
-  const { data, isLoading, isError } = usePayroll(page, 20)
+export function PayrollTable({
+  searchQuery = "",
+  filters = {},
+  page = 1,
+  onPageChange,
+}: {
+  searchQuery?: string
+  filters?: Record<string, unknown>
+  page?: number
+  onPageChange?: (page: number) => void
+}) {
+  const { data = [], isLoading, isError } = useAllPayroll()
+
+  const query = searchQuery.trim().toLowerCase()
+  const statusFilter = typeof filters.status === "string" ? filters.status : null
+  const minNetPay =
+    typeof filters.minNetPay === "string" && filters.minNetPay !== ""
+      ? Number(filters.minNetPay)
+      : 0
+
+  const filtered = useMemo(() => {
+    return data.filter((record) => {
+      if (statusFilter && displayStatus(record.status) !== statusFilter) return false
+
+      const net = record.baseSalary + record.allowances - record.deductions
+      if (minNetPay > 0 && net < minNetPay) return false
+
+      if (query) {
+        const haystack = [
+          record.id,
+          record.staffName,
+          record.payPeriod,
+          displayStatus(record.status),
+        ]
+          .join(" ")
+          .toLowerCase()
+        if (!haystack.includes(query)) return false
+      }
+
+      return true
+    })
+  }, [data, query, statusFilter, minNetPay])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const visible = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  const paginationMeta = {
+    page: safePage,
+    limit: PAGE_SIZE,
+    total: filtered.length,
+    totalPages,
+  }
 
   if (isLoading) return <PayrollTableSkeleton />
 
@@ -137,21 +193,26 @@ export function PayrollTable() {
     )
   }
 
+  const emptyMessage =
+    filtered.length === 0 && (query !== "" || statusFilter || minNetPay > 0)
+      ? "No payroll records match your search or filters."
+      : "No organizational payroll allocations found for this ledger period."
+
   return (
     <>
       <div className="hidden w-full pt-2 lg:block">
         <UniversalDataTable
-          data={data?.data ?? []}
+          data={visible}
           columns={columns}
           rowId={(record) => record.id}
-          emptyMessage="No organizational payroll allocations found for this ledger period."
-          pagination={data?.pagination}
-          onPageChange={setPage}
+          emptyMessage={emptyMessage}
+          pagination={paginationMeta}
+          onPageChange={onPageChange}
         />
       </div>
 
       <div className="w-full pt-2 lg:hidden">
-        <PayrollCards rows={data?.data ?? []} pagination={data?.pagination} onPageChange={setPage} />
+        <PayrollCards rows={visible} pagination={paginationMeta} onPageChange={onPageChange} />
       </div>
     </>
   )

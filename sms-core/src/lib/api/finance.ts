@@ -437,3 +437,75 @@ export function useExpenses(page: number = 1, limit: number = 20) {
     placeholderData: (prev) => prev,
   });
 }
+
+// ── Full-dataset hooks (search/filter friendly) ──────────────────────────
+//
+// The list endpoints cap `limit` at 100 rows per request, so "all rows" is
+// fetched by paging internally (up to ALL_MAX_ROWS) and cached by React
+// Query. The ledger tables use these so search + filters can run client-side
+// over the whole ledger instead of only the first server page.
+
+const ALL_PAGE_SIZE = 100;
+const ALL_MAX_ROWS = 500;
+
+async function fetchFinancePageAll<TApi>(
+  resource: string,
+): Promise<TApi[]> {
+  const rows: TApi[] = [];
+
+  let page = 1;
+  while (rows.length < ALL_MAX_ROWS) {
+    const { data, pagination } = await fetchFinancePage<TApi>(
+      resource,
+      page,
+      ALL_PAGE_SIZE,
+    );
+    rows.push(...data);
+
+    const total = Math.min(toNumber(pagination.total), ALL_MAX_ROWS);
+    if (rows.length >= total || data.length < ALL_PAGE_SIZE) break;
+    page += 1;
+  }
+
+  return rows.slice(0, ALL_MAX_ROWS);
+}
+
+export function useAllInvoices() {
+  return useQuery<InvoiceRecord[]>({
+    queryKey: ["finance", "invoices", "all"],
+    queryFn: async () =>
+      (await fetchFinancePageAll<InvoiceApiRow>("invoices")).map(mapInvoiceRecord),
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useAllCollections() {
+  return useQuery<CollectionRecord[]>({
+    queryKey: ["finance", "collections", "all"],
+    queryFn: async () =>
+      (await fetchFinancePageAll<CollectionApiRow>("collections")).map(
+        mapCollectionRecord,
+      ),
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useAllPayroll() {
+  return useQuery<PayrollRecord[]>({
+    queryKey: ["finance", "payroll", "all"],
+    queryFn: async () =>
+      (await fetchFinancePageAll<PayrollApiRow>("payroll")).map(mapPayrollRecord),
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useAllExpenses() {
+  return useQuery<ExpenseRecord[]>({
+    queryKey: ["finance", "expenses", "all"],
+    queryFn: async () =>
+      (await fetchFinancePageAll<ExpenseApiRow>("expenses")).map(
+        mapExpenseRecord,
+      ),
+    placeholderData: (prev) => prev,
+  });
+}

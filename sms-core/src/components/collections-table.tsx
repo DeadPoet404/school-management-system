@@ -1,14 +1,14 @@
 "use client"
 
 import * as React from "react"
-import { useState } from "react"
+import { useMemo } from "react"
 import { Badge } from "@/components/ui/badge"
 import {
   UniversalDataTable,
   DataTableColumn,
 } from "@/components/universal-data-table"
 import { CollectionCards } from "@/components/mobile/ledger-transaction-cards"
-import { useCollections } from "@/lib/api/finance"
+import { useAllCollections } from "@/lib/api/finance"
 import { Skeleton } from "@/components/ui/skeleton"
 
 export type Collection = {
@@ -21,6 +21,8 @@ export type Collection = {
   dateProcessed: string
   status: "Cleared" | "Pending"
 }
+
+const PAGE_SIZE = 20
 
 const greenBadge = "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/60"
 const amberBadge = "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/60"
@@ -119,9 +121,58 @@ function CollectionsTableSkeleton() {
   )
 }
 
-export function CollectionsTable() {
-  const [page, setPage] = useState(1)
-  const { data, isLoading, isError } = useCollections(page, 20)
+export function CollectionsTable({
+  searchQuery = "",
+  filters = {},
+  page = 1,
+  onPageChange,
+}: {
+  searchQuery?: string
+  filters?: Record<string, unknown>
+  page?: number
+  onPageChange?: (page: number) => void
+}) {
+  const { data = [], isLoading, isError } = useAllCollections()
+
+  const query = searchQuery.trim().toLowerCase()
+  const methodFilter =
+    typeof filters.paymentMethod === "string"
+      ? filters.paymentMethod.trim().toLowerCase()
+      : ""
+
+  const filtered = useMemo(() => {
+    return data.filter((collection) => {
+      if (methodFilter && !collection.paymentMethod.toLowerCase().includes(methodFilter)) {
+        return false
+      }
+
+      if (query) {
+        const haystack = [
+          collection.id,
+          collection.invoiceId,
+          collection.studentId,
+          collection.paymentMethod,
+          collection.referenceNo,
+          collection.status,
+        ]
+          .join(" ")
+          .toLowerCase()
+        if (!haystack.includes(query)) return false
+      }
+
+      return true
+    })
+  }, [data, query, methodFilter])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const visible = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  const paginationMeta = {
+    page: safePage,
+    limit: PAGE_SIZE,
+    total: filtered.length,
+    totalPages,
+  }
 
   if (isLoading) return <CollectionsTableSkeleton />
 
@@ -138,21 +189,26 @@ export function CollectionsTable() {
     )
   }
 
+  const emptyMessage =
+    filtered.length === 0 && (query !== "" || methodFilter !== "")
+      ? "No collections match your search or filters."
+      : "No historical revenue inflows logged for this balancing context."
+
   return (
     <>
       <div className="hidden w-full pt-2 lg:block">
         <UniversalDataTable
-          data={data?.data ?? []}
+          data={visible}
           columns={columns}
           rowId={(collection: Collection) => collection.id}
-          emptyMessage="No historical revenue inflows logged for this balancing context."
-          pagination={data?.pagination}
-          onPageChange={setPage}
+          emptyMessage={emptyMessage}
+          pagination={paginationMeta}
+          onPageChange={onPageChange}
         />
       </div>
 
       <div className="w-full pt-2 lg:hidden">
-        <CollectionCards rows={data?.data ?? []} pagination={data?.pagination} onPageChange={setPage} />
+        <CollectionCards rows={visible} pagination={paginationMeta} onPageChange={onPageChange} />
       </div>
     </>
   )
