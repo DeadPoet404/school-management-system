@@ -1,6 +1,10 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { amountInWords, integerToWords } from '@/lib/amount-in-words';
-import { renderReceiptPdf, type ReceiptPdfData } from '@/lib/pdf';
+import {
+  renderReceiptPdf,
+  resolveReceiptPaperSize,
+  type ReceiptPdfData,
+} from '@/lib/pdf';
 import { FinanceService } from '@/modules/finance/finance.service';
 import type { IFinanceRepository } from '@/types/repositories';
 
@@ -24,49 +28,104 @@ describe('amountInWords (SMS-007)', () => {
   it('integerToWords guards non-integers', () => expect(() => integerToWords(1.5)).toThrow());
 });
 
-describe('renderReceiptPdf (SMS-007)', () => {
+describe('receipt paper selection (SMS-014)', () => {
+  it('defaults to A5 and accepts A4 explicitly', () => {
+    expect(resolveReceiptPaperSize(undefined)).toBe('A5');
+    expect(resolveReceiptPaperSize(null)).toBe('A5');
+    expect(resolveReceiptPaperSize('A5')).toBe('A5');
+    expect(resolveReceiptPaperSize('A4')).toBe('A4');
+  });
+
+  it('falls back safely to A5 for an unsupported value', () => {
+    expect(resolveReceiptPaperSize('LETTER')).toBe('A5');
+  });
+});
+
+describe('renderReceiptPdf (SMS-014)', () => {
   const sample: ReceiptPdfData = {
     receiptNumber: 'REC-2026-0099',
     dateProcessed: new Date('2026-08-05T10:00:00.000Z'),
     studentName: 'Ama Yaw Osei',
     studentCode: 'HHA-2024-0001',
-    className: 'JHS 1A — Section A',
+    className: 'JHS 1A - Section A',
     amountPaid: 1234.56,
     paymentMethod: 'CASH',
     referenceNo: 'N/A (Direct)',
     allocationTarget: 'Tuition - Term 1 Billing Cycle',
     outstandingBalance: 765.44,
+    institution: {
+      schoolName: 'Jocomfy Academy',
+      schoolCode: 'JCA',
+      motto: 'Learning with purpose',
+      address: 'Accra, Ghana',
+      phone: '+233 20 000 0000',
+      email: 'office@example.test',
+    },
   };
 
-  it('produces a non-empty %PDF buffer', async () => {
-    const buf = await renderReceiptPdf(sample);
-    expect(buf.subarray(0, 5).toString('latin1')).toBe('%PDF-');
-    expect(buf.length).toBeGreaterThan(400);
+  it('produces a non-empty A5 PDF buffer by default', async () => {
+    const buffer = await renderReceiptPdf(sample);
+
+    expect(buffer.subarray(0, 5).toString('latin1')).toBe('%PDF-');
+    expect(buffer.length).toBeGreaterThan(400);
   });
 
-  // pdfkit 0.19 glyph-encodes the content stream (hex TJ arrays) even with
-  // compress:false, so the greppable 'key strings' channel is the document
-  // Info dictionary — which also makes receipts searchable in document stores.
-  it('embeds key receipt strings as searchable PDF metadata', async () => {
-    const text = (await renderReceiptPdf(sample)).toString('latin1');
-    expect(text).toContain('OFFICIAL PAYMENT RECEIPT');
+  it('produces a distinct A4 PDF buffer for office printing', async () => {
+    const a5Buffer = await renderReceiptPdf(sample, {
+      compress: false,
+      paperSize: 'A5',
+    });
+    const a4Buffer = await renderReceiptPdf(sample, {
+      compress: false,
+      paperSize: 'A4',
+    });
+
+    expect(a4Buffer.subarray(0, 5).toString('latin1')).toBe('%PDF-');
+    expect(a4Buffer.length).toBeGreaterThan(400);
+    expect(a4Buffer.equals(a5Buffer)).toBe(false);
+    expect(a4Buffer.toString('latin1')).toContain('paper:A4');
+    expect(a5Buffer.toString('latin1')).toContain('paper:A5');
+  });
+
+  it('embeds searchable receipt, institution, student, and payment metadata', async () => {
+    const text = (
+      await renderReceiptPdf(sample, { compress: false })
+    ).toString('latin1');
+
+    expect(text).toContain('PAYMENT RECEIPT');
     expect(text).toContain('REC-2026-0099');
+    expect(text).toContain('Jocomfy Academy');
     expect(text).toContain('Ama Yaw Osei');
     expect(text).toContain('CASH');
     expect(text).toContain('Cedis');
   });
 
-  it('stays null-safe for unlinked historical collections', async () => {
-    const buf = await renderReceiptPdf({ ...sample, studentCode: null, className: null, outstandingBalance: null });
-    expect(buf.subarray(0, 5).toString('latin1')).toBe('%PDF-');
-    expect(buf.length).toBeGreaterThan(400);
+  it('uses a safe generic identity if system configuration is unavailable', async () => {
+    const buffer = await renderReceiptPdf(
+      {
+        ...sample,
+        institution: null,
+        studentCode: null,
+        className: null,
+        outstandingBalance: null,
+      },
+      { compress: false },
+    );
+
+    const text = buffer.toString('latin1');
+
+    expect(buffer.subarray(0, 5).toString('latin1')).toBe('%PDF-');
+    expect(text).toContain('School Management System');
   });
 });
 
 describe('FinanceService.getReceiptForPdf (SMS-007)', () => {
   function stubService(record: unknown) {
     const findReceiptCollectionById = vi.fn().mockResolvedValue(record);
-    const service = new FinanceService({ findReceiptCollectionById } as unknown as IFinanceRepository);
+    const service = new FinanceService({
+      findReceiptCollectionById,
+    } as unknown as IFinanceRepository);
+
     return { service, findReceiptCollectionById };
   }
 
@@ -81,12 +140,16 @@ describe('FinanceService.getReceiptForPdf (SMS-007)', () => {
     referenceNo: 'N/A (Direct)',
     allocationTarget: 'Tuition',
     class: { name: 'JHS 1A', section: 'A' },
-    student: { studentId: 'HHA-2024-0001', billing: { currentBalance: '765.44' } },
+    student: {
+      studentId: 'HHA-2024-0001',
+      billing: { currentBalance: '765.44' },
+    },
   };
 
   it('maps the collection record to the receipt DTO', async () => {
     const { service } = stubService(linkedRecord);
     const dto = await service.getReceiptForPdf('col-1');
+
     expect(dto.receiptNumber).toBe('REC-2026-0001');
     expect(dto.studentCode).toBe('HHA-2024-0001');
     expect(dto.className).toBe('JHS 1A — Section A');
@@ -95,8 +158,13 @@ describe('FinanceService.getReceiptForPdf (SMS-007)', () => {
   });
 
   it('is null-safe when no student/class is linked', async () => {
-    const { service } = stubService({ ...linkedRecord, student: null, class: null });
+    const { service } = stubService({
+      ...linkedRecord,
+      student: null,
+      class: null,
+    });
     const dto = await service.getReceiptForPdf('col-1');
+
     expect(dto.studentCode).toBeNull();
     expect(dto.className).toBeNull();
     expect(dto.outstandingBalance).toBeNull();
@@ -104,11 +172,20 @@ describe('FinanceService.getReceiptForPdf (SMS-007)', () => {
 
   it('throws 404 for an unknown collection id', async () => {
     const { service } = stubService(null);
-    await expect(service.getReceiptForPdf('nope')).rejects.toMatchObject({ statusCode: 404 });
+
+    await expect(service.getReceiptForPdf('nope')).rejects.toMatchObject({
+      statusCode: 404,
+    });
   });
 
   it('throws 404 for a soft-deleted collection', async () => {
-    const { service } = stubService({ ...linkedRecord, deletedAt: new Date() });
-    await expect(service.getReceiptForPdf('col-1')).rejects.toMatchObject({ statusCode: 404 });
+    const { service } = stubService({
+      ...linkedRecord,
+      deletedAt: new Date(),
+    });
+
+    await expect(service.getReceiptForPdf('col-1')).rejects.toMatchObject({
+      statusCode: 404,
+    });
   });
 });
