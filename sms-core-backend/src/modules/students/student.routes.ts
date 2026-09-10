@@ -3,6 +3,8 @@ import multer from "multer";
 import { StudentController } from "./student.controller";
 import { StudentService } from "./student.service";
 import { StudentRepository } from "./student.repository";
+import { StudentPhotoController } from "./student-photo.controller";
+import { StudentPhotoService } from "./student-photo.service";
 import { validate } from "@/middleware/validate";
 import { requireRole, ROLES } from "@/middleware/rbac.middleware";
 import { studentEnrollmentSchema, studentDepartureSchema } from "@/types/registry.types";
@@ -14,6 +16,8 @@ const router = Router();
 const studentRepo = new StudentRepository();
 const studentService = new StudentService(studentRepo);
 const controller = new StudentController(studentService);
+const studentPhotoService = new StudentPhotoService(studentRepo);
+const studentPhotoController = new StudentPhotoController(studentPhotoService);
 
 const studentImportUpload = multer({
   storage: multer.memoryStorage(),
@@ -24,6 +28,34 @@ const handleStudentImportUpload: RequestHandler = (req, res, next) => {
   studentImportUpload.single("file")(req, res, (error: unknown) => {
     if (error) {
       const message = error instanceof Error ? error.message : "Student import upload failed.";
+      return res.status(400).json({ success: false, message });
+    }
+
+    next();
+  });
+};
+
+const studentPhotoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
+
+const handleStudentPhotoUpload: RequestHandler = (req, res, next) => {
+  studentPhotoUpload.single("photo")(req, res, (error: unknown) => {
+    if (error) {
+      const code = (
+        error
+        && typeof error === "object"
+        && "code" in error
+        && typeof error.code === "string"
+      ) ? error.code : null;
+
+      const message = code === "LIMIT_FILE_SIZE"
+        ? "Student photo must not exceed 5 MB."
+        : error instanceof Error
+          ? error.message
+          : "Student photo upload failed.";
+
       return res.status(400).json({ success: false, message });
     }
 
@@ -46,6 +78,27 @@ router.get("/finance", requireRole(ROLES.STAFF, ROLES.ADMIN, ROLES.ACCOUNTANT), 
 router.get("/me", requireRole(ROLES.STUDENT), controller.getOwnProfile);
 router.get("/me/transcript.pdf", requireRole(ROLES.STUDENT), controller.streamOwnTranscriptPdf);
 router.get("/:id/transcript.pdf", requireRole(ROLES.ADMIN, ROLES.STAFF), controller.streamTranscriptPdf);
+
+// Private student photos are never returned in generic student DTOs.
+// The image endpoint issues a short-lived Storage redirect for authorized viewers.
+router.get(
+  "/:id/photo",
+  requireRole(ROLES.STAFF, ROLES.FACULTY, ROLES.ADMIN, ROLES.ACCOUNTANT),
+  studentPhotoController.redirectToPhoto
+);
+
+router.post(
+  "/:id/photo",
+  requireRole(ROLES.STAFF, ROLES.ADMIN),
+  handleStudentPhotoUpload,
+  studentPhotoController.upload
+);
+
+router.delete(
+  "/:id/photo",
+  requireRole(ROLES.STAFF, ROLES.ADMIN),
+  studentPhotoController.remove
+);
 
 router.get("/:id", requireRole(ROLES.STAFF, ROLES.FACULTY, ROLES.ADMIN, ROLES.ACCOUNTANT), controller.getStudentById);
 
