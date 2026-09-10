@@ -153,6 +153,16 @@ export interface IFinanceRepository {
   createCollection(data: CollectionCreateData, tx?: TransactionClient): Promise<any>;
   // SMS-007: receipt rendering reads
   findReceiptCollectionById(collectionId: string, tx?: TransactionClient): Promise<any>;
+  findReceiptInstitution(tx?: TransactionClient): Promise<{
+    schoolName: string;
+    schoolCode: string;
+    motto: string | null;
+    address: string | null;
+    phone: string | null;
+    email: string | null;
+    logoUrl: string | null;
+    currency: string;
+  } | null>;
   // Student financials
   findStudentsBySection(sectionId: string, tx?: TransactionClient): Promise<any>;
   findStudentsMinimalBySection(sectionId: string, tx?: TransactionClient): Promise<any>;

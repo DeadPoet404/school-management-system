@@ -74,6 +74,8 @@ export function createMockFinanceRepo(overrides?: Partial<IFinanceRepository>): 
     countAllCollections: vi.fn(),
     createCollection: vi.fn(),
     findReceiptCollectionById: vi.fn(),
+    findReceiptInstitution: vi.fn().mockResolvedValue(null),
+
     findStudentsBySection: vi.fn(),
     findStudentsMinimalBySection: vi.fn(),
     findExistingInvoice: vi.fn(),

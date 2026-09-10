@@ -384,12 +384,15 @@ export class FinanceService {
     return committed;
   }
 
-  // SMS-007: project a collection row into the printable receipt DTO.
+  // SMS-007: project one collection plus singleton school branding into the receipt DTO.
   async getReceiptForPdf(collectionId: string): Promise<ReceiptPdfData> {
     const record = await this.repo.findReceiptCollectionById(collectionId);
     if (!record || record.deletedAt) {
       throw new AppError(404, `No payment collection found for id: ${collectionId}`);
     }
+
+    const institution = await this.repo.findReceiptInstitution();
+
     return {
       receiptNumber: record.receiptNumber,
       dateProcessed: record.dateProcessed,
@@ -403,6 +406,7 @@ export class FinanceService {
       referenceNo: record.referenceNo,
       allocationTarget: record.allocationTarget,
       outstandingBalance: record.student?.billing ? parseDecimal(record.student.billing.currentBalance) : null,
+      institution,
     };
   }
 

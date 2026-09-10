@@ -189,7 +189,7 @@ export function PaymentInflowCollectionLog() {
         setSuccessMessage(payload.message || "Payment collection recorded successfully.")
         if (receiptWindow) {
           // SMS-007: pop the print-ready PDF (browser print-or-cancel flow)
-          receiptWindow.location.href = `/api/finance/payments/${payload.data.id}/receipt.pdf`
+          receiptWindow.location.href = `/api/finance/payments/${payload.data.id}/receipt.print`
         }
       } else {
         receiptWindow?.close()
@@ -455,7 +455,7 @@ export function PaymentInflowCollectionLog() {
                         variant="outline"
                         className="h-8 w-8 p-0 border-stone-200 dark:border-zinc-800 hover:bg-stone-100 dark:hover:bg-zinc-900 text-stone-500 dark:text-zinc-400 hover:text-stone-900 dark:hover:text-zinc-50 rounded-lg"
                         title="Open Printable PDF Receipt"
-                        onClick={() => window.open(`/api/finance/payments/${rcpt.id}/receipt.pdf`, "_blank", "noopener,noreferrer")}
+                        onClick={() => window.open(`/api/finance/payments/${rcpt.id}/receipt.print`, "_blank", "noopener,noreferrer")}
                       >
                         <Printer className="h-3.5 w-3.5" />
                       </Button>

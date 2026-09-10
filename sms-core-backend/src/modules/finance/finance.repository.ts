@@ -62,6 +62,23 @@ export class FinanceRepository implements IFinanceRepository {
     });
   }
 
+  // Singleton system configuration used to brand receipt renderers.
+  async findReceiptInstitution(tx: TransactionClient = prisma) {
+    return tx.systemConfig.findUnique({
+      where: { id: 1 },
+      select: {
+        schoolName: true,
+        schoolCode: true,
+        motto: true,
+        address: true,
+        phone: true,
+        email: true,
+        logoUrl: true,
+        currency: true,
+      },
+    });
+  }
+
   async findStudentsBySection(sectionId: string, tx: TransactionClient = prisma) {
     return tx.student.findMany({
       where: { placement: { classId: sectionId }, status: { not: 'DEPARTED' } },

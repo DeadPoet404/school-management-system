@@ -120,13 +120,36 @@ describe('renderReceiptPdf (SMS-014)', () => {
 });
 
 describe('FinanceService.getReceiptForPdf (SMS-007)', () => {
-  function stubService(record: unknown) {
+  function stubService(
+    record: unknown,
+    institution: {
+      schoolName: string;
+      schoolCode: string;
+      motto: string | null;
+      address: string | null;
+      phone: string | null;
+      email: string | null;
+      logoUrl: string | null;
+      currency: string;
+    } | null = {
+      schoolName: 'Jocomfy School',
+      schoolCode: 'JCS',
+      motto: 'Learning with purpose',
+      address: 'Accra, Ghana',
+      phone: '+233 20 000 0000',
+      email: 'office@example.test',
+      logoUrl: '/branding/jocomfy-school-logo.png',
+      currency: 'GHS',
+    },
+  ) {
     const findReceiptCollectionById = vi.fn().mockResolvedValue(record);
+    const findReceiptInstitution = vi.fn().mockResolvedValue(institution);
     const service = new FinanceService({
       findReceiptCollectionById,
+      findReceiptInstitution,
     } as unknown as IFinanceRepository);
 
-    return { service, findReceiptCollectionById };
+    return { service, findReceiptCollectionById, findReceiptInstitution };
   }
 
   const linkedRecord = {
@@ -155,6 +178,12 @@ describe('FinanceService.getReceiptForPdf (SMS-007)', () => {
     expect(dto.className).toBe('JHS 1A — Section A');
     expect(dto.amountPaid).toBe(1234.56);
     expect(dto.outstandingBalance).toBe(765.44);
+    expect(dto.institution).toMatchObject({
+      schoolName: 'Jocomfy School',
+      schoolCode: 'JCS',
+      logoUrl: '/branding/jocomfy-school-logo.png',
+      currency: 'GHS',
+    });
   });
 
   it('is null-safe when no student/class is linked', async () => {

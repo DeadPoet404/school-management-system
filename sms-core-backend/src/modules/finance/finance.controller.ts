@@ -4,6 +4,7 @@ import { FinanceService } from './finance.service';
 import { parsePaginationQuery, buildPaginationResponse } from '@/utils/pagination';
 import { toCSV, respondCSV } from '@/utils/export';
 import { renderReceiptPdf } from '@/lib/pdf';
+import { renderReceiptPrintHtml } from '@/lib/receipt-print';
 
 export class FinanceController {
   constructor(private financeService: FinanceService) {}
@@ -54,7 +55,18 @@ export class FinanceController {
     } catch (error) { next(error); }
   };
 
-  // SMS-007: GET /api/finance/payments/:id/receipt.pdf -- print-ready A5 receipt
+  // SMS-014: Browser-native strict A5 print view. This is intentionally HTML
+  // so a staff print action opens the native print dialog instead of downloading a PDF.
+  streamReceiptPrint = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const data = await this.financeService.getReceiptForPdf(req.params.id!);
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-store');
+      return res.send(renderReceiptPrintHtml(data));
+    } catch (error) { next(error); }
+  };
+
+  // SMS-007: GET /api/finance/payments/:id/receipt.pdf -- existing PDF/email receipt path.
   streamReceiptPdf = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = await this.financeService.getReceiptForPdf(req.params.id!);

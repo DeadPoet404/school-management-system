@@ -23,6 +23,8 @@ export interface ReceiptInstitution {
   address?: string | null;
   phone?: string | null;
   email?: string | null;
+  logoUrl?: string | null;
+  currency?: string | null;
 }
 
 export interface ReceiptPdfData {
