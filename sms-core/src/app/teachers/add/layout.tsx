@@ -11,7 +11,7 @@ export default function AddTeacherLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="w-full max-w-4xl mx-auto flex-1 h-full flex flex-col overflow-hidden pt-6 px-6 pb-16 animate-in fade-in duration-300">
+    <div className="mx-auto flex h-auto w-full max-w-4xl flex-none flex-col overflow-visible px-4 pb-8 pt-4 animate-in fade-in duration-300 sm:px-6 sm:pt-6 md:h-full md:flex-1 md:overflow-hidden md:pb-16">
       {/* No more hardcoded h-[calc(100vh-4rem)] hacks needed */}
       {/* pb-16 forces a permanent, elegant dead-zone gap at the bottom of the monitor */}
       {children}
