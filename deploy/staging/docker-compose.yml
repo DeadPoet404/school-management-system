@@ -19,6 +19,11 @@ services:
       PORT: "5000"
 
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      # Optional private student-photo Storage. Empty values keep the
+      # feature disabled safely until server-only credentials are configured.
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      STUDENT_PHOTOS_BUCKET: ${STUDENT_PHOTOS_BUCKET:-}
       DIRECT_URL: ${DIRECT_URL:?DIRECT_URL is required}
 
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
