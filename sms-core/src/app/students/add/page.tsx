@@ -303,13 +303,13 @@
             <div className="flex items-center gap-3 mt-4">
               <Button
                 variant="outline"
-                className="h-9 text-xs border-zinc-200 dark:border-zinc-800"
+                className="h-11 text-sm sm:h-9 sm:text-xs border-zinc-200 dark:border-zinc-800"
                 onClick={handleSkip}
               >
                 Retain as Applicant
               </Button>
               <Button
-                className="h-9 text-xs px-4 bg-zinc-900 text-zinc-50 hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                className="h-11 text-sm sm:h-9 sm:text-xs px-4 bg-zinc-900 text-zinc-50 hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
                 onClick={handleActivate}
               >
                 Activate &amp; Provision Access
@@ -323,7 +323,7 @@
     // STEP BADGE HELPER
     // ═══════════════════════════════════════════════════════════
     const StepBadge = ({ num, isLast }: { num: number; isLast?: boolean }) => (
-      <div className="absolute left-0 top-0 flex flex-col items-center h-full">
+      <div className="absolute left-0 top-0 hidden h-full flex-col items-center sm:flex">
         <div className="flex h-7 w-7 items-center justify-center rounded-full border border-zinc-200 bg-zinc-50 text-xs font-semibold text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 shadow-xs">
           {num}
         </div>
@@ -335,7 +335,7 @@
     // MAIN FORM RENDER
     // ═══════════════════════════════════════════════════════════
     return (
-      <div className="w-full max-w-3xl flex flex-col space-y-6 bg-transparent mx-auto py-4">
+      <div className="mx-auto flex w-full max-w-3xl flex-col space-y-5 bg-transparent py-3 sm:space-y-6 sm:py-4">
         {/* ── HEADER ── */}
         <div className="flex flex-col gap-2 shrink-0">
           <Link
@@ -346,10 +346,9 @@
             {backConfig.label}
           </Link>
           <div>
-            <h1 className="text-3xl tracking-tight font-semibold text-foreground">Enroll New Student</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Execute a full architectural registration sequence mapped directly to nested core transactional
-              tables.
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Enroll new student</h1>
+            <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
+              Add the student&apos;s account, personal details, class, contacts and fee plan.
             </p>
           </div>
         </div>
@@ -365,13 +364,13 @@
         )}
 
         {/* ── SCROLLABLE FORM CANVAS ── */}
-        <ScrollArea className="h-[700px] w-full rounded-none border-none shadow-none bg-transparent">
-          <form onSubmit={handleSubmit} className="space-y-12 pr-4 pb-12 bg-transparent">
+        <ScrollArea className="h-auto max-h-none w-full rounded-none border-none bg-transparent shadow-none md:h-[700px]">
+          <form onSubmit={handleSubmit} className="space-y-8 pb-28 pr-0 sm:space-y-12 sm:pb-12 sm:pr-4">
             {/* ═══════════════════════════════════════════════════════
                 STEP 1: ACCOUNT ACCESS & CORE CREDENTIALS
                 Maps to → StudentAccount (portalEmail, passwordHash)
                 ═══════════════════════════════════════════════════════ */}
-            <div className="relative pl-10 group">
+            <div className="relative pl-0 group sm:pl-10">
               <StepBadge num={1} />
               <div className="space-y-5">
                 <h3 className="text-base font-semibold text-foreground tracking-tight">
@@ -380,13 +379,13 @@
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <Label htmlFor="full-name" className="text-xs font-semibold text-foreground">
+                    <Label htmlFor="full-name" className="text-sm font-semibold sm:text-xs text-foreground">
                       Full Legal Name <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       id="full-name"
                       placeholder="e.g. Ama Serwaa Mensah"
-                      className="h-9 text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
+                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       required
@@ -394,13 +393,13 @@
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="enrollment-date" className="text-xs font-semibold text-foreground">
+                    <Label htmlFor="enrollment-date" className="text-sm font-semibold sm:text-xs text-foreground">
                       Official Enrollment Date <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       id="enrollment-date"
                       type="date"
-                      className="h-9 text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
+                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
                       value={enrollmentDate}
                       onChange={(e) => setEnrollmentDate(e.target.value)}
                       required
@@ -411,14 +410,14 @@
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <Label htmlFor="student-email" className="text-xs font-semibold text-foreground">
+                    <Label htmlFor="student-email" className="text-sm font-semibold sm:text-xs text-foreground">
                       Portal Access Address <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       id="student-email"
                       type="email"
                       placeholder="e.g. student.name@domain.edu"
-                      className="h-9 text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
+                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
@@ -426,14 +425,14 @@
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="student-password" className="text-xs font-semibold text-foreground">
+                    <Label htmlFor="student-password" className="text-sm font-semibold sm:text-xs text-foreground">
                       Temporary Security Token <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       id="student-password"
                       type="password"
                       placeholder="Minimum 6 characters"
-                      className="h-9 text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
+                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
@@ -449,7 +448,7 @@
                 STEP 2: PERSONAL DEMOGRAPHICS & BACKGROUND
                 Maps to → Demographics (dateOfBirth, gender, bloodType, etc.)
                 ═══════════════════════════════════════════════════════ */}
-            <div className="relative pl-10 group">
+            <div className="relative pl-0 group sm:pl-10">
               <StepBadge num={2} />
               <div className="space-y-5">
                 <h3 className="text-base font-semibold text-foreground tracking-tight">
@@ -458,7 +457,7 @@
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <Label htmlFor="religion" className="text-xs font-semibold text-foreground">
+                    <Label htmlFor="religion" className="text-sm font-semibold sm:text-xs text-foreground">
                       Religion Affiliation{" "}
                       <span className="text-zinc-400 dark:text-zinc-500 text-[10px] font-normal">
                         (Optional)
@@ -467,14 +466,14 @@
                     <Input
                       id="religion"
                       placeholder="e.g. Christian, Islamic, Traditional"
-                      className="h-9 text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
+                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
                       value={religion}
                       onChange={(e) => setReligion(e.target.value)}
                       disabled={isSubmitting}
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="gender" className="text-xs font-semibold text-foreground">
+                    <Label htmlFor="gender" className="text-sm font-semibold sm:text-xs text-foreground">
                       Gender Identity <span className="text-red-500">*</span>
                     </Label>
                     <Select
@@ -511,7 +510,7 @@
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <Label htmlFor="blood-type" className="text-xs font-semibold text-foreground">
+                    <Label htmlFor="blood-type" className="text-sm font-semibold sm:text-xs text-foreground">
                       Blood Group{" "}
                       <span className="text-zinc-400 dark:text-zinc-500 text-[10px] font-normal">
                         (Optional)
@@ -520,7 +519,7 @@
                     <Select value={bloodType} onValueChange={setBloodType} disabled={isSubmitting}>
                       <SelectTrigger
                         id="blood-type"
-                        className="h-9 text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus:ring-1"
+                        className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus:ring-1"
                       >
                         <SelectValue placeholder="Select blood group..." />
                       </SelectTrigger>
@@ -553,13 +552,13 @@
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="dob" className="text-xs font-semibold text-foreground">
+                    <Label htmlFor="dob" className="text-sm font-semibold sm:text-xs text-foreground">
                       Date of Birth <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       id="dob"
                       type="date"
-                      className="h-9 text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
+                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
                       value={dateOfBirth}
                       onChange={(e) => setDateOfBirth(e.target.value)}
                       required
@@ -569,13 +568,13 @@
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="address" className="text-xs font-semibold text-foreground">
+                  <Label htmlFor="address" className="text-sm font-semibold sm:text-xs text-foreground">
                     Primary Residential Address <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     id="address"
                     placeholder="e.g. House No. 12, Anaji Residential Area, Takoradi"
-                    className="h-9 text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
+                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
                     value={residentialAddress}
                     onChange={(e) => setResidentialAddress(e.target.value)}
                     required
@@ -585,7 +584,7 @@
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <Label htmlFor="former-school" className="text-xs font-semibold text-foreground">
+                    <Label htmlFor="former-school" className="text-sm font-semibold sm:text-xs text-foreground">
                       Prior Education{" "}
                       <span className="text-zinc-400 dark:text-zinc-500 text-[10px] font-normal">
                         (Optional)
@@ -594,14 +593,14 @@
                     <Input
                       id="former-school"
                       placeholder="e.g. Accra Academy, KNUST"
-                      className="h-9 text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
+                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
                       value={formerSchool}
                       onChange={(e) => setFormerSchool(e.target.value)}
                       disabled={isSubmitting}
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="medical" className="text-xs font-semibold text-foreground">
+                    <Label htmlFor="medical" className="text-sm font-semibold sm:text-xs text-foreground">
                       Medical Notes / Allergies{" "}
                       <span className="text-zinc-400 dark:text-zinc-500 text-[10px] font-normal">
                         (Optional)
@@ -610,7 +609,7 @@
                     <Input
                       id="medical"
                       placeholder="e.g. Asthmatic. Leave blank if none."
-                      className="h-9 text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
+                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
                       value={medicalNotes}
                       onChange={(e) => setMedicalNotes(e.target.value)}
                       disabled={isSubmitting}
@@ -624,7 +623,7 @@
                 STEP 3: ACADEMIC PLACEMENT & TRACK ROUTING
                 Maps to → Placement (classId, academicTrack, boardingStatus)
                 ═══════════════════════════════════════════════════════ */}
-            <div className="relative pl-10 group">
+            <div className="relative pl-0 group sm:pl-10">
               <StepBadge num={3} />
               <div className="space-y-5">
                 <h3 className="text-base font-semibold text-foreground tracking-tight">
@@ -632,7 +631,7 @@
                 </h3>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="student-class" className="text-xs font-semibold text-foreground">
+                  <Label htmlFor="student-class" className="text-sm font-semibold sm:text-xs text-foreground">
                     Assigned Cohort Class Unit <span className="text-red-500">*</span>
                   </Label>
                   <Select
@@ -667,7 +666,7 @@
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <Label htmlFor="track" className="text-xs font-semibold text-foreground">
+                    <Label htmlFor="track" className="text-sm font-semibold sm:text-xs text-foreground">
                       Academic Specialization Track <span className="text-red-500">*</span>
                     </Label>
                     <Select
@@ -704,7 +703,7 @@
                     )}
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="boarding" className="text-xs font-semibold text-foreground">
+                    <Label htmlFor="boarding" className="text-sm font-semibold sm:text-xs text-foreground">
                       Institutional Housing Plan <span className="text-red-500">*</span>
                     </Label>
                     <Select
@@ -744,7 +743,7 @@
                           emergencyPhone, emergencyRelation)
                 Controller flattens nested emergencyContact → DB columns
                 ═══════════════════════════════════════════════════════ */}
-            <div className="relative pl-10 group">
+            <div className="relative pl-0 group sm:pl-10">
               <StepBadge num={4} />
               <div className="space-y-5">
                 <div className="flex items-center gap-2">
@@ -756,7 +755,7 @@
 
                 {/* Ghana Card — full-width, prominent */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="ghana-card" className="text-xs font-semibold text-foreground">
+                  <Label htmlFor="ghana-card" className="text-sm font-semibold sm:text-xs text-foreground">
                     National ID Token / Ghana Card <span className="text-red-500">*</span>
                   </Label>
                   <Input
@@ -794,13 +793,13 @@
                 {/* Emergency Contact — 3-column row */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-1.5">
-                    <Label htmlFor="emergency-name" className="text-xs font-semibold text-foreground">
+                    <Label htmlFor="emergency-name" className="text-sm font-semibold sm:text-xs text-foreground">
                       Emergency Contact Name <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       id="emergency-name"
                       placeholder="e.g. Nana Akua Boateng"
-                      className="h-9 text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
+                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
                       value={emergencyContactName}
                       onChange={(e) => setEmergencyContactName(e.target.value)}
                       required
@@ -810,14 +809,14 @@
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-1.5">
                       <Phone className="h-3 w-3 text-zinc-400 dark:text-zinc-500" />
-                      <Label htmlFor="emergency-phone" className="text-xs font-semibold text-foreground">
+                      <Label htmlFor="emergency-phone" className="text-sm font-semibold sm:text-xs text-foreground">
                         Emergency Phone <span className="text-red-500">*</span>
                       </Label>
                     </div>
                     <Input
                       id="emergency-phone"
                       placeholder="e.g. +233 20 XXX XXXX"
-                      className="h-9 text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1 font-mono"
+                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1 font-mono"
                       value={emergencyContactPhone}
                       onChange={(e) => setEmergencyContactPhone(e.target.value)}
                       required
@@ -825,7 +824,7 @@
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="emergency-relation" className="text-xs font-semibold text-foreground">
+                    <Label htmlFor="emergency-relation" className="text-sm font-semibold sm:text-xs text-foreground">
                       Relationship <span className="text-red-500">*</span>
                     </Label>
                     <Select
@@ -869,7 +868,7 @@
                 STEP 5: PRIMARY GUARDIAN & NEXT OF KIN LINKAGE
                 Maps to → Guardian (name, relationship, phone, email)
                 ═══════════════════════════════════════════════════════ */}
-            <div className="relative pl-10 group">
+            <div className="relative pl-0 group sm:pl-10">
               <StepBadge num={5} />
               <div className="space-y-5">
                 <h3 className="text-base font-semibold text-foreground tracking-tight">
@@ -878,13 +877,13 @@
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <Label htmlFor="guardian-name" className="text-xs font-semibold text-foreground">
+                    <Label htmlFor="guardian-name" className="text-sm font-semibold sm:text-xs text-foreground">
                       Guardian Legal Name <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       id="guardian-name"
                       placeholder="e.g. Ebenezer Kofi Mensah"
-                      className="h-9 text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
+                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
                       value={guardianName}
                       onChange={(e) => setGuardianName(e.target.value)}
                       required
@@ -892,7 +891,7 @@
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="guardian-rel" className="text-xs font-semibold text-foreground">
+                    <Label htmlFor="guardian-rel" className="text-sm font-semibold sm:text-xs text-foreground">
                       Relationship Matrix <span className="text-red-500">*</span>
                     </Label>
                     <Select
@@ -929,13 +928,13 @@
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <Label htmlFor="guardian-phone" className="text-xs font-semibold text-foreground">
+                    <Label htmlFor="guardian-phone" className="text-sm font-semibold sm:text-xs text-foreground">
                       Primary Contact Number <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       id="guardian-phone"
                       placeholder="e.g. +233 24 XXX XXXX"
-                      className="h-9 text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1 font-mono"
+                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1 font-mono"
                       value={guardianPhone}
                       onChange={(e) => setGuardianPhone(e.target.value)}
                       required
@@ -943,7 +942,7 @@
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="guardian-email" className="text-xs font-semibold text-foreground">
+                    <Label htmlFor="guardian-email" className="text-sm font-semibold sm:text-xs text-foreground">
                       Communication Email Address{" "}
                       <span className="text-zinc-400 dark:text-zinc-500 text-[10px] font-normal">
                         (Optional)
@@ -953,7 +952,7 @@
                       id="guardian-email"
                       type="email"
                       placeholder="e.g. kofi.mensah@net.com"
-                      className="h-9 text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
+                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
                       value={guardianEmail}
                       onChange={(e) => setGuardianEmail(e.target.value)}
                       disabled={isSubmitting}
@@ -967,7 +966,7 @@
                 STEP 6: TREASURY CONFIGURATION & FINANCE LEDGER TIERS
                 Maps to → BillingLedger (feeTierId, initialDeposit, currentBalance)
                 ═══════════════════════════════════════════════════════ */}
-            <div className="relative pl-10 group">
+            <div className="relative pl-0 group sm:pl-10">
               <StepBadge num={6} isLast />
               <div className="space-y-5">
                 <h3 className="text-base font-semibold text-foreground tracking-tight">
@@ -975,7 +974,7 @@
                 </h3>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="fee-tier" className="text-xs font-semibold text-foreground">
+                  <Label htmlFor="fee-tier" className="text-sm font-semibold sm:text-xs text-foreground">
                     Assigned Fee Structures Billing Tier <span className="text-red-500">*</span>
                   </Label>
                   <Select
@@ -1009,7 +1008,7 @@
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="deposit" className="text-xs font-semibold text-foreground">
+                  <Label htmlFor="deposit" className="text-sm font-semibold sm:text-xs text-foreground">
                     Initial Clearing Commit Deposit Amount (GH₵){" "}
                     <span className="text-zinc-400 dark:text-zinc-500 text-[10px] font-normal">
                       (Optional)
@@ -1020,7 +1019,7 @@
                     type="number"
                     min="0"
                     placeholder="e.g. 500"
-                    className="h-9 text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
+                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
                     value={initialDeposit}
                     onChange={(e) => setInitialDeposit(e.target.value)}
                     disabled={isSubmitting}
@@ -1028,21 +1027,21 @@
                 </div>
 
                 {/* ── FORM ACTIONS ── */}
-                <div className="flex items-center justify-end gap-3 pt-5 border-t border-zinc-200 dark:border-zinc-800 bg-transparent">
+                <div className="sticky bottom-0 z-10 -mx-4 flex flex-col-reverse gap-2 border-t border-zinc-200 bg-background/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:flex-row sm:items-center sm:justify-end sm:gap-3 sm:bg-transparent sm:px-0 sm:pt-5 sm:pb-0 sm:dark:bg-transparent dark:border-zinc-800">
                   <Button
                     variant="ghost"
                     type="button"
-                    className="h-9 text-xs font-normal text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                    className="h-11 w-full text-sm font-normal text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-900 sm:h-9 sm:w-auto sm:text-xs"
                     asChild
                   >
                     <Link href={backConfig.href}>Cancel</Link>
                   </Button>
                   <Button
                     type="submit"
-                    className="h-9 text-xs font-medium px-4 bg-zinc-900 text-zinc-50 hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 transition-colors"
+                    className="h-11 w-full bg-zinc-900 px-4 text-sm font-medium text-zinc-50 transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 sm:h-9 sm:w-auto sm:text-xs"
                     disabled={isSubmitting}
                   >
-                    {isSubmitting ? "Processing Ledger Writes..." : "Finalize Complete Ingestion Workflow"}
+                    {isSubmitting ? "Creating student…" : "Create student"}
                   </Button>
                 </div>
               </div>
