@@ -255,7 +255,7 @@ function ComprehensiveStaffEnrollmentWizard() {
   // ── SUCCESS CONFIRMATION RENDER ──
   if (formState === "success") {
     return (
-      <div className="w-full max-w-3xl flex flex-col overflow-hidden space-y-6 bg-transparent">
+      <div className="flex w-full max-w-3xl flex-col space-y-5 overflow-visible bg-transparent sm:space-y-6 md:overflow-hidden">
         <div className="flex flex-col gap-2 shrink-0">
           <Link
             href={backConfig.href}
@@ -285,13 +285,13 @@ function ComprehensiveStaffEnrollmentWizard() {
           <div className="flex items-center gap-3 mt-4">
             <Button
               variant="ghost"
-              className="h-9 text-xs"
+              className="h-11 text-sm sm:h-9 sm:text-xs"
               onClick={handleSkip}
             >
               Retain as Pending
             </Button>
             <Button
-              className="h-9 text-xs px-4 bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900"
+              className="h-11 text-sm sm:h-9 sm:text-xs px-4 bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900"
               onClick={handleActivate}
             >
               Activate & Provision Access
@@ -303,7 +303,7 @@ function ComprehensiveStaffEnrollmentWizard() {
   }
 
   const StepBadge = ({ num, isLast }: { num: number; isLast?: boolean }) => (
-    <div className="absolute left-0 top-0 flex flex-col items-center h-full">
+    <div className="absolute left-0 top-0 hidden h-full flex-col items-center sm:flex">
       <div className="flex h-7 w-7 items-center justify-center rounded-full border border-stone-200 bg-background text-xs font-semibold text-stone-600 dark:border-stone-800 dark:text-stone-400 shadow-xs">
         {num}
       </div>
@@ -315,7 +315,7 @@ function ComprehensiveStaffEnrollmentWizard() {
 
   // ── MAIN FORM RENDER ──
   return (
-    <div className="w-full max-w-3xl flex flex-col overflow-hidden space-y-6 bg-transparent">
+    <div className="flex w-full max-w-3xl flex-col space-y-5 overflow-visible bg-transparent sm:space-y-6 md:overflow-hidden">
       <div className="flex flex-col gap-2 shrink-0">
         <Link
           href={backConfig.href}
@@ -325,12 +325,11 @@ function ComprehensiveStaffEnrollmentWizard() {
           {backConfig.label}
         </Link>
         <div>
-          <h1 className="text-3xl tracking-tight font-semibold text-foreground">
-            Onboard Staff Member
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+            Add staff member
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Execute an administrative registration sequence for non-teaching
-            personnel. Connects directly to payroll and system access matrices.
+          <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
+            Add the staff account, personal details, role and payment details.
           </p>
         </div>
       </div>
@@ -346,15 +345,15 @@ function ComprehensiveStaffEnrollmentWizard() {
         </div>
       )}
 
-      <ScrollArea className="h-[680px] w-full rounded-none border-none shadow-none bg-transparent">
+      <ScrollArea className="h-auto max-h-none w-full rounded-none border-none bg-transparent shadow-none md:h-[680px]">
         <form
           onSubmit={handleSubmit}
-          className="space-y-12 pr-4 pb-24 bg-transparent"
+          className="space-y-8 pb-28 pr-0 sm:space-y-12 sm:pb-24 sm:pr-4"
         >
           {/* ═══════════════════════════════════════════════════════
               STEP 1: ACCOUNT ACCESS & CORE CREDENTIALS
               ═══════════════════════════════════════════════════════ */}
-          <div className="relative pl-10 group">
+          <div className="relative pl-0 group sm:pl-10">
             <StepBadge num={1} />
             <div className="space-y-5">
               <h3 className="text-base font-semibold text-foreground tracking-tight">
@@ -365,14 +364,14 @@ function ComprehensiveStaffEnrollmentWizard() {
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="full-name"
-                    className="text-xs font-semibold text-foreground"
+                    className="text-sm font-semibold sm:text-xs text-foreground"
                   >
                     Full Legal Name <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     id="full-name"
                     placeholder="e.g. Samuel Osei Mensah"
-                    className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
+                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     required
@@ -382,7 +381,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="employment-date"
-                    className="text-xs font-semibold text-foreground"
+                    className="text-sm font-semibold sm:text-xs text-foreground"
                   >
                     Official Appointment Date{" "}
                     <span className="text-red-500">*</span>
@@ -390,7 +389,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                   <Input
                     id="employment-date"
                     type="date"
-                    className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
+                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
                     value={employmentDate}
                     onChange={(e) => setEmploymentDate(e.target.value)}
                     required
@@ -403,7 +402,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="staff-email"
-                    className="text-xs font-semibold text-foreground"
+                    className="text-sm font-semibold sm:text-xs text-foreground"
                   >
                     Institutional Email Address{" "}
                     <span className="text-red-500">*</span>
@@ -412,7 +411,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                     id="staff-email"
                     type="email"
                     placeholder="e.g. s.mensah@institution.edu"
-                    className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
+                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -422,7 +421,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="staff-password"
-                    className="text-xs font-semibold text-foreground"
+                    className="text-sm font-semibold sm:text-xs text-foreground"
                   >
                     Temporary Credentials Token{" "}
                     <span className="text-red-500">*</span>
@@ -431,7 +430,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                     id="staff-password"
                     type="password"
                     placeholder="Minimum 6 characters"
-                    className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
+                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -446,7 +445,7 @@ function ComprehensiveStaffEnrollmentWizard() {
           {/* ═══════════════════════════════════════════════════════
               STEP 2: PERSONAL DEMOGRAPHICS & BACKGROUND
               ═══════════════════════════════════════════════════════ */}
-          <div className="relative pl-10 group">
+          <div className="relative pl-0 group sm:pl-10">
             <StepBadge num={2} />
             <div className="space-y-5">
               <h3 className="text-base font-semibold text-foreground tracking-tight">
@@ -457,14 +456,14 @@ function ComprehensiveStaffEnrollmentWizard() {
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="dob"
-                    className="text-xs font-semibold text-foreground"
+                    className="text-sm font-semibold sm:text-xs text-foreground"
                   >
                     Date of Birth <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     id="dob"
                     type="date"
-                    className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
+                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
                     value={dateOfBirth}
                     onChange={(e) => setDateOfBirth(e.target.value)}
                     required
@@ -474,7 +473,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="gender"
-                    className="text-xs font-semibold text-foreground"
+                    className="text-sm font-semibold sm:text-xs text-foreground"
                   >
                     Gender Identity <span className="text-red-500">*</span>
                   </Label>
@@ -485,7 +484,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                   >
                     <SelectTrigger
                       id="gender"
-                      className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
+                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
                     >
                       <SelectValue placeholder="Select gender..." />
                     </SelectTrigger>
@@ -505,14 +504,14 @@ function ComprehensiveStaffEnrollmentWizard() {
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="phone"
-                    className="text-xs font-semibold text-foreground"
+                    className="text-sm font-semibold sm:text-xs text-foreground"
                   >
                     Mobile Phone Number <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     id="phone"
                     placeholder="e.g. +233 50 XXX XXXX"
-                    className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800 font-mono"
+                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800 font-mono"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     required
@@ -525,7 +524,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="blood-type"
-                    className="text-xs font-semibold text-foreground"
+                    className="text-sm font-semibold sm:text-xs text-foreground"
                   >
                     Blood Group{" "}
                     <span className="text-stone-400 text-[10px]">
@@ -539,7 +538,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                   >
                     <SelectTrigger
                       id="blood-type"
-                      className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
+                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
                     >
                       <SelectValue placeholder="Select blood group..." />
                     </SelectTrigger>
@@ -574,7 +573,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="religion"
-                    className="text-xs font-semibold text-foreground"
+                    className="text-sm font-semibold sm:text-xs text-foreground"
                   >
                     Religion Affiliation{" "}
                     <span className="text-stone-400 text-[10px]">
@@ -584,7 +583,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                   <Input
                     id="religion"
                     placeholder="e.g. Christian, Islamic, Traditional"
-                    className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
+                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
                     value={religion}
                     onChange={(e) => setReligion(e.target.value)}
                     disabled={isSubmitting}
@@ -595,7 +594,7 @@ function ComprehensiveStaffEnrollmentWizard() {
               <div className="space-y-1.5">
                 <Label
                   htmlFor="address"
-                  className="text-xs font-semibold text-foreground"
+                  className="text-sm font-semibold sm:text-xs text-foreground"
                 >
                   Primary Residential Address{" "}
                   <span className="text-red-500">*</span>
@@ -603,7 +602,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                 <Input
                   id="address"
                   placeholder="e.g. Plot 42, Airport Ridge, Sekondi-Takoradi"
-                  className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
+                  className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
                   value={residentialAddress}
                   onChange={(e) => setResidentialAddress(e.target.value)}
                   required
@@ -614,7 +613,7 @@ function ComprehensiveStaffEnrollmentWizard() {
               <div className="space-y-1.5">
                 <Label
                   htmlFor="former-school"
-                  className="text-xs font-semibold text-foreground"
+                  className="text-sm font-semibold sm:text-xs text-foreground"
                 >
                   Prior Educational Institution{" "}
                   <span className="text-stone-400 text-[10px]">
@@ -624,7 +623,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                 <Input
                   id="former-school"
                   placeholder="e.g. University of Cape Coast, KNUST"
-                  className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
+                  className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
                   value={formerSchool}
                   onChange={(e) => setFormerSchool(e.target.value)}
                   disabled={isSubmitting}
@@ -636,7 +635,7 @@ function ComprehensiveStaffEnrollmentWizard() {
           {/* ═══════════════════════════════════════════════════════
               STEP 3: ROLE PLACEMENT & ASSIGNMENT
               ═══════════════════════════════════════════════════════ */}
-          <div className="relative pl-10 group">
+          <div className="relative pl-0 group sm:pl-10">
             <StepBadge num={3} />
             <div className="space-y-5">
               <h3 className="text-base font-semibold text-foreground tracking-tight">
@@ -647,7 +646,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="department"
-                    className="text-xs font-semibold text-foreground"
+                    className="text-sm font-semibold sm:text-xs text-foreground"
                   >
                     Assigned Functional Department{" "}
                     <span className="text-red-500">*</span>
@@ -660,7 +659,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                   >
                     <SelectTrigger
                       id="department"
-                      className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
+                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
                     >
                       <SelectValue
                         placeholder={
@@ -686,7 +685,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="job-title"
-                    className="text-xs font-semibold text-foreground"
+                    className="text-sm font-semibold sm:text-xs text-foreground"
                   >
                     Official Job Title / Designation{" "}
                     <span className="text-red-500">*</span>
@@ -694,7 +693,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                   <Input
                     id="job-title"
                     placeholder="e.g. Senior Treasury Accountant"
-                    className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
+                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
                     value={jobTitle}
                     onChange={(e) => setJobTitle(e.target.value)}
                     required
@@ -707,7 +706,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="employment-type"
-                    className="text-xs font-semibold text-foreground"
+                    className="text-sm font-semibold sm:text-xs text-foreground"
                   >
                     Employment Framework Classification{" "}
                     <span className="text-red-500">*</span>
@@ -720,7 +719,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                   >
                     <SelectTrigger
                       id="employment-type"
-                      className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
+                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
                     >
                       <SelectValue placeholder="Select framework configuration..." />
                     </SelectTrigger>
@@ -740,7 +739,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="shift-schedule"
-                    className="text-xs font-semibold text-foreground"
+                    className="text-sm font-semibold sm:text-xs text-foreground"
                   >
                     Operational Shift Allocation{" "}
                     <span className="text-red-500">*</span>
@@ -753,7 +752,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                   >
                     <SelectTrigger
                       id="shift-schedule"
-                      className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
+                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
                     >
                       <SelectValue placeholder="Select shift rotation schedule..." />
                     </SelectTrigger>
@@ -777,7 +776,7 @@ function ComprehensiveStaffEnrollmentWizard() {
           {/* ═══════════════════════════════════════════════════════
               STEP 4: STATUTORY COMPLIANCE & NATIONAL IDENTITY
               ═══════════════════════════════════════════════════════ */}
-          <div className="relative pl-10 group">
+          <div className="relative pl-0 group sm:pl-10">
             <StepBadge num={4} />
             <div className="space-y-5">
               <div className="flex items-center gap-2">
@@ -791,7 +790,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="ghana-card"
-                    className="text-xs font-semibold text-foreground"
+                    className="text-sm font-semibold sm:text-xs text-foreground"
                   >
                     National ID Token / Ghana Card{" "}
                     <span className="text-red-500">*</span>
@@ -827,7 +826,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="ssnit"
-                    className="text-xs font-semibold text-foreground"
+                    className="text-sm font-semibold sm:text-xs text-foreground"
                   >
                     SSNIT Social Security Registry ID{" "}
                     <span className="text-red-500">*</span>
@@ -835,7 +834,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                   <Input
                     id="ssnit"
                     placeholder="e.g. N123456789012"
-                    className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800 font-mono text-[11px]"
+                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800 font-mono text-[11px]"
                     value={ssnitNumber}
                     onChange={(e) => setSsnitNumber(e.target.value)}
                     required
@@ -848,7 +847,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="emergency-name"
-                    className="text-xs font-semibold text-foreground"
+                    className="text-sm font-semibold sm:text-xs text-foreground"
                   >
                     Emergency Contact Full Name{" "}
                     <span className="text-red-500">*</span>
@@ -856,7 +855,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                   <Input
                     id="emergency-name"
                     placeholder="e.g. Rebecca Mensah"
-                    className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
+                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
                     value={emergencyContactName}
                     onChange={(e) => setEmergencyContactName(e.target.value)}
                     required
@@ -868,7 +867,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                     <Phone className="h-3 w-3 text-stone-400 dark:text-stone-500" />
                     <Label
                       htmlFor="emergency-phone"
-                      className="text-xs font-semibold text-foreground"
+                      className="text-sm font-semibold sm:text-xs text-foreground"
                     >
                       Emergency Contact Phone{" "}
                       <span className="text-red-500">*</span>
@@ -877,7 +876,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                   <Input
                     id="emergency-phone"
                     placeholder="e.g. +233 20 XXX XXXX"
-                    className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800 font-mono"
+                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800 font-mono"
                     value={emergencyContactPhone}
                     onChange={(e) => setEmergencyContactPhone(e.target.value)}
                     required
@@ -891,7 +890,7 @@ function ComprehensiveStaffEnrollmentWizard() {
           {/* ═══════════════════════════════════════════════════════
               STEP 5: COMPENSATION & TREASURY DISBURSEMENT
               ═══════════════════════════════════════════════════════ */}
-          <div className="relative pl-10 group">
+          <div className="relative pl-0 group sm:pl-10">
             <StepBadge num={5} isLast />
             <div className="space-y-5">
               <h3 className="text-base font-semibold text-foreground tracking-tight">
@@ -901,7 +900,7 @@ function ComprehensiveStaffEnrollmentWizard() {
               <div className="space-y-1.5">
                 <Label
                   htmlFor="clearance-tier"
-                  className="text-xs font-semibold text-foreground"
+                  className="text-sm font-semibold sm:text-xs text-foreground"
                 >
                   System Authorization & Clearance Matrix{" "}
                   <span className="text-red-500">*</span>
@@ -914,7 +913,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                 >
                   <SelectTrigger
                     id="clearance-tier"
-                    className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
+                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
                   >
                     <SelectValue placeholder="Assign platform permissions mapping..." />
                   </SelectTrigger>
@@ -938,7 +937,7 @@ function ComprehensiveStaffEnrollmentWizard() {
               <div className="space-y-1.5">
                 <Label
                   htmlFor="salary"
-                  className="text-xs font-semibold text-foreground"
+                  className="text-sm font-semibold sm:text-xs text-foreground"
                 >
                   Base Salary Compensation Package (GH₵ / Month){" "}
                   <span className="text-red-500">*</span>
@@ -948,7 +947,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                   type="number"
                   min="0"
                   placeholder="e.g. 4500"
-                  className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
+                  className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
                   value={baseSalary}
                   onChange={(e) => setBaseSalary(e.target.value)}
                   required
@@ -960,7 +959,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="bank-name"
-                    className="text-xs font-semibold text-foreground"
+                    className="text-sm font-semibold sm:text-xs text-foreground"
                   >
                     Disbursement Banking Institution{" "}
                     <span className="text-red-500">*</span>
@@ -968,7 +967,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                   <Input
                     id="bank-name"
                     placeholder="e.g. GCB Bank, Ecobank, Standard Chartered"
-                    className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
+                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
                     value={bankName}
                     onChange={(e) => setBankName(e.target.value)}
                     required
@@ -978,7 +977,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="bank-account"
-                    className="text-xs font-semibold text-foreground"
+                    className="text-sm font-semibold sm:text-xs text-foreground"
                   >
                     Settlement Clearing Account Number{" "}
                     <span className="text-red-500">*</span>
@@ -986,7 +985,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                   <Input
                     id="bank-account"
                     placeholder="e.g. 1011130004521"
-                    className="h-9 text-xs rounded-md bg-background border-stone-200 dark:border-stone-800 font-mono text-[11px]"
+                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800 font-mono text-[11px]"
                     value={bankAccount}
                     onChange={(e) => setBankAccount(e.target.value)}
                     required
@@ -996,23 +995,21 @@ function ComprehensiveStaffEnrollmentWizard() {
               </div>
 
               {/* FORM ACTIONS */}
-              <div className="flex items-center justify-end gap-3 pt-5 border-t border-stone-200 dark:border-stone-800 bg-transparent">
+              <div className="sticky bottom-0 z-10 -mx-4 flex flex-col-reverse gap-2 border-t border-stone-200 bg-background/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:flex-row sm:items-center sm:justify-end sm:gap-3 sm:bg-transparent sm:px-0 sm:pt-5 sm:pb-0 sm:dark:bg-transparent dark:border-stone-800">
                 <Button
                   variant="ghost"
                   type="button"
-                  className="h-9 text-xs font-normal text-stone-500"
+                  className="h-11 w-full text-sm font-normal text-stone-500 sm:h-9 sm:w-auto sm:text-xs"
                   asChild
                 >
                   <Link href={backConfig.href}>Cancel</Link>
                 </Button>
                 <Button
                   type="submit"
-                  className="h-9 text-xs font-medium px-4 bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 transition-colors"
+                  className="h-11 w-full bg-stone-900 px-4 text-sm font-medium text-white transition-colors dark:bg-stone-100 dark:text-stone-900 sm:h-9 sm:w-auto sm:text-xs"
                   disabled={isSubmitting}
                 >
-                  {isSubmitting
-                    ? "Processing Personnel Records..."
-                    : "Finalize Staff Ledger Ingestion"}
+                  {isSubmitting ? "Creating staff member…" : "Create staff member"}
                 </Button>
               </div>
             </div>
