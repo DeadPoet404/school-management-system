@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { fetchWithAuth } from "@/lib/fetch-with-auth"
+import { StudentPhotoControl } from "@/components/student-photo-control"
 import { useClasses } from "@/lib/api/reference"
 
 type FormState = "loading" | "ready" | "submitting" | "success" | "error"
@@ -380,6 +381,14 @@ function EditStudentForm() {
 
       <ScrollArea className="h-[700px] w-full rounded-none border-none shadow-none bg-transparent">
         <form onSubmit={handleSubmit} className="space-y-12 pr-4 pb-12 bg-transparent">
+          {studentId ? (
+            <StudentPhotoControl
+              key={`student-photo-${studentId}`}
+              studentId={studentId}
+              studentName={studentName}
+            />
+          ) : null}
+
 
           {/* STEP 1: IDENTITY & ACCOUNT ACCESS */}
           <div className="relative pl-10 group">
