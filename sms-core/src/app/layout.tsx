@@ -1,4 +1,5 @@
 import "@/app/globals.css";
+import type { Viewport } from "next";
 import { Poppins } from "next/font/google";
 import { Providers } from "./providers";
 import { EnvironmentBanner } from "@/components/environment-banner";
@@ -12,6 +13,13 @@ const poppins = Poppins({
 export const metadata = {
   title: "SMS Core",
   description: "Platform Workspace",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
