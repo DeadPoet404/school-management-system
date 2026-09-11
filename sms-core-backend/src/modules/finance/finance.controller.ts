@@ -59,7 +59,7 @@ export class FinanceController {
   // so a staff print action opens the native print dialog instead of downloading a PDF.
   streamReceiptPrint = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = await this.financeService.getReceiptForPdf(req.params.id!);
+      const data = await this.financeService.getReceiptForPrint(req.params.id!);
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader('Cache-Control', 'no-store');
       return res.send(renderReceiptPrintHtml(data));

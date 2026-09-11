@@ -5,6 +5,12 @@ import { parseDecimal, generateSerial } from "@/utils";
 import { IFinanceRepository, TransactionClient } from "@/types/repositories";
 import { FinanceRepository } from "./finance.repository";
 import type { ReceiptPdfData } from "@/lib/pdf";
+import type { ReceiptPrintData } from "@/lib/receipt-print";
+import {
+  createStudentPhotoStorage,
+  StudentPhotoStorageConfigurationError,
+  type SupabaseStudentPhotoStorage,
+} from "@/lib/student-photo-storage";
 import { logger } from "@/lib/logger";
 
 type FeeConfigRow = Prisma.FeeStructureConfigurationGetPayload<{ include: { components: true } }>;
@@ -34,8 +40,19 @@ interface FinanceDashboardTrendPoint {
   outstanding: number;
 }
 
+type ReceiptPhotoStorage = Pick<
+  SupabaseStudentPhotoStorage,
+  'createSignedUrl'
+>;
+
+type ReceiptPhotoStorageFactory = () => ReceiptPhotoStorage;
+
 export class FinanceService {
-  constructor(private repo: IFinanceRepository = new FinanceRepository()) {}
+  constructor(
+    private repo: IFinanceRepository = new FinanceRepository(),
+    private readonly receiptPhotoStorageFactory: ReceiptPhotoStorageFactory =
+      createStudentPhotoStorage,
+  ) {}
 
   private toDashboardDateKey(date: Date) {
     return date.toISOString().slice(0, 10);
@@ -384,9 +401,12 @@ export class FinanceService {
     return committed;
   }
 
-  // SMS-007: project one collection plus singleton school branding into the receipt DTO.
-  async getReceiptForPdf(collectionId: string): Promise<ReceiptPdfData> {
+  private async getReceiptBaseData(collectionId: string): Promise<{
+    data: ReceiptPdfData;
+    studentPhotoKey: string | null;
+  }> {
     const record = await this.repo.findReceiptCollectionById(collectionId);
+
     if (!record || record.deletedAt) {
       throw new AppError(404, `No payment collection found for id: ${collectionId}`);
     }
@@ -394,20 +414,63 @@ export class FinanceService {
     const institution = await this.repo.findReceiptInstitution();
 
     return {
-      receiptNumber: record.receiptNumber,
-      dateProcessed: record.dateProcessed,
-      studentName: record.studentName,
-      studentCode: record.student?.studentId ?? null,
-      className: record.class
-        ? `${record.class.name}${record.class.section ? ` — Section ${record.class.section}` : ''}`
-        : null,
-      amountPaid: parseDecimal(record.amountPaid),
-      paymentMethod: record.paymentMethod,
-      referenceNo: record.referenceNo,
-      allocationTarget: record.allocationTarget,
-      outstandingBalance: record.student?.billing ? parseDecimal(record.student.billing.currentBalance) : null,
-      institution,
+      data: {
+        receiptNumber: record.receiptNumber,
+        dateProcessed: record.dateProcessed,
+        studentName: record.studentName,
+        studentCode: record.student?.studentId ?? null,
+        className: record.class
+          ? `${record.class.name}${record.class.section ? ` — Section ${record.class.section}` : ''}`
+          : null,
+        amountPaid: parseDecimal(record.amountPaid),
+        paymentMethod: record.paymentMethod,
+        referenceNo: record.referenceNo,
+        allocationTarget: record.allocationTarget,
+        outstandingBalance: record.student?.billing ? parseDecimal(record.student.billing.currentBalance) : null,
+        institution,
+      },
+      studentPhotoKey:
+        typeof record.student?.photoKey === 'string' && record.student.photoKey.trim()
+          ? record.student.photoKey
+          : null,
     };
+  }
+
+  // Existing PDF/email receipt data remains photo-free and never calls Storage.
+  async getReceiptForPdf(collectionId: string): Promise<ReceiptPdfData> {
+    const { data } = await this.getReceiptBaseData(collectionId);
+    return data;
+  }
+
+  // Browser A5 print data may receive a short-lived signed photo URL.
+  // Storage failures intentionally fall back to the initials avatar.
+  async getReceiptForPrint(collectionId: string): Promise<ReceiptPrintData> {
+    const { data, studentPhotoKey } = await this.getReceiptBaseData(collectionId);
+
+    if (!studentPhotoKey) {
+      return { ...data, studentPhotoUrl: null };
+    }
+
+    try {
+      const studentPhotoUrl = await this.receiptPhotoStorageFactory()
+        .createSignedUrl(studentPhotoKey);
+
+      return { ...data, studentPhotoUrl };
+    } catch (error) {
+      // Storage is optional until photo uploads are configured. The accepted
+      // initials avatar is the normal fallback, so avoid warning on every
+      // receipt while the feature is deliberately inactive.
+      if (error instanceof StudentPhotoStorageConfigurationError) {
+        return { ...data, studentPhotoUrl: null };
+      }
+
+      logger.warn(
+        { err: error },
+        '[SMS-PHOTO] Student photo signed URL could not be created; using receipt avatar fallback.',
+      );
+
+      return { ...data, studentPhotoUrl: null };
+    }
   }
 
   async getStudentsBySection(sectionId: string) {

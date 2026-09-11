@@ -57,7 +57,7 @@ export class FinanceRepository implements IFinanceRepository {
       where: { id: collectionId },
       include: {
         class: { select: { name: true, section: true } },
-        student: { select: { studentId: true, billing: { select: { currentBalance: true } } } },
+        student: { select: { studentId: true, photoKey: true, billing: { select: { currentBalance: true } } } },
       },
     });
   }
