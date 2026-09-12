@@ -40,7 +40,14 @@ interface LedgerAccountRecord {
   credit: number
 }
 
-export function PayrollLedgersView() {
+interface PayrollLedgersViewProps {
+  /** See FeeStructureInvoiceConfig — the action sheet supplies its own title. */
+  showIntro?: boolean
+}
+
+export function PayrollLedgersView({
+  showIntro = true,
+}: PayrollLedgersViewProps) {
   const [activeTab, setActiveTab] = useState<"payroll" | "ledgers">("payroll")
 
   // Real-Time API State Engines
@@ -216,23 +223,17 @@ export function PayrollLedgersView() {
   return (
     <main className="flex-1 h-full min-h-0 flex flex-col overflow-hidden bg-transparent px-8 py-6">
 
-      {/* Dynamic Module Header Block */}
-      <div className="flex flex-col gap-2 shrink-0">
-        <div className="hidden items-center gap-1.5 text-xs tracking-wide uppercase font-bold text-stone-400 sm:inline-flex dark:text-zinc-500">
-          Core Finance Operations / Disbursals & General Ledger
-        </div>
-
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl tracking-tight font-semibold text-foreground sm:text-3xl">
-              Payroll & Institutional Ledgers
-            </h1>
-            <p className="hidden text-sm text-muted-foreground sm:mt-1 sm:block">
-              Process workforce payroll matrix systems and track organizational cash allocations against balance sheets.
-            </p>
+      {showIntro ? (
+        <div className="flex flex-col gap-2 shrink-0">
+          <div className="hidden items-center gap-1.5 text-xs tracking-wide uppercase font-bold text-stone-400 sm:inline-flex dark:text-zinc-500">
+            Core Finance Operations / Disbursals & General Ledger
           </div>
+
+          <p className="hidden text-sm text-muted-foreground sm:mt-1 sm:block">
+            Process workforce payroll matrix systems and track organizational cash allocations against balance sheets.
+          </p>
         </div>
-      </div>
+      ) : null}
 
       {error && (
         <div className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-xs font-medium flex items-center justify-between">

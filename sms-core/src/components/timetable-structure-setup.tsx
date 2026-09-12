@@ -470,11 +470,10 @@ export function TimetableStructureSetup() {
 
   return (
     <main className="flex h-[calc(100dvh-7rem)] min-h-0 flex-col overflow-hidden bg-transparent px-8 py-6">
+      {/* The Operations shell already names this module — the sidebar item on
+          desktop, the back bar on mobile — so only the description renders. */}
       <div className="shrink-0">
-        <h1 className="text-xl font-semibold tracking-tight text-stone-900">
-          Timetable Structure Setup
-        </h1>
-        <p className="mt-1 hidden text-sm text-muted-foreground sm:block">
+        <p className="hidden text-sm text-muted-foreground sm:block">
           Configure periods, breaks, and teacher subject allocations by class
           (canonical Class.id).
         </p>

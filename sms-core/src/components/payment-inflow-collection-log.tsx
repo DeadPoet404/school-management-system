@@ -78,7 +78,14 @@ const DEFAULT_FORM_STATE = (): IntakeFormState => ({
   allocationTarget: "Tuition Baseline Core"
 })
 
-export function PaymentInflowCollectionLog() {
+interface PaymentInflowCollectionLogProps {
+  /** See FeeStructureInvoiceConfig — the action sheet supplies its own title. */
+  showIntro?: boolean
+}
+
+export function PaymentInflowCollectionLog({
+  showIntro = true,
+}: PaymentInflowCollectionLogProps) {
   const { data: classes = [], isLoading: classesLoading } = useClasses()
   const academicSections = useMemo(
     () => classes.filter((c) => c.isActive !== false).map((c) => ({ id: c.id, label: c.name })),
@@ -231,23 +238,17 @@ export function PaymentInflowCollectionLog() {
   return (
     <main className="flex-1 h-full min-h-0 flex flex-col overflow-hidden bg-transparent px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
 
-      {/* Dynamic Main Header Block */}
-      <div className="flex flex-col gap-1.5 shrink-0 sm:gap-2">
-        <div className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground tracking-wide uppercase font-bold text-stone-400 sm:text-xs">
-          Finance operations
-        </div>
-
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl tracking-tight font-semibold text-foreground sm:text-3xl">
-              Collections & receipts
-            </h1>
-            <p className="mt-1 hidden max-w-2xl text-xs text-muted-foreground sm:block sm:text-sm">
-              Record a verified cash payment, then open the official A5 receipt.
-            </p>
+      {showIntro ? (
+        <div className="flex flex-col gap-1.5 shrink-0 sm:gap-2">
+          <div className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground tracking-wide uppercase font-bold text-stone-400 sm:text-xs">
+            Finance operations
           </div>
+
+          <p className="hidden max-w-2xl text-xs text-muted-foreground sm:block sm:text-sm">
+            Record a verified cash payment, then open the official A5 receipt.
+          </p>
         </div>
-      </div>
+      ) : null}
 
       {/* DUAL LAYER COHORT TRACK HUD FRAME */}
       <ClassTabStrip
