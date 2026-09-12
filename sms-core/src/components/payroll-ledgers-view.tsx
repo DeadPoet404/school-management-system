@@ -43,10 +43,13 @@ interface LedgerAccountRecord {
 interface PayrollLedgersViewProps {
   /** See FeeStructureInvoiceConfig — the action sheet supplies its own title. */
   showIntro?: boolean
+  /** Module name from the Operations shell — rendered on mobile only. */
+  title?: string
 }
 
 export function PayrollLedgersView({
   showIntro = true,
+  title: moduleTitle,
 }: PayrollLedgersViewProps) {
   const [activeTab, setActiveTab] = useState<"payroll" | "ledgers">("payroll")
 
@@ -222,6 +225,12 @@ export function PayrollLedgersView({
 
   return (
     <main className="flex-1 h-full min-h-0 flex flex-col overflow-hidden bg-transparent px-8 py-6">
+
+      {moduleTitle ? (
+        <h1 className="text-xl tracking-tight font-semibold text-foreground sm:text-3xl md:hidden">
+          {moduleTitle}
+        </h1>
+      ) : null}
 
       {showIntro ? (
         <div className="flex flex-col gap-2 shrink-0">

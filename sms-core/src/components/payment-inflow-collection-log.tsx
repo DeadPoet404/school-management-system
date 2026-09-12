@@ -81,10 +81,13 @@ const DEFAULT_FORM_STATE = (): IntakeFormState => ({
 interface PaymentInflowCollectionLogProps {
   /** See FeeStructureInvoiceConfig — the action sheet supplies its own title. */
   showIntro?: boolean
+  /** Module name from the Operations shell — rendered on mobile only. */
+  title?: string
 }
 
 export function PaymentInflowCollectionLog({
   showIntro = true,
+  title: moduleTitle,
 }: PaymentInflowCollectionLogProps) {
   const { data: classes = [], isLoading: classesLoading } = useClasses()
   const academicSections = useMemo(
@@ -237,6 +240,12 @@ export function PaymentInflowCollectionLog({
 
   return (
     <main className="flex-1 h-full min-h-0 flex flex-col overflow-hidden bg-transparent px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+
+      {moduleTitle ? (
+        <h1 className="text-xl tracking-tight font-semibold text-foreground sm:text-3xl md:hidden">
+          {moduleTitle}
+        </h1>
+      ) : null}
 
       {showIntro ? (
         <div className="flex flex-col gap-1.5 shrink-0 sm:gap-2">

@@ -110,7 +110,15 @@ function normalizeMatrixEntry(raw: unknown): SectionTimeMatrix {
   return { periodsCount, periods, breaks, subjects }
 }
 
-export function TimetableStructureSetup() {
+interface TimetableStructureSetupProps {
+  /** Module name from the Operations shell — rendered on mobile only, where
+   *  there is no sidebar item to name the screen. */
+  title?: string
+}
+
+export function TimetableStructureSetup({
+  title: moduleTitle,
+}: TimetableStructureSetupProps) {
   const { data: classes = [], isLoading: classesLoading } = useClasses()
   const { data: teachers = [], isLoading: teachersLoading } = useTeachers()
 
@@ -470,10 +478,13 @@ export function TimetableStructureSetup() {
 
   return (
     <main className="flex h-[calc(100dvh-7rem)] min-h-0 flex-col overflow-hidden bg-transparent px-8 py-6">
-      {/* The Operations shell already names this module — the sidebar item on
-          desktop, the back bar on mobile — so only the description renders. */}
       <div className="shrink-0">
-        <p className="hidden text-sm text-muted-foreground sm:block">
+        {moduleTitle ? (
+          <h1 className="text-xl font-semibold tracking-tight text-stone-900 sm:text-3xl md:hidden">
+            {moduleTitle}
+          </h1>
+        ) : null}
+        <p className="hidden text-sm text-muted-foreground sm:mt-1 sm:block">
           Configure periods, breaks, and teacher subject allocations by class
           (canonical Class.id).
         </p>

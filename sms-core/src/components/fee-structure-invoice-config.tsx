@@ -71,10 +71,13 @@ interface FeeStructureInvoiceConfigProps {
    * sheet) pass false so the module does not repeat them.
    */
   showIntro?: boolean
+  /** Module name from the Operations shell — rendered on mobile only. */
+  title?: string
 }
 
 export function FeeStructureInvoiceConfig({
   showIntro = true,
+  title: moduleTitle,
 }: FeeStructureInvoiceConfigProps) {
   const { data: classes = [], isLoading: classesLoading } = useClasses()
   const academicSections = useMemo(
@@ -263,6 +266,12 @@ export function FeeStructureInvoiceConfig({
   return (
   <main className="flex-1 h-full min-h-0 flex flex-col overflow-hidden bg-transparent px-8 py-6">
       
+      {moduleTitle ? (
+        <h1 className="text-xl tracking-tight font-semibold text-foreground capitalize sm:text-3xl md:hidden">
+          {moduleTitle}
+        </h1>
+      ) : null}
+
       {showIntro ? (
         <div className="flex flex-col gap-2 shrink-0">
           <div className="hidden items-center gap-1.5 text-xs text-muted-foreground tracking-wide uppercase font-bold text-stone-400 sm:inline-flex dark:text-zinc-500">
