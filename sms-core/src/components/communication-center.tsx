@@ -5,7 +5,6 @@ import {
   ChevronDown,
   ChevronRight,
   Loader2,
-  Megaphone,
   RefreshCw,
   Send,
 } from "lucide-react"
@@ -78,7 +77,14 @@ function channelsLabel(raw: unknown): string {
   return Array.isArray(raw) ? raw.map(String).join(" + ") : "—"
 }
 
-export function CommunicationCenter() {
+interface CommunicationCenterProps {
+  /** Module name from the Operations shell — rendered on mobile only. */
+  title?: string
+}
+
+export function CommunicationCenter({
+  title: moduleTitle,
+}: CommunicationCenterProps) {
   const { user } = useAuth()
   const canCompose = user?.role === "ADMIN"
   const { data: classes = [] } = useClasses()
@@ -257,11 +263,12 @@ export function CommunicationCenter() {
   return (
     <main className="flex h-[calc(100dvh-7rem)] min-h-0 flex-col overflow-hidden bg-transparent px-8 py-6">
       <div className="shrink-0">
-        <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-stone-900">
-          <Megaphone className="h-5 w-5 text-stone-500" />
-          Communication
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        {moduleTitle ? (
+          <h1 className="text-xl font-semibold tracking-tight text-stone-900 sm:text-3xl md:hidden">
+            {moduleTitle}
+          </h1>
+        ) : null}
+        <p className="hidden text-sm text-muted-foreground sm:mt-1 sm:block">
           Announcements and notices over SMS, WhatsApp and email, with a durable
           per-recipient delivery ledger.
         </p>

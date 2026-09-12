@@ -164,8 +164,8 @@ function TeacherDepartureForm() {
           {backConfig.label}
         </Link>
         <div>
-          <h1 className="text-3xl tracking-tight font-semibold text-foreground">Process Faculty Departure</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="text-xl tracking-tight font-semibold text-foreground sm:text-3xl">Process Faculty Departure</h1>
+          <p className="hidden text-sm text-muted-foreground sm:mt-1 sm:block">
             Permanently decouple a teacher account path from active timetable matrices, revoke grading access, and archive academic records.
           </p>
         </div>

@@ -76,9 +76,9 @@ export function FinanceActionSheet({ tab, onClose }: FinanceActionSheetProps) {
         </div>
 
         <div className="min-h-0 flex-1 overflow-hidden bg-transparent">
-          {tab === "invoices" ? <FeeStructureInvoiceConfig /> : null}
-          {tab === "collections" ? <PaymentInflowCollectionLog /> : null}
-          {tab === "payroll" ? <PayrollLedgersView /> : null}
+          {tab === "invoices" ? <FeeStructureInvoiceConfig showIntro={false} /> : null}
+          {tab === "collections" ? <PaymentInflowCollectionLog showIntro={false} /> : null}
+          {tab === "payroll" ? <PayrollLedgersView showIntro={false} /> : null}
           {tab === "expenses" ? <ExpenseLogForm onSaved={onClose} /> : null}
         </div>
       </SheetContent>

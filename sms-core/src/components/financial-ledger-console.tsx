@@ -241,10 +241,10 @@ export default function FinancialLedgerConsole() {
 
         {/* Main Header Module Viewport Container */}
         <div className="space-y-1">
-          <h1 className="text-2xl tracking-tight font-semibold text-foreground sm:text-4xl">
+          <h1 className="text-xl tracking-tight font-semibold text-foreground sm:text-4xl">
             School Finance Database
           </h1>
-          <p className="max-w-[700px] text-xs text-muted-foreground sm:text-sm">
+          <p className="hidden max-w-[700px] text-xs text-muted-foreground sm:block sm:text-sm">
             Centralized accounting console for global rules, invoicing generation, fee collections auditing, and operating expenditures.
           </p>
         </div>

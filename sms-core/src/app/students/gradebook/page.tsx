@@ -9,6 +9,10 @@ import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { fetchWithAuth } from "@/lib/fetch-with-auth"
 import { UniversalEditableGrid, DataGridColumn } from "@/components/universal-editable-grid"
+import {
+  GradebookScoreCards,
+  type GradebookScoreField,
+} from "@/components/mobile/gradebook-score-cards"
 import { useClasses, useSubjects, useTerms } from "@/lib/api/reference"
 
 // --- INTERNAL GRADING LOGIC ENGINE ---
@@ -79,6 +83,10 @@ interface ReferenceDropdownProps {
   isLoading: boolean
   isError: boolean
   errorText: string
+  /** Responsive width for the trigger wrapper. */
+  className?: string
+  /** Which edge the dropdown panel anchors to (keeps it on-screen on phones). */
+  panelAlign?: "left" | "right"
 }
 
 function ReferenceDropdown({
@@ -92,6 +100,8 @@ function ReferenceDropdown({
   isLoading,
   isError,
   errorText,
+  className = "min-w-[180px]",
+  panelAlign = "left",
 }: ReferenceDropdownProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
@@ -128,7 +138,7 @@ function ReferenceDropdown({
   const disabled = isLoading || isError
 
   return (
-    <div ref={rootRef} className="relative min-w-[180px] space-y-1">
+    <div ref={rootRef} className={`relative space-y-1 ${className}`}>
       <Label htmlFor={id} className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider">
         {label}
       </Label>
@@ -154,7 +164,11 @@ function ReferenceDropdown({
       </button>
 
       {open && !disabled ? (
-        <div className="absolute left-0 top-[calc(100%+0.35rem)] z-50 w-72 overflow-hidden rounded-lg border border-zinc-200 bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 dark:border-zinc-800">
+        <div
+          className={`absolute top-[calc(100%+0.35rem)] z-50 w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-zinc-200 bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 dark:border-zinc-800 ${
+            panelAlign === "right" ? "right-0" : "left-0"
+          }`}
+        >
           <div className="border-b border-zinc-100 p-2 dark:border-zinc-800">
             <Input
               autoFocus
@@ -383,6 +397,16 @@ export default function GradeBookDashboard() {
     })
   }
 
+  // Mobile cards address the two score fields directly; the desktop grid
+  // addresses them by column key. Both funnel into the same validator.
+  const handleCardScoreChange = (
+    studentId: string,
+    field: GradebookScoreField,
+    value: string
+  ) => {
+    handleCellValueChange(studentId, field, value)
+  }
+
   // --- DYNAMIC COLUMNS SETUP ---
   const gridColumns = useMemo<DataGridColumn<StudentGradeRow>[]>(() => [
     { key: "rollNumber", header: "Student ID", className: "w-36 font-mono text-zinc-500 text-[11px]" },
@@ -500,21 +524,21 @@ export default function GradeBookDashboard() {
   }
 
   return (
-    <main className="w-full flex-1 min-h-0 flex flex-col bg-transparent pt-6 px-6 pb-4 space-y-4 overflow-hidden">
+    <main className="w-full flex-1 min-h-0 flex flex-col bg-transparent pt-4 px-4 pb-4 space-y-3 overflow-hidden sm:space-y-4 sm:px-6 sm:pt-6">
 
       <div className="shrink-0 flex items-start justify-between">
         <div>
-          <h1 className="text-4xl tracking-tight text-foreground font-medium">
+          <h1 className="text-xl tracking-tight text-foreground font-medium sm:text-4xl">
             Continuous Assessment Sheet
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="hidden text-sm text-muted-foreground sm:mt-1 sm:block">
             Enter scores below and commit to the database. Class, subject, and term are selected from live reference data.
           </p>
         </div>
       </div>
 
       {/* Required reference selectors + search */}
-      <div className="shrink-0 flex flex-wrap items-end gap-4 w-full p-3 rounded-md border border-zinc-200 dark:border-zinc-800">
+      <div className="shrink-0 grid w-full grid-cols-2 gap-3 rounded-md border border-zinc-200 p-3 sm:flex sm:flex-wrap sm:items-end sm:gap-4 dark:border-zinc-800">
         <ReferenceDropdown
           id="gradebook-class"
           label="Class"
@@ -526,6 +550,7 @@ export default function GradeBookDashboard() {
           isLoading={isClassesLoading}
           isError={isClassesError}
           errorText="Classes unavailable"
+          className="min-w-0 sm:min-w-[180px]"
         />
 
         <ReferenceDropdown
@@ -539,6 +564,8 @@ export default function GradeBookDashboard() {
           isLoading={isSubjectsLoading}
           isError={isSubjectsError}
           errorText="Subjects unavailable"
+          className="min-w-0 sm:min-w-[180px]"
+          panelAlign="right"
         />
 
         <ReferenceDropdown
@@ -552,20 +579,10 @@ export default function GradeBookDashboard() {
           isLoading={isTermsLoading}
           isError={isTermsError}
           errorText="Terms unavailable"
+          className="min-w-0 sm:min-w-[180px]"
         />
 
-        <div className="ml-auto flex items-end">
-          <Button
-            disabled={isSubmitting}
-            onClick={handleCommitGrades}
-            className="h-8 gap-1.5 px-3 text-xs font-medium shadow-none bg-zinc-900 text-zinc-50 hover:bg-zinc-800/90 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-200/90 transition-colors"
-          >
-            {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-            <span>Commit Grades</span>
-          </Button>
-        </div>
-
-        <div className="flex-1 min-w-[220px]">
+        <div className="col-span-2 min-w-0 flex-1 sm:min-w-[220px]">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
@@ -573,13 +590,24 @@ export default function GradeBookDashboard() {
               placeholder="Search by student name or ID..."
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              className="h-8 pl-8 text-xs bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-zinc-400"
+              className="h-10 pl-8 text-sm bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-zinc-400 sm:h-8 sm:text-xs"
             />
           </div>
         </div>
+
+        <div className="col-span-2 flex items-end sm:col-span-1 sm:ml-auto">
+          <Button
+            disabled={isSubmitting}
+            onClick={handleCommitGrades}
+            className="h-10 w-full gap-1.5 px-3 text-xs font-medium shadow-none bg-zinc-900 text-zinc-50 hover:bg-zinc-800/90 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-200/90 transition-colors sm:h-8 sm:w-auto"
+          >
+            {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+            <span>Commit Grades</span>
+          </Button>
+        </div>
       </div>
 
-      {/* Grade grid */}
+      {/* Grade workspace */}
       <div className="w-full flex-1 min-h-0 overflow-hidden">
         {isLoading ? (
           <div className="flex items-center justify-center h-48 text-zinc-400 text-xs">Loading students...</div>
@@ -589,14 +617,35 @@ export default function GradeBookDashboard() {
             <Button variant="outline" size="sm" onClick={() => window.location.reload()}>Retry</Button>
           </div>
         ) : (
-          <UniversalEditableGrid
-            data={filteredRecords}
-            columns={gridColumns}
-            rowId={(row) => row.studentId}
-            selectable={true}
-            emptyMessage={classId ? "No students found for the selected class." : "No students found."}
-            onCellValueChange={handleCellValueChange}
-          />
+          <>
+            {/* ── Desktop: spreadsheet grid (unchanged) ── */}
+            <div className="hidden h-full w-full overflow-x-auto lg:block">
+              <UniversalEditableGrid
+                data={filteredRecords}
+                columns={gridColumns}
+                rowId={(row) => row.studentId}
+                selectable={true}
+                emptyMessage={classId ? "No students found for the selected class." : "No students found."}
+                onCellValueChange={handleCellValueChange}
+              />
+            </div>
+
+            {/* ── Mobile: one card per student ── */}
+            <div className="h-full w-full overflow-y-auto overscroll-contain lg:hidden">
+              {classId && subjectId && termId ? null : (
+                <p className="px-1 pb-2 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                  Select class, subject, and term to unlock score entry.
+                </p>
+              )}
+
+              <GradebookScoreCards
+                rows={filteredRecords}
+                onScoreChange={handleCardScoreChange}
+                locked={!classId || !subjectId || !termId}
+                emptyMessage={classId ? "No students found for the selected class." : "No students found."}
+              />
+            </div>
+          </>
         )}
       </div>
     </main>

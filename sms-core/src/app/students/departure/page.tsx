@@ -145,8 +145,8 @@ function StudentDepartureForm() {
         </Link>
 
         <div>
-          <h1 className="text-3xl tracking-tight font-semibold text-foreground">Process Student Departure</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="text-xl tracking-tight font-semibold text-foreground sm:text-3xl">Process Student Departure</h1>
+          <p className="hidden text-sm text-muted-foreground sm:mt-1 sm:block">
             Permanently decouple a student account path from active institutional matrices and archive historical records.
           </p>
         </div>

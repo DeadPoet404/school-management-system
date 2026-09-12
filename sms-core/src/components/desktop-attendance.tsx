@@ -267,10 +267,10 @@ export default function DesktopAttendancePage() {
     <div className="w-full h-screen min-h-0 flex flex-col pt-6 px-6 pb-4 space-y-4 overflow-hidden">
       <div className="shrink-0 flex items-start justify-between">
         <div>
-          <h1 className="text-4xl tracking-tight text-foreground font-medium">
+          <h1 className="text-xl tracking-tight text-foreground font-medium sm:text-4xl">
             Daily Attendance Ledger
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="hidden text-sm text-muted-foreground sm:mt-1 sm:block">
             Load one class roster, mark attendance, and submit atomically.
           </p>
         </div>

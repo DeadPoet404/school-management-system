@@ -166,8 +166,8 @@ function StaffDepartureForm() {
           {backConfig.label}
         </Link>
         <div>
-          <h1 className="text-3xl tracking-tight font-semibold text-foreground">Process Staff Departure</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="text-xl tracking-tight font-semibold text-foreground sm:text-3xl">Process Staff Departure</h1>
+          <p className="hidden text-sm text-muted-foreground sm:mt-1 sm:block">
             Permanently decouple a staff account path from active institutional matrices, revoke system access, and archive payroll ledgers.
           </p>
         </div>

@@ -65,7 +65,20 @@ const EMPTY_FEE: SectionFeeMatrix = {
   billingConfig: { issueDate: "", dueDate: "", allowInstallments: true, lateFeeRate: "" },
 }
 
-export function FeeStructureInvoiceConfig() {
+interface FeeStructureInvoiceConfigProps {
+  /**
+   * Surfaces that already render a title and subtitle (the finance action
+   * sheet) pass false so the module does not repeat them.
+   */
+  showIntro?: boolean
+  /** Module name from the Operations shell — rendered on mobile only. */
+  title?: string
+}
+
+export function FeeStructureInvoiceConfig({
+  showIntro = true,
+  title: moduleTitle,
+}: FeeStructureInvoiceConfigProps) {
   const { data: classes = [], isLoading: classesLoading } = useClasses()
   const academicSections = useMemo(
     () => classes.filter((c) => c.isActive !== false).map((c) => ({ id: c.id, label: c.name })),
@@ -253,23 +266,23 @@ export function FeeStructureInvoiceConfig() {
   return (
   <main className="flex-1 h-full min-h-0 flex flex-col overflow-hidden bg-transparent px-8 py-6">
       
-      {/* Structural Header Block */}
-      <div className="flex flex-col gap-2 shrink-0">
-        <div className="inline-flex items-center gap-1.5 text-xs text-muted-foreground tracking-wide uppercase font-bold text-stone-400 dark:text-zinc-500">
-          Core Finance Operations / Dynamic Revenue Generation Architect
-        </div>
-        
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl tracking-tight font-semibold text-foreground capitalize">
-              Fee Structures & Invoicing Setup
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Establish core billing structures, collection frequency matrices, and invoice issuance protocols grouped by grade block parameters.
-            </p>
+      {moduleTitle ? (
+        <h1 className="text-xl tracking-tight font-semibold text-foreground capitalize sm:text-3xl md:hidden">
+          {moduleTitle}
+        </h1>
+      ) : null}
+
+      {showIntro ? (
+        <div className="flex flex-col gap-2 shrink-0">
+          <div className="hidden items-center gap-1.5 text-xs text-muted-foreground tracking-wide uppercase font-bold text-stone-400 sm:inline-flex dark:text-zinc-500">
+            Core Finance Operations / Dynamic Revenue Generation Architect
           </div>
+
+          <p className="hidden text-sm text-muted-foreground sm:mt-1 sm:block">
+            Establish core billing structures, collection frequency matrices, and invoice issuance protocols grouped by grade block parameters.
+          </p>
         </div>
-      </div>
+      ) : null}
 
       {/* GRADED SECTION HUD MATRIX SELECTOR LINE */}
       <ClassTabStrip
