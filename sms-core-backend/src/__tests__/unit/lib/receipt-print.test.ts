@@ -104,6 +104,24 @@ describe('renderReceiptPrintHtml', () => {
     expect(html).toContain('onclick="window.print()"');
   });
 
+  it('bounds the image wait so the print dialog opens even when the photo is slow', () => {
+    const html = renderReceiptPrintHtml(receipt);
+
+    expect(html).toContain('const PHOTO_WAIT_MS = 2500;');
+    expect(html).toContain('const LOGO_WAIT_MS = 1500;');
+    expect(html).toContain('window.setTimeout(() => settle(true), timeoutMs)');
+    expect(html).not.toContain('window.addEventListener("load"');
+  });
+
+  it('uses a square student photo frame and fallback (not circular)', () => {
+    const html = renderReceiptPrintHtml(receipt);
+
+    const avatarRule = html.split('.student-avatar {')[1]?.split('}')[0];
+
+    expect(avatarRule).toContain('border-radius: 2mm;');
+    expect(avatarRule).not.toContain('border-radius: 50%');
+  });
+
   it('escapes dynamic payment and student fields before printing', () => {
     const html = renderReceiptPrintHtml({
       ...receipt,
