@@ -346,8 +346,8 @@
             {backConfig.label}
           </Link>
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Enroll new student</h1>
-            <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
+            <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-3xl">Enroll new student</h1>
+            <p className="mt-1 hidden text-xs text-muted-foreground sm:block sm:text-sm">
               Add the student&apos;s account, personal details, class, contacts and fee plan.
             </p>
           </div>

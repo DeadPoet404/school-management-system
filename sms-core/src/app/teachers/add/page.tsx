@@ -220,8 +220,8 @@ function ComprehensiveTeacherEnrollmentWizard() {
           {backConfig.label}
         </Link>
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Add teacher</h1>
-          <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
+          <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-3xl">Add teacher</h1>
+          <p className="mt-1 hidden text-xs text-muted-foreground sm:block sm:text-sm">
             Add the teaching account, personal details, department and payment details.
           </p>
         </div>

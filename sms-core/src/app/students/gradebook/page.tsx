@@ -528,10 +528,10 @@ export default function GradeBookDashboard() {
 
       <div className="shrink-0 flex items-start justify-between">
         <div>
-          <h1 className="text-4xl tracking-tight text-foreground font-medium">
+          <h1 className="text-xl tracking-tight text-foreground font-medium sm:text-4xl">
             Continuous Assessment Sheet
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="hidden text-sm text-muted-foreground sm:mt-1 sm:block">
             Enter scores below and commit to the database. Class, subject, and term are selected from live reference data.
           </p>
         </div>
