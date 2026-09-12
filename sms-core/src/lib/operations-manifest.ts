@@ -131,6 +131,29 @@ export function operationsSectionsForRole(role: string | null | undefined): Oper
     .filter((section) => section.modules.length > 0)
 }
 
+// 2026-09 mobile rollout: the phone Operations home starts lean, so only
+// proven mobile flows are advertised on small screens. Desktop keeps the
+// full manifest. Re-add an id here (e.g. "class-gen") once its mobile UX
+// is accepted on staging.
+export const MOBILE_OPERATIONS_MODULE_IDS: ReadonlySet<string> = new Set([
+  "payment-collection", // Collections & Receipts
+  "enrollment-workflow", // Enrollment workflow (student management)
+  "communication-center", // Announcements & Notices
+])
+
+export function operationsSectionsForMobileRole(
+  role: string | null | undefined
+): OperationsSection[] {
+  return operationsSectionsForRole(role)
+    .map((section) => ({
+      ...section,
+      modules: section.modules.filter((module) =>
+        MOBILE_OPERATIONS_MODULE_IDS.has(module.id)
+      ),
+    }))
+    .filter((section) => section.modules.length > 0)
+}
+
 export function findOperationsModuleForRole(
   role: string | null | undefined,
   id: string

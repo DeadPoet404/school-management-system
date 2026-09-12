@@ -5,7 +5,7 @@ import type { ComponentType } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, ChevronRight } from "lucide-react"
 import {
-  operationsSectionsForRole,
+  operationsSectionsForMobileRole,
   type OperationsModule,
 } from "@/lib/operations-manifest"
 
@@ -25,7 +25,7 @@ interface OperationsMobileHomeProps {
 export function OperationsMobileHome({ role }: OperationsMobileHomeProps) {
   const router = useRouter()
   const sections = React.useMemo(
-    () => operationsSectionsForRole(role),
+    () => operationsSectionsForMobileRole(role),
     [role]
   )
   const [activeModule, setActiveModule] =
