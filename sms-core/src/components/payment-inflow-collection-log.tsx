@@ -239,10 +239,10 @@ export function PaymentInflowCollectionLog() {
 
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl tracking-tight font-semibold text-foreground sm:text-3xl">
+            <h1 className="text-xl tracking-tight font-semibold text-foreground sm:text-3xl">
               Collections & receipts
             </h1>
-            <p className="mt-1 max-w-2xl text-xs text-muted-foreground sm:text-sm">
+            <p className="mt-1 hidden max-w-2xl text-xs text-muted-foreground sm:block sm:text-sm">
               Record a verified cash payment, then open the official A5 receipt.
             </p>
           </div>

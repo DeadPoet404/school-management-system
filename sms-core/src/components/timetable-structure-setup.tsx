@@ -474,7 +474,7 @@ export function TimetableStructureSetup() {
         <h1 className="text-xl font-semibold tracking-tight text-stone-900">
           Timetable Structure Setup
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 hidden text-sm text-muted-foreground sm:block">
           Configure periods, breaks, and teacher subject allocations by class
           (canonical Class.id).
         </p>
@@ -503,7 +503,7 @@ export function TimetableStructureSetup() {
               <h2 className="mt-1 text-base font-semibold">
                 Daily Framework Metrics ({activeSectionLabel})
               </h2>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-1 hidden text-xs text-muted-foreground sm:block">
                 Set the number of instructional periods for this class.
               </p>
             </div>
@@ -611,7 +611,7 @@ export function TimetableStructureSetup() {
                 <h2 className="mt-1 text-base font-semibold">
                   Subject &amp; Teacher Allocations
                 </h2>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="mt-1 hidden text-xs text-muted-foreground sm:block">
                   Teachers are loaded from the directory; saves send teacherId with Class.id keys.
                 </p>
               </div>
@@ -680,7 +680,7 @@ export function TimetableStructureSetup() {
               <h2 className="mt-1 text-base font-semibold">
                 Calendar Feed ({activeSectionLabel})
               </h2>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-1 hidden text-xs text-muted-foreground sm:block">
                 Subscribe this class timetable in Google Calendar or any .ics
                 app. Feeds are read-only weekly weekday recurrence, bounded by
                 the active term.

@@ -261,7 +261,7 @@ export function CommunicationCenter() {
           <Megaphone className="h-5 w-5 text-stone-500" />
           Communication
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 hidden text-sm text-muted-foreground sm:block">
           Announcements and notices over SMS, WhatsApp and email, with a durable
           per-recipient delivery ledger.
         </p>

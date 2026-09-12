@@ -75,10 +75,10 @@ export function UniversalBarChart({
       <div className="flex flex-col items-stretch p-0 outline-none sm:flex-row justify-between mb-4">
         <div className="flex flex-1 flex-col justify-center gap-1 px-4 pt-4 pb-3 sm:py-0">
           <div className="flex items-center gap-6">
-            <h1 className="text-5xl tracking-tight text-zinc-900">{title}</h1>
+            <h1 className="text-2xl tracking-tight text-zinc-900 sm:text-5xl">{title}</h1>
           </div>
           {description && (
-            <p className="text-sm text-zinc-500 mt-1">
+            <p className="hidden text-sm text-zinc-500 sm:mt-1 sm:block">
               {description}
             </p>
           )}
