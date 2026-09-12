@@ -110,7 +110,15 @@ function normalizeMatrixEntry(raw: unknown): SectionTimeMatrix {
   return { periodsCount, periods, breaks, subjects }
 }
 
-export function TimetableStructureSetup() {
+interface TimetableStructureSetupProps {
+  /** Module name from the Operations shell — rendered on mobile only, where
+   *  there is no sidebar item to name the screen. */
+  title?: string
+}
+
+export function TimetableStructureSetup({
+  title: moduleTitle,
+}: TimetableStructureSetupProps) {
   const { data: classes = [], isLoading: classesLoading } = useClasses()
   const { data: teachers = [], isLoading: teachersLoading } = useTeachers()
 
@@ -471,10 +479,12 @@ export function TimetableStructureSetup() {
   return (
     <main className="flex h-[calc(100dvh-7rem)] min-h-0 flex-col overflow-hidden bg-transparent px-8 py-6">
       <div className="shrink-0">
-        <h1 className="text-xl font-semibold tracking-tight text-stone-900">
-          Timetable Structure Setup
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        {moduleTitle ? (
+          <h1 className="text-xl font-semibold tracking-tight text-stone-900 sm:text-3xl md:hidden">
+            {moduleTitle}
+          </h1>
+        ) : null}
+        <p className="hidden text-sm text-muted-foreground sm:mt-1 sm:block">
           Configure periods, breaks, and teacher subject allocations by class
           (canonical Class.id).
         </p>
@@ -503,7 +513,7 @@ export function TimetableStructureSetup() {
               <h2 className="mt-1 text-base font-semibold">
                 Daily Framework Metrics ({activeSectionLabel})
               </h2>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-1 hidden text-xs text-muted-foreground sm:block">
                 Set the number of instructional periods for this class.
               </p>
             </div>
@@ -611,7 +621,7 @@ export function TimetableStructureSetup() {
                 <h2 className="mt-1 text-base font-semibold">
                   Subject &amp; Teacher Allocations
                 </h2>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="mt-1 hidden text-xs text-muted-foreground sm:block">
                   Teachers are loaded from the directory; saves send teacherId with Class.id keys.
                 </p>
               </div>
@@ -680,7 +690,7 @@ export function TimetableStructureSetup() {
               <h2 className="mt-1 text-base font-semibold">
                 Calendar Feed ({activeSectionLabel})
               </h2>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-1 hidden text-xs text-muted-foreground sm:block">
                 Subscribe this class timetable in Google Calendar or any .ics
                 app. Feeds are read-only weekly weekday recurrence, bounded by
                 the active term.

@@ -20,6 +20,11 @@ export default [
       },
       globals: {
         ...globals.node,
+        // `globals.node` covers Node's runtime globals but not the ambient
+        // `NodeJS` namespace that ships with @types/node. Signatures like
+        // `environment: NodeJS.ProcessEnv = process.env`
+        // (src/lib/student-photo-storage.ts) tripped `no-undef` without it.
+        NodeJS: true,
       },
     },
     plugins: {

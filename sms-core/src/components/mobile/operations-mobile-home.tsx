@@ -44,31 +44,25 @@ export function OperationsMobileHome({ role }: OperationsMobileHomeProps) {
 
   // ── Active view-module workspace with a back bar ──
   if (activeModule && activeModule.action.type === "view") {
-    const Workspace: ComponentType = activeModule.action.component
+    const Workspace: ComponentType<{ title?: string }> = activeModule.action.component
 
     return (
       <div className="flex h-full w-full flex-col bg-background">
-        <header className="flex min-h-14 shrink-0 items-center gap-2 border-b border-zinc-100 bg-background/95 px-2 py-1 dark:border-zinc-800 dark:bg-zinc-950/95 backdrop-blur">
+        {/* Mirrors the standalone module pages (e.g. /students/add): a small
+            back link, then a single title rendered by the module itself. */}
+        <header className="flex min-h-11 shrink-0 items-center border-b border-zinc-100 bg-background/95 px-2 py-1 dark:border-zinc-800 dark:bg-zinc-950/95 backdrop-blur">
           <button
             type="button"
             onClick={() => setActiveModule(null)}
-            aria-label="Back to operations modules"
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-zinc-600 transition-colors hover:bg-zinc-100 active:bg-zinc-200 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:active:bg-zinc-700"
+            className="group inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground active:bg-zinc-100 dark:active:bg-zinc-800"
           >
-            <ArrowLeft className="h-5 w-5" />
+            <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
+            Back to Operations
           </button>
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-bold tracking-[0.18em] text-zinc-400 uppercase dark:text-zinc-500">
-              Operations
-            </p>
-            <p className="truncate text-[15px] font-semibold text-zinc-900 dark:text-zinc-100">
-              {activeModule.title}
-            </p>
-          </div>
         </header>
 
         <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
-          <Workspace />
+          <Workspace title={activeModule.title} />
         </div>
       </div>
     )

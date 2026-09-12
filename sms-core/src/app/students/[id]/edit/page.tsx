@@ -362,8 +362,8 @@ function EditStudentForm() {
           Back to Students Register
         </Link>
         <div>
-          <h1 className="text-3xl tracking-tight font-semibold text-foreground">Edit Student</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="text-xl tracking-tight font-semibold text-foreground sm:text-3xl">Edit Student</h1>
+          <p className="hidden text-sm text-muted-foreground sm:mt-1 sm:block">
             Editing record for <span className="font-mono text-xs">{studentPublicId}</span>. Update
             demographic, academic, and compliance details below.
           </p>

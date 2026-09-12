@@ -316,8 +316,8 @@ function EditTeacherForm() {
           Back to Teacher Registry
         </Link>
         <div>
-          <h1 className="text-3xl tracking-tight font-semibold text-foreground">Edit Faculty Member</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="text-xl tracking-tight font-semibold text-foreground sm:text-3xl">Edit Faculty Member</h1>
+          <p className="hidden text-sm text-muted-foreground sm:mt-1 sm:block">
             Editing record for <span className="font-mono text-xs">{teacherPublicId}</span>. Portal email and account credentials are not editable here.
           </p>
         </div>
