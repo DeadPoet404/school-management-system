@@ -793,7 +793,14 @@ export function renderReceiptPrintHtml(data: ReceiptPrintData): string {
       const studentPhoto = document.getElementById("student-photo");
       const studentAvatar = document.getElementById("student-avatar");
 
-      function waitForImage(image, onFailure) {
+      // The print dialog must open promptly even when the storage-hosted
+      // photo or logo is slow to arrive: each image gets a bounded wait,
+      // and the flow starts when the DOM is ready instead of after every
+      // page resource has finished loading (window.load).
+      const PHOTO_WAIT_MS = 2500;
+      const LOGO_WAIT_MS = 1500;
+
+      function waitForImage(image, timeoutMs, onFailure) {
         if (!image) return Promise.resolve();
 
         if (image.complete) {
@@ -802,20 +809,31 @@ export function renderReceiptPrintHtml(data: ReceiptPrintData): string {
         }
 
         return new Promise((resolve) => {
-          image.addEventListener("load", resolve, { once: true });
-          image.addEventListener("error", () => {
-            if (onFailure) onFailure();
+          let settled = false;
+          const settle = (failed) => {
+            if (settled) return;
+            settled = true;
+            if (failed && onFailure) onFailure();
             resolve();
+          };
+          const timer = window.setTimeout(() => settle(true), timeoutMs);
+          image.addEventListener("load", () => {
+            window.clearTimeout(timer);
+            settle(false);
+          }, { once: true });
+          image.addEventListener("error", () => {
+            window.clearTimeout(timer);
+            settle(true);
           }, { once: true });
         });
       }
 
-      window.addEventListener("load", () => {
-        const schoolLogoTask = waitForImage(schoolLogo, () => {
+      function startPrintFlow() {
+        const schoolLogoTask = waitForImage(schoolLogo, LOGO_WAIT_MS, () => {
           if (schoolLogoFrame) schoolLogoFrame.classList.add("is-missing");
         });
 
-        const studentPhotoTask = waitForImage(studentPhoto, () => {
+        const studentPhotoTask = waitForImage(studentPhoto, PHOTO_WAIT_MS, () => {
           if (studentAvatar) studentAvatar.classList.remove("has-photo");
           if (studentPhoto) studentPhoto.remove();
         });
@@ -823,7 +841,13 @@ export function renderReceiptPrintHtml(data: ReceiptPrintData): string {
         Promise.all([schoolLogoTask, studentPhotoTask]).finally(() => {
           window.setTimeout(() => window.print(), 180);
         });
-      });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", startPrintFlow, { once: true });
+      } else {
+        startPrintFlow();
+      }
     }());
   </script>
 </body>
