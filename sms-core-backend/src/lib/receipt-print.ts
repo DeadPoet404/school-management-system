@@ -185,7 +185,8 @@ export function renderReceiptPrintHtml(data: ReceiptPrintData): string {
       place-items: center;
       overflow: hidden;
       border: 1mm solid var(--gold);
-      border-radius: 50%;
+      /* Admin 2026-09: square photo frame / fallback, not circular. */
+      border-radius: 2mm;
       background: linear-gradient(145deg, #173d8c, var(--navy));
       box-shadow: inset 0 0 0 1.2mm #ffffff;
     }
