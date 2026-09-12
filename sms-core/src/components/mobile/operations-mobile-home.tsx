@@ -48,21 +48,24 @@ export function OperationsMobileHome({ role }: OperationsMobileHomeProps) {
 
     return (
       <div className="flex h-full w-full flex-col bg-background">
-        {/* Mirrors the standalone module pages (e.g. /students/add): a small
-            back link, then a single title rendered by the module itself. */}
-        <header className="flex min-h-11 shrink-0 items-center border-b border-zinc-100 bg-background/95 px-2 py-1 dark:border-zinc-800 dark:bg-zinc-950/95 backdrop-blur">
+        {/* Keep the active workspace name visible before its data has loaded or
+            when it returns an error state. The desktop sidebar remains its identifier. */}
+        <header className="shrink-0 border-b border-zinc-100 bg-background/95 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-950/95 backdrop-blur">
           <button
             type="button"
             onClick={() => setActiveModule(null)}
-            className="group inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground active:bg-zinc-100 dark:active:bg-zinc-800"
+            className="group inline-flex min-h-9 items-center gap-1.5 rounded-md px-1 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground active:bg-zinc-100 dark:active:bg-zinc-800"
           >
             <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
             Back to Operations
           </button>
+          <h1 className="mt-0.5 text-base font-semibold tracking-tight text-foreground">
+            {activeModule.title}
+          </h1>
         </header>
 
         <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
-          <Workspace title={activeModule.title} />
+          <Workspace />
         </div>
       </div>
     )

@@ -159,6 +159,7 @@ function ClassPickerField({
         type="button"
         aria-haspopup="dialog"
         aria-expanded={open}
+        aria-label={`${label}: ${active?.label ?? `Choose ${label.toLowerCase()}`}`}
         onClick={() => setOpen(true)}
         className="flex h-11 w-full items-center justify-between gap-2 rounded-lg border border-stone-200/60 bg-stone-100 px-3 text-left transition-colors active:bg-stone-200/70 dark:border-zinc-800/60 dark:bg-zinc-900/50 dark:active:bg-zinc-800"
       >
@@ -243,7 +244,7 @@ function ClassPickerField({
                     >
                       <span
                         className={cn(
-                          "min-w-0 flex-1 truncate text-sm",
+                          "min-w-0 flex-1 break-words text-sm leading-5",
                           selected
                             ? "font-semibold text-zinc-900 dark:text-zinc-50"
                             : "font-medium text-zinc-800 dark:text-zinc-100"
