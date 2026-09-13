@@ -1,0 +1,113 @@
+name: Deploy
+
+on:
+  # Every push to main auto-deploys STAGING (health-gated; red X on failure).
+  push:
+    branches: [main]
+  # Production is an explicit one-click promotion:
+  #   Actions tab -> Deploy -> Run workflow -> optional commit SHA (blank = latest main).
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Production target — a commit SHA, or leave empty for latest main"
+        required: false
+        default: ""
+
+# Never run two deploys at once — they would race on the same containers.
+concurrency:
+  group: vps-deploy
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  staging:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: SSH setup (VPS key from secrets)
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}" > ~/.ssh/gha_deploy
+          chmod 600 ~/.ssh/gha_deploy
+          cat >> ~/.ssh/config <<'EOF'
+          Host vps
+            HostName 169.58.223.61
+            User cypher-admin
+            IdentityFile ~/.ssh/gha_deploy
+            IdentitiesOnly yes
+            StrictHostKeyChecking accept-new
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Sync repo + deploy staging + health gate
+        run: |
+          ssh vps "sudo bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd /root/school-management-system
+          echo "== syncing to origin/main =="
+          git fetch origin main
+          git checkout main
+          git reset --hard origin/main
+          git log --oneline -2
+          echo "== building + starting staging services =="
+          docker compose -f deploy/staging/docker-compose.yml --env-file /etc/jocomfy-staging/staging.env up -d --build
+          echo "waiting 60s for settle..."
+          sleep 60
+          echo "== staging health gate =="
+          curl -sf http://localhost:5100/api/health && echo " -> backend OK"
+          curl -sf -o /dev/null -w "frontend HTTP %{http_code}\n" http://localhost:3102/
+          echo "STAGING DEPLOY OK"
+          REMOTE
+
+  production:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TARGET_SHA: ${{ github.event.inputs.target }}
+    steps:
+      - name: SSH setup (VPS key from secrets)
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}" > ~/.ssh/gha_deploy
+          chmod 600 ~/.ssh/gha_deploy
+          cat >> ~/.ssh/config <<'EOF'
+          Host vps
+            HostName 169.58.223.61
+            User cypher-admin
+            IdentityFile ~/.ssh/gha_deploy
+            IdentitiesOnly yes
+            StrictHostKeyChecking accept-new
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Backup + promote to production + health gate
+        run: |
+          ssh vps "TARGET_SHA='$TARGET_SHA' sudo bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd /root/school-management-system
+          echo "== backup first (standing rule) =="
+          bash scripts/backup.sh
+          echo "== selecting target =="
+          if [ -n "${TARGET_SHA:-}" ]; then
+            git fetch origin
+            git checkout -q "$TARGET_SHA"
+          else
+            git fetch origin main
+            git checkout -q main
+            git reset --hard origin/main
+          fi
+          git log --oneline -2
+          echo "== building + starting production services =="
+          docker compose up -d --build
+          echo "waiting 75s for settle..."
+          sleep 75
+          echo "== production health gate =="
+          curl -sf http://localhost:5000/api/health && echo " -> backend OK"
+          curl -sf -o /dev/null -w "frontend /login HTTP %{http_code}\n" http://localhost:3000/login
+          curl -sf https://sms.jocomfy.com/api/health && echo " -> public API OK"
+          curl -sf -o /dev/null -w "public /login HTTP %{http_code}\n" https://sms.jocomfy.com/login
+          echo "PRODUCTION DEPLOY OK"
+          REMOTE
