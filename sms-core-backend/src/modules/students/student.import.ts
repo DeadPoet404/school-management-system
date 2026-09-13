@@ -52,6 +52,7 @@ export type StudentImportPayload = {
     feeTierId: string;
     initialDeposit: number;
   };
+  legacyStudentId: string | null;
 };
 
 export type ParsedStudentImportRow = {
@@ -90,6 +91,7 @@ const FIELD_ALIASES = {
   bloodType: ["bloodType", "blood type"],
   religion: ["religion"],
   formerSchool: ["formerSchool", "former school", "previousSchool", "previous school"],
+  legacyStudentId: ["legacyStudentId", "legacy student id", "legacyId", "legacy id", "oldStudentId", "old student id", "regNo", "reg no", "registrationNo", "registration no"],
 } as const;
 
 type CanonicalField = keyof typeof FIELD_ALIASES;
@@ -385,6 +387,7 @@ export function parseStudentImportFile(file: StudentImportUploadedFile): ParsedS
           feeTierId: feeTierRef,
           initialDeposit,
         },
+        legacyStudentId: optionalValue(canonical, "legacyStudentId"),
       },
     });
   }

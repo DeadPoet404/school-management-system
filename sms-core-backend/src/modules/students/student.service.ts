@@ -362,6 +362,7 @@ export class StudentService {
     parent?: { name: string; relationship: string; phone: string; email?: string | null };
     billing: { feeTierId: string; initialDeposit: number };
     compliance?: { nationalId?: string | null; emergencyContact?: { name?: string | null; phone?: string | null; relationship?: string | null } | null };
+    legacyStudentId?: string | null;
   }) {
     const { account, demographics, placement, guardian, parent, billing, compliance } = payload;
     const resolvedGuardian = guardian || parent;
@@ -410,6 +411,7 @@ export class StudentService {
     const dbPayload = {
       studentId: uniqueStudentId,
       cohortYear: resolvedCohortYear,
+      legacyStudentId: payload.legacyStudentId?.trim() || null,
       studentName: account.fullName,
       enrollmentDate: new Date(account.enrollmentDate),
       status: "ACTIVE" as const,
