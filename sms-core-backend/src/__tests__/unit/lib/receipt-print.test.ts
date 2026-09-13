@@ -94,12 +94,11 @@ describe('renderReceiptPrintHtml', () => {
     expect(html).toContain('jocomfy.com');
   });
 
-  it('waits for image loading before automatically opening print', () => {
+  it('opens print with a bounded wait on the photo only', () => {
     const html = renderReceiptPrintHtml(receipt);
 
-    expect(html).toContain('waitForImage(schoolLogo');
     expect(html).toContain('waitForImage(studentPhoto');
-    expect(html).toContain('Promise.all([schoolLogoTask, studentPhotoTask])');
+    expect(html).not.toContain('waitForImage(schoolLogo');
     expect(html).toContain('window.setTimeout(() => window.print(), 180)');
     expect(html).toContain('onclick="window.print()"');
   });
@@ -108,9 +107,16 @@ describe('renderReceiptPrintHtml', () => {
     const html = renderReceiptPrintHtml(receipt);
 
     expect(html).toContain('const PHOTO_WAIT_MS = 2500;');
-    expect(html).toContain('const LOGO_WAIT_MS = 1500;');
+    expect(html).not.toContain('LOGO_WAIT_MS');
     expect(html).toContain('window.setTimeout(() => settle(true), timeoutMs)');
     expect(html).not.toContain('window.addEventListener("load"');
+  });
+
+  it('always uses the bundled same-origin school logo, overriding any stored logoUrl', () => {
+    const html = renderReceiptPrintHtml(receipt);
+
+    expect(html).toContain('src="/branding/jocomfy-school-logo.png"');
+    expect(html).not.toContain('https://assets.example.test/jocomfy-school-logo.png');
   });
 
   it('uses a square student photo frame and fallback (not circular)', () => {

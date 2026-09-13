@@ -98,9 +98,11 @@ export function renderReceiptPrintHtml(data: ReceiptPrintData): string {
   const schoolEmail =
     nonEmpty(institution?.email) ?? RECEIPT_CONTACT_FALLBACK.email;
   const schoolWebsite = RECEIPT_CONTACT_FALLBACK.website;
-  const schoolLogoUrl =
-    safeImageSource(institution?.logoUrl) ??
-    '/branding/jocomfy-school-logo.png';
+  // The school logo is fixed branding that ships inside the app
+  // (sms-core/public/branding) and is served from the same origin as this
+  // page. Always use the bundled asset: a storage-hosted logoUrl would add
+  // a slow cross-region fetch to every receipt print page load.
+  const schoolLogoUrl = '/branding/jocomfy-school-logo.png';
   const studentPhotoUrl = safeImageSource(data.studentPhotoUrl);
   const initials = studentInitials(data.studentName);
 
@@ -795,11 +797,12 @@ export function renderReceiptPrintHtml(data: ReceiptPrintData): string {
       const studentAvatar = document.getElementById("student-avatar");
 
       // The print dialog must open promptly even when the storage-hosted
-      // photo or logo is slow to arrive: each image gets a bounded wait,
-      // and the flow starts when the DOM is ready instead of after every
-      // page resource has finished loading (window.load).
+      // photo is slow to arrive: the photo gets a bounded wait, and the flow
+      // starts when the DOM is ready instead of every page resource
+      // has finished loading (window.load). The school logo is a same-origin
+      // bundled asset, so it never gates the dialog — only an actual load
+      // error hides it.
       const PHOTO_WAIT_MS = 2500;
-      const LOGO_WAIT_MS = 1500;
 
       function waitForImage(image, timeoutMs, onFailure) {
         if (!image) return Promise.resolve();
@@ -830,16 +833,24 @@ export function renderReceiptPrintHtml(data: ReceiptPrintData): string {
       }
 
       function startPrintFlow() {
-        const schoolLogoTask = waitForImage(schoolLogo, LOGO_WAIT_MS, () => {
-          if (schoolLogoFrame) schoolLogoFrame.classList.add("is-missing");
-        });
+        // Same-origin bundled logo: never gate the print dialog on it. Hide
+        // it only if it is already broken or fails to load.
+        if (schoolLogo) {
+          if (schoolLogo.complete && !schoolLogo.naturalWidth) {
+            if (schoolLogoFrame) schoolLogoFrame.classList.add("is-missing");
+          } else {
+            schoolLogo.addEventListener("error", () => {
+              if (schoolLogoFrame) schoolLogoFrame.classList.add("is-missing");
+            }, { once: true });
+          }
+        }
 
         const studentPhotoTask = waitForImage(studentPhoto, PHOTO_WAIT_MS, () => {
           if (studentAvatar) studentAvatar.classList.remove("has-photo");
           if (studentPhoto) studentPhoto.remove();
         });
 
-        Promise.all([schoolLogoTask, studentPhotoTask]).finally(() => {
+        studentPhotoTask.finally(() => {
           window.setTimeout(() => window.print(), 180);
         });
       }
