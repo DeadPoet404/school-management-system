@@ -37,6 +37,7 @@ import { PaymentsSweeper } from './modules/payments/payments.sweeper';
 // ── Auth ──
 import authRoutes from './modules/auth/auth.routes';
 import setupRoutes from './modules/setup/setup.routes';
+import adminRoutes from './modules/admin/admin.routes';
 import { authenticate } from './middleware/auth.middleware';
 import { requireRole, ROLES } from './middleware/rbac.middleware';
 import { startBlocklistCleanup } from './lib/token-blocklist';
@@ -222,6 +223,8 @@ app.use('/api/attendance', authenticate, attendanceRoutes);
 app.use('/api/reference', authenticate, referenceRoutes);
 app.use('/api/analytics', authenticate, analyticsRoutes);
 app.use('/api/communication', authenticate, communicationRoutes);
+// Institutional settings + data hygiene (admin-only; self-gates via requireRole).
+app.use('/api/admin', adminRoutes);
 
 // ── 404 HANDLER (Must come AFTER all valid routes) ──
 app.use((_req, res) => {

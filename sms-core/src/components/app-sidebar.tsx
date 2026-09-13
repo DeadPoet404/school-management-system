@@ -8,6 +8,7 @@ import {
   ChevronDown,
   Sliders,
   GraduationCap,
+  Settings,
 } from "lucide-react"
 
 import { DashboardIcon, BotIcon, MoneyIcon, PeopleIcon } from "./custom-icon"
@@ -41,6 +42,7 @@ const coreNavigationItems = [
   { title: "Teachers", url: "/teachers", icon: GraduationCap },
   { title: "Operations", url: "/operations", icon: Sliders },
   { title: "Finance", url: "/finance", icon: MoneyIcon },
+  { title: "Settings", url: "/settings", icon: Settings },
   { title: "My Fees", url: "/portal", icon: MoneyIcon },
 ]
 
