@@ -101,22 +101,22 @@ describe('StudentService', () => {
       await service.getFilteredPaginated({ search: 'john' }, 0, 20);
 
       const whereArg = (repo.findAllFiltered as any).mock.calls[0][0];
-      expect(whereArg.OR).toBeDefined();
-      expect(whereArg.OR[0].studentName.contains).toBe('john');
+      expect(whereArg.studentName).toBeDefined();
+      expect(whereArg.studentName.contains).toBe('john');
     });
 
-    it('should search identity, account, guardian, and placement fields', async () => {
+    it('should search the student name only (not guardians, email, or class)', async () => {
       (repo.findAllFiltered as any).mockResolvedValue([]);
       (repo.countFiltered as any).mockResolvedValue(0);
 
       await service.getFilteredPaginated({ search: 'adwoa' }, 0, 20);
 
       const whereArg = (repo.findAllFiltered as any).mock.calls[0][0];
-      expect(whereArg.OR).toHaveLength(5);
-      expect(whereArg.OR[0].studentName.contains).toBe('adwoa');
-      expect(whereArg.OR[2].account.is.portalEmail.contains).toBe('adwoa');
-      expect(whereArg.OR[3].guardians.some.OR).toHaveLength(3);
-      expect(whereArg.OR[4].placement.is.OR).toHaveLength(2);
+      expect(whereArg.studentName.contains).toBe('adwoa');
+      expect(whereArg.studentName.mode).toBe('insensitive');
+      expect(whereArg.OR).toBeUndefined();
+      expect(whereArg.guardians).toBeUndefined();
+      expect(whereArg.account).toBeUndefined();
     });
 
     it('should normalize and pass status filters', async () => {

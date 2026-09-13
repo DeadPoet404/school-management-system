@@ -120,11 +120,8 @@ export class StaffService {
     }
 
     if (filters.search?.trim()) {
-      const term = filters.search.trim();
-      where.OR = [
-        { staffName: { contains: term, mode: 'insensitive' } },
-        { staffId: { contains: term, mode: 'insensitive' } },
-      ];
+      // 2026-09: search targets the staff member's name only.
+      where.staffName = { contains: filters.search.trim(), mode: 'insensitive' };
     }
 
     const placementFilter: Prisma.StaffPlacementWhereInput = {};

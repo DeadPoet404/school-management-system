@@ -178,50 +178,10 @@ export class StudentService {
 
     if (filters.search?.trim()) {
       const term = filters.search.trim();
-      const textFilter = {
-        contains: term,
-        mode: 'insensitive' as const,
-      };
-
-      where.OR = [
-        { studentName: textFilter },
-        { studentId: textFilter },
-        {
-          account: {
-            is: { portalEmail: textFilter },
-          },
-        },
-        {
-          guardians: {
-            some: {
-              OR: [
-                { name: textFilter },
-                { phone: textFilter },
-                { email: textFilter },
-              ],
-            },
-          },
-        },
-        {
-          placement: {
-            is: {
-              OR: [
-                { academicTrack: textFilter },
-                {
-                  class: {
-                    is: {
-                      OR: [
-                        { name: textFilter },
-                        { section: textFilter },
-                      ],
-                    },
-                  },
-                },
-              ],
-            },
-          },
-        },
-      ];
+      // 2026-09: search targets the student's own name only — guardian
+      // details, portal email, and class/section matching were removed so a
+      // parent's name no longer surfaces their child's records here.
+      where.studentName = { contains: term, mode: 'insensitive' };
     }
 
     if (filters.status?.trim()) {

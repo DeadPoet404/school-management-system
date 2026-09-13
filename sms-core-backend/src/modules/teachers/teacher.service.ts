@@ -126,12 +126,8 @@ export class TeacherService {
     }
 
     if (filters.search?.trim()) {
-      const term = filters.search.trim();
-      where.OR = [
-        { teacherName: { contains: term, mode: 'insensitive' } },
-        { teacherId: { contains: term, mode: 'insensitive' } },
-        { email: { contains: term, mode: 'insensitive' } },
-      ];
+      // 2026-09: search targets the teacher's name only.
+      where.teacherName = { contains: filters.search.trim(), mode: 'insensitive' };
     }
 
     if (filters.department?.trim()) {
