@@ -26,10 +26,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - name: SSH setup (VPS key from secrets)
+      - name: SSH setup (VPS key from base64 secret)
         run: |
           mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}" > ~/.ssh/gha_deploy
+          printf '%s' "${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}" | base64 -d > ~/.ssh/gha_deploy
+          head -1 ~/.ssh/gha_deploy | grep -q 'BEGIN OPENSSH PRIVATE KEY' \
+            || { echo "DEPLOY_SSH_PRIVATE_KEY is not a valid base64-encoded ed25519 private key — re-set the secret from: base64 -w0 ~/.ssh/gha_deploy"; exit 1; }
           chmod 600 ~/.ssh/gha_deploy
           cat >> ~/.ssh/config <<'EOF'
           Host vps
@@ -68,10 +70,12 @@ jobs:
     env:
       TARGET_SHA: ${{ github.event.inputs.target }}
     steps:
-      - name: SSH setup (VPS key from secrets)
+      - name: SSH setup (VPS key from base64 secret)
         run: |
           mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}" > ~/.ssh/gha_deploy
+          printf '%s' "${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}" | base64 -d > ~/.ssh/gha_deploy
+          head -1 ~/.ssh/gha_deploy | grep -q 'BEGIN OPENSSH PRIVATE KEY' \
+            || { echo "DEPLOY_SSH_PRIVATE_KEY is not a valid base64-encoded ed25519 private key — re-set the secret from: base64 -w0 ~/.ssh/gha_deploy"; exit 1; }
           chmod 600 ~/.ssh/gha_deploy
           cat >> ~/.ssh/config <<'EOF'
           Host vps
