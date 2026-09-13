@@ -504,7 +504,7 @@ export function FeeStructureInvoiceConfig({
                   
                   <div className="text-right">
                     <span className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block">Aggregate Bill Amount</span>
-                    <span className="text-2xl tracking-tight font-semibold text-white">${totalAccumulatedInvoiceAmount.toFixed(2)}</span>
+                    <span className="text-2xl tracking-tight font-semibold text-white">GH₵{totalAccumulatedInvoiceAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                 </div>
 
