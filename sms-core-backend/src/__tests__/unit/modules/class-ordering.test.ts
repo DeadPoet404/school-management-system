@@ -54,6 +54,38 @@ describe('sortClassesByLadder', () => {
     expect(sorted[sorted.length - 1]).toBe('Special Unit');
   });
 
+  it('orders the full Jocomfy ladder: Creche → Nursery → KG → Grade 1-6 → JHS 1-3 (A before B)', () => {
+    const sorted = sortClassesByLadder([
+      cls('JHS 1A', 'A'),
+      cls('Grade 1A', 'A'),
+      cls('Creche'),
+      cls('Nursery 2B', 'B'),
+      cls('KG 1B', 'B'),
+      cls('Grade 6B', 'B'),
+      cls('Nursery 1A', 'A'),
+      cls('JHS 3B', 'B'),
+      cls('Grade 1B', 'B'),
+      cls('Nursery 2A', 'A'),
+      cls('KG 2A', 'A'),
+      cls('JHS 2A', 'A'),
+    ]).map((c) => c.name);
+
+    expect(sorted).toEqual([
+      'Creche',
+      'Nursery 1A',
+      'Nursery 2A',
+      'Nursery 2B',
+      'KG 1B',
+      'KG 2A',
+      'Grade 1A',
+      'Grade 1B',
+      'Grade 6B',
+      'JHS 1A',
+      'JHS 2A',
+      'JHS 3B',
+    ]);
+  });
+
   it('derives the section letter from the name when the column is null', () => {
     const sorted = sortClassesByLadder([
       cls('JHS 1B'),

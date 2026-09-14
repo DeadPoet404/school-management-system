@@ -17,7 +17,7 @@ const STAGE_RANK: Array<[RegExp, number]> = [
   [/^creche/i, 0],
   [/^nursery/i, 1],
   [/^kg\b|^kindergarten/i, 2],
-  [/^basic|^primary|^class\s*\d/i, 3],
+  [/^grade|^basic|^primary|^class\s*\d/i, 3],
   [/^jhs|^junior/i, 4],
   [/^shs|^senior/i, 5],
 ];

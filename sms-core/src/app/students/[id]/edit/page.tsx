@@ -213,7 +213,6 @@ function EditStudentForm() {
     if (!gender) missingFields.push("Gender Identity")
     if (!residentialAddress.trim()) missingFields.push("Primary Residential Address")
     if (!classId) missingFields.push("Assigned Cohort Class Unit")
-    if (!academicTrack) missingFields.push("Academic Specialization Track")
     if (!boardingStatus) missingFields.push("Institutional Housing Plan")
 
     if (nationalId && !isGhanaCardValid) {
@@ -223,7 +222,7 @@ function EditStudentForm() {
     }
 
     if (missingFields.length > 0) {
-      setTouched(new Set(["gender", "classId", "academicTrack", "boardingStatus"]))
+      setTouched(new Set(["gender", "classId", "boardingStatus"]))
       setFormState("error")
       setErrorMessage(`Please complete the following required fields: ${missingFields.join(", ")}`)
       return
@@ -570,7 +569,7 @@ function EditStudentForm() {
             <StepBadge num={3} />
             <div className="space-y-5">
               <h3 className="text-base font-semibold text-foreground tracking-tight">
-                Academic Placement &amp; Track Routing
+                Academic Placement
               </h3>
               <div className="space-y-1.5">
                 <Label htmlFor="student-class" className="text-xs font-semibold text-foreground">
@@ -599,37 +598,10 @@ function EditStudentForm() {
                   <p className="text-[10px] text-red-500 font-medium">Class selection is required</p>
                 )}
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="track" className="text-xs font-semibold text-foreground">
-                    Academic Specialization Track <span className="text-red-500">*</span>
-                  </Label>
-                  <Select
-                    value={academicTrack}
-                    onValueChange={(val) => {
-                      setAcademicTrack(val)
-                      markTouched("academicTrack")
-                    }}
-                    disabled={isSubmitting}
-                  >
-                    <SelectTrigger id="track" className={selectTriggerClass("academicTrack", academicTrack)}>
-                      <SelectValue placeholder="Select specialized pillar..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="GENERAL_ARTS" className="text-xs">General Arts Branch</SelectItem>
-                      <SelectItem value="SCIENCE" className="text-xs">Pure &amp; Applied Sciences</SelectItem>
-                      <SelectItem value="BUSINESS" className="text-xs">Business &amp; Financial Accounting</SelectItem>
-                      <SelectItem value="CORE_BASE" className="text-xs">Standard Unified Basic Curriculum</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {selectHasError("academicTrack", academicTrack) && (
-                    <p className="text-[10px] text-red-500 font-medium">Track selection is required</p>
-                  )}
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="boarding" className="text-xs font-semibold text-foreground">
-                    Institutional Housing Plan <span className="text-red-500">*</span>
-                  </Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="boarding" className="text-xs font-semibold text-foreground">
+                  Institutional Housing Plan <span className="text-red-500">*</span>
+                </Label>
                   <Select
                     value={boardingStatus}
                     onValueChange={(val) => {
@@ -650,11 +622,10 @@ function EditStudentForm() {
                     <p className="text-[10px] text-red-500 font-medium">Housing plan selection is required</p>
                   )}
                 </div>
-              </div>
             </div>
           </div>
 
-          {/* STEP 4: STATUTORY COMPLIANCE & EMERGENCY NODES */}
+          {/* STEP 4: STATUTORY COMPLIANCE & NATIONAL IDENTITY */}
           <div className="relative pl-10 group">
             <StepBadge num={4} />
             <div className="space-y-5">

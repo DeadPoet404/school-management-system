@@ -71,7 +71,6 @@
 
     // ── STEP 3: ACADEMIC PLACEMENT & TRACK ROUTING ──
     const [classId, setClassId] = React.useState("")
-    const [academicTrack, setAcademicTrack] = React.useState("")
     const [boardingStatus, setBoardingStatus] = React.useState("")
 
     // ── STEP 4: STATUTORY COMPLIANCE & NATIONAL IDENTITY ──
@@ -154,7 +153,6 @@
 
       // Step 3 — All Select fields
       if (!classId) missingFields.push("Assigned Cohort Class Unit")
-      if (!academicTrack) missingFields.push("Academic Specialization Track")
       if (!boardingStatus) missingFields.push("Institutional Housing Plan")
 
       // Step 4 — Ghana Card format check
@@ -180,7 +178,7 @@
       // ── FAIL FAST ON FRONTEND ──
       if (missingFields.length > 0) {
         // Mark all select fields as touched so their red borders appear
-        const selectFields = ["gender", "classId", "academicTrack", "boardingStatus", "guardianRelationship", "secondGuardianRelationship", "feeTierId"]
+        const selectFields = ["gender", "classId", "boardingStatus", "guardianRelationship", "secondGuardianRelationship", "feeTierId"]
         setTouched(new Set(selectFields))
 
         setFormState("error")
@@ -207,7 +205,9 @@
           religion: religion.trim() || null,
           formerSchool: formerSchool.trim() || null,
         },
-        placement: { classId, academicTrack, boardingStatus },
+        // Track is not user-facing; every student sits in the standard basic
+        // curriculum, so the non-null DB column always receives CORE_BASE.
+        placement: { classId, academicTrack: "CORE_BASE", boardingStatus },
         compliance: {
           nationalId: ghanaCardNumber.trim() || null,
         },
@@ -631,13 +631,13 @@
 
             {/* ═══════════════════════════════════════════════════════
                 STEP 3: ACADEMIC PLACEMENT & TRACK ROUTING
-                Maps to → Placement (classId, academicTrack, boardingStatus)
+                Maps to → Placement (classId, boardingStatus)
                 ═══════════════════════════════════════════════════════ */}
             <div className="relative pl-0 group sm:pl-10">
               <StepBadge num={3} />
               <div className="space-y-5">
                 <h3 className="text-base font-semibold text-foreground tracking-tight">
-                  Academic Placement &amp; Track Routing
+                  Academic Placement
                 </h3>
 
                 <div className="space-y-1.5">
@@ -673,45 +673,7 @@
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="track" className="text-sm font-semibold sm:text-xs text-foreground">
-                      Academic Specialization Track <span className="text-red-500">*</span>
-                    </Label>
-                    <Select
-                      value={academicTrack}
-                      onValueChange={(val) => {
-                        setAcademicTrack(val)
-                        markTouched("academicTrack")
-                      }}
-                      disabled={isSubmitting}
-                    >
-                      <SelectTrigger
-                        id="track"
-                        className={selectTriggerClass("academicTrack", academicTrack)}
-                      >
-                        <SelectValue placeholder="Select specialized pillar..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="GENERAL_ARTS" className="text-xs">
-                          General Arts Branch
-                        </SelectItem>
-                        <SelectItem value="SCIENCE" className="text-xs">
-                          Pure &amp; Applied Sciences
-                        </SelectItem>
-                        <SelectItem value="BUSINESS" className="text-xs">
-                          Business &amp; Financial Accounting
-                        </SelectItem>
-                        <SelectItem value="CORE_BASE" className="text-xs">
-                          Standard Unified Basic Curriculum
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {selectHasError("academicTrack", academicTrack) && (
-                      <p className="text-[10px] text-red-500 font-medium">Track selection is required</p>
-                    )}
-                  </div>
-                  <div className="space-y-1.5">
+                <div className="space-y-1.5">
                     <Label htmlFor="boarding" className="text-sm font-semibold sm:text-xs text-foreground">
                       Institutional Housing Plan <span className="text-red-500">*</span>
                     </Label>
@@ -741,7 +703,6 @@
                     {selectHasError("boardingStatus", boardingStatus) && (
                       <p className="text-[10px] text-red-500 font-medium">Housing plan selection is required</p>
                     )}
-                  </div>
                 </div>
               </div>
             </div>
@@ -897,6 +858,117 @@
                     />
                   </div>
                 </div>
+
+                <div className="pt-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isSubmitting}
+                    onClick={() => {
+                      if (secondGuardianOpen) {
+                        setSecondGuardianOpen(false)
+                        setSecondGuardianName("")
+                        setSecondGuardianRelationship("")
+                        setSecondGuardianPhone("")
+                        setSecondGuardianEmail("")
+                      } else {
+                        setSecondGuardianOpen(true)
+                      }
+                    }}
+                    className="h-8 gap-1.5 border-zinc-200 text-xs font-medium tracking-wide text-zinc-700 shadow-none transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900/60"
+                  >
+                    <Plus className="h-3.5 w-3.5 text-zinc-500" />
+                    {secondGuardianOpen ? "Remove second guardian" : "Add second guardian"}
+                  </Button>
+                </div>
+
+                {secondGuardianOpen && (
+                  <div className="space-y-4 rounded-md border border-dashed border-zinc-300 p-4 dark:border-zinc-700">
+                    <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                      Second guardian — additional contact. The first guardian above remains the default.
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="guardian2-name" className="text-sm font-semibold sm:text-xs text-foreground">
+                          Legal Name <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          id="guardian2-name"
+                          placeholder="e.g. Comfort Mensah"
+                          className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
+                          value={secondGuardianName}
+                          onChange={(e) => setSecondGuardianName(e.target.value)}
+                          disabled={isSubmitting}
+                        />
+                        {selectHasError("secondGuardianName", secondGuardianName) && (
+                          <p className="text-[10px] text-red-500 font-medium">Name is required</p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="guardian2-rel" className="text-sm font-semibold sm:text-xs text-foreground">
+                          Relationship <span className="text-red-500">*</span>
+                        </Label>
+                        <Select
+                          value={secondGuardianRelationship}
+                          onValueChange={(val) => {
+                            setSecondGuardianRelationship(val)
+                            markTouched("secondGuardianRelationship")
+                          }}
+                          disabled={isSubmitting}
+                        >
+                          <SelectTrigger
+                            id="guardian2-rel"
+                            className={selectTriggerClass("secondGuardianRelationship", secondGuardianRelationship)}
+                          >
+                            <SelectValue placeholder="Select kinship link..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="FATHER" className="text-xs">Father</SelectItem>
+                            <SelectItem value="MOTHER" className="text-xs">Mother</SelectItem>
+                            <SelectItem value="SPONSOR_LEGAL" className="text-xs">Legal Guardian</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {selectHasError("secondGuardianRelationship", secondGuardianRelationship) && (
+                          <p className="text-[10px] text-red-500 font-medium">Relationship is required</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="guardian2-phone" className="text-sm font-semibold sm:text-xs text-foreground">
+                          Contact Number <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          id="guardian2-phone"
+                          placeholder="e.g. +233 24 XXX XXXX"
+                          className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1 font-mono"
+                          value={secondGuardianPhone}
+                          onChange={(e) => setSecondGuardianPhone(e.target.value)}
+                          disabled={isSubmitting}
+                        />
+                        {selectHasError("secondGuardianPhone", secondGuardianPhone) && (
+                          <p className="text-[10px] text-red-500 font-medium">Phone is required</p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="guardian2-email" className="text-sm font-semibold sm:text-xs text-foreground">
+                          Email Address{" "}
+                          <span className="text-zinc-400 dark:text-zinc-500 text-[10px] font-normal">(Optional)</span>
+                        </Label>
+                        <Input
+                          id="guardian2-email"
+                          type="email"
+                          placeholder="e.g. comfort.mensah@net.com"
+                          className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
+                          value={secondGuardianEmail}
+                          onChange={(e) => setSecondGuardianEmail(e.target.value)}
+                          disabled={isSubmitting}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
