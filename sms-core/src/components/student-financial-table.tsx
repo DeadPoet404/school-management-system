@@ -40,14 +40,15 @@ export function StudentFinancialTable({ data: rawStudents }: StudentFinancialTab
         id: inv.invoiceNo,
         date: inv.createdAt,
         type: "Invoice",
-        amount: inv.amount,
+        // Money arrives as Prisma Decimal → JSON string; coerce defensively.
+        amount: Number(inv.amount) || 0,
       }))
 
       const paymentLogs = rawPayments.map((pay: any) => ({
         id: pay.receiptNo,
         date: pay.createdAt,
         type: pay.paymentType || "Payment",
-        amount: pay.amount,
+        amount: Number(pay.amount) || 0,
       }))
 
       // Sort timeline from oldest to newest to compute the exact rolling balance balances

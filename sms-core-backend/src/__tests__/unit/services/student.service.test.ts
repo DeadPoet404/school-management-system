@@ -72,10 +72,10 @@ describe('StudentService', () => {
       });
     });
 
-    it('should return student when found', async () => {
+    it('should return student when found (read endpoints normalize money fields)', async () => {
       (repo.findById as any).mockResolvedValue(FOUND_STUDENT);
       const result = await service.getById('stu-uuid-1');
-      expect(result).toBe(FOUND_STUDENT);
+      expect(result).toEqual({ ...FOUND_STUDENT, invoices: [], payments: [] });
       expect(repo.findById).toHaveBeenCalledWith('stu-uuid-1');
     });
   });
@@ -379,6 +379,59 @@ describe('StudentService', () => {
       const result = await service.getFinancialMatrix();
       expect(result[0]!.feesStatus).toBe('Paid');
       expect(result[0]!.lastTransactionId).toBe('PAY-1');
+    });
+  });
+
+  describe('money normalization (Prisma Decimal strings → numbers)', () => {
+    // Regression: /students ships invoice/payment Decimals; JSON serializes
+    // them as strings and the registry Fees Info tab does .toFixed() on them,
+    // which threw "toFixed is not a function" once real invoices existed.
+    const studentWithDecimalStrings = {
+      ...FOUND_STUDENT,
+      invoices: [
+        { id: 'inv-1', invoiceNo: 'INV-LGY-0001', amount: '1610.00', paidAmount: '1000.00', status: 'PARTIAL', dueDate: new Date('2026-12-20'), createdAt: new Date('2026-09-01T00:00:00Z') },
+      ],
+      payments: [
+        { id: 'pay-1', receiptNo: 'REC-LGY-0001', amount: '1000.00', paymentType: 'Cash', createdAt: new Date('2026-09-02T00:00:00Z') },
+      ],
+      billing: { currentBalance: '610.00', initialDeposit: '0.00', feeTierId: 'tier-1' },
+    };
+
+    it('should normalize invoice/payment/billing Decimals in getFilteredPaginated', async () => {
+      (repo.findAllFiltered as any).mockResolvedValue([studentWithDecimalStrings]);
+      (repo.countFiltered as any).mockResolvedValue(1);
+
+      const { data } = await service.getFilteredPaginated({}, 0, 50);
+
+      expect(data).toHaveLength(1);
+      expect(data[0].invoices[0].amount).toBe(1610);
+      expect(data[0].invoices[0].paidAmount).toBe(1000);
+      expect(data[0].payments[0].amount).toBe(1000);
+      expect(data[0].billing.currentBalance).toBe(610);
+      expect(data[0].billing.initialDeposit).toBe(0);
+      // Non-money fields pass through untouched
+      expect(data[0].studentName).toBe('John Doe');
+      expect(data[0].invoices[0].invoiceNo).toBe('INV-LGY-0001');
+    });
+
+    it('should normalize in getById', async () => {
+      (repo.findById as any).mockResolvedValue(studentWithDecimalStrings);
+
+      const s = await service.getById('stu-uuid-1');
+
+      expect(s.invoices[0].amount).toBe(1610);
+      expect(s.payments[0].amount).toBe(1000);
+      expect(s.billing.currentBalance).toBe(610);
+    });
+
+    it('should tolerate students without invoices/payments', async () => {
+      (repo.findAllFiltered as any).mockResolvedValue([{ ...FOUND_STUDENT }]);
+      (repo.countFiltered as any).mockResolvedValue(1);
+
+      const { data } = await service.getFilteredPaginated({}, 0, 50);
+
+      expect(data[0].invoices).toEqual([]);
+      expect(data[0].payments).toEqual([]);
     });
   });
 });

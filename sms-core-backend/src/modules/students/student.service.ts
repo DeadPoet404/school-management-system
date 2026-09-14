@@ -146,7 +146,7 @@ export class StudentService {
   }
 
   async getAll() {
-    return this.repo.findAll();
+    return (await this.repo.findAll()).map((s: any) => this.normalizeMoney(s));
   }
 
   async getPaginated(skip: number, take: number) {
@@ -155,7 +155,8 @@ export class StudentService {
 
   async getAllFiltered(filters: StudentFilters) {
     const where = this.buildWhereClause(filters);
-    return this.repo.findAllFiltered(where);
+    const data = await this.repo.findAllFiltered(where);
+    return (data || []).map((s: any) => this.normalizeMoney(s));
   }
 
   async getFilteredPaginated(
@@ -168,7 +169,37 @@ export class StudentService {
       this.repo.findAllFiltered(where, skip, take),
       this.repo.countFiltered(where),
     ]);
-    return { data, total };
+    return { data: (data || []).map((s: any) => this.normalizeMoney(s)), total };
+  }
+
+  /**
+   * Normalize Prisma Decimal money fields to plain numbers. Decimals
+   * serialize to JSON as strings ("1610.00"); consumers (e.g. the student
+   * registry Fees Info tab) do numeric math on them, so hand out numbers.
+   * Mirrors the explicit Number() mapping already used in
+   * payments.service.getSelfFeesSummary.
+   */
+  private normalizeMoney(student: any): any {
+    if (!student) return student;
+    return {
+      ...student,
+      invoices: (student.invoices || []).map((inv: any) => ({
+        ...inv,
+        amount: Number(inv.amount),
+        paidAmount: Number(inv.paidAmount),
+      })),
+      payments: (student.payments || []).map((pay: any) => ({
+        ...pay,
+        amount: Number(pay.amount),
+      })),
+      billing: student.billing
+        ? {
+            ...student.billing,
+            currentBalance: Number(student.billing.currentBalance),
+            initialDeposit: Number(student.billing.initialDeposit),
+          }
+        : student.billing,
+    };
   }
 
   private buildWhereClause(
@@ -300,7 +331,7 @@ export class StudentService {
   async getById(id: string) {
     const student = await this.repo.findById(id);
     if (!student) throw new AppError(404, `Student not found with ID: ${id}`);
-    return student;
+    return this.normalizeMoney(student);
   }
 
   async getFinancialMatrix() {
