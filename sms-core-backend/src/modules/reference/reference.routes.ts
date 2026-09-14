@@ -58,7 +58,7 @@ export function sortClassesByLadder<T extends ClassRow>(rows: T[]): T[] {
 router.get("/classes", requireRole(ROLES.STAFF, ROLES.ADMIN, ROLES.FACULTY, ROLES.ACCOUNTANT), async (_req, res, next) => {
   try {
     const rows = await prisma.class.findMany({
-      where: { deletedAt: null },
+      where: activeFilter,
       select: { id: true, name: true, section: true, isActive: true },
     });
     res.status(200).json({ success: true, data: sortClassesByLadder(rows) });

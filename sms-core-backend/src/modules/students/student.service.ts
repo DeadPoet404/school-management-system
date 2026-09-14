@@ -391,15 +391,28 @@ export class StudentService {
     placement: { classId: string; academicTrack: string; boardingStatus: string };
     guardian?: { name: string; relationship: string; phone: string; email?: string | null };
     parent?: { name: string; relationship: string; phone: string; email?: string | null };
+    guardian2?: { name: string; relationship: string; phone: string; email?: string | null } | null;
     billing: { feeTierId: string; initialDeposit: number };
     compliance?: { nationalId?: string | null; emergencyContact?: { name?: string | null; phone?: string | null; relationship?: string | null } | null };
     legacyStudentId?: string | null;
   }) {
-    const { account, demographics, placement, guardian, parent, billing, compliance } = payload;
+    const { account, demographics, placement, guardian, parent, guardian2, billing, compliance } = payload;
     const resolvedGuardian = guardian || parent;
 
     if (!resolvedGuardian) {
       throw new AppError(400, "Missing essential guardian contact relationships from structural payload.");
+    }
+
+    // Optional second guardian (enrollment UI allows up to two; the first is
+    // the primary/default).
+    const resolvedGuardian2 = guardian2 ?? null;
+    if (
+      resolvedGuardian2 &&
+      (!resolvedGuardian2.name?.trim() ||
+        !resolvedGuardian2.relationship ||
+        !resolvedGuardian2.phone?.trim())
+    ) {
+      throw new AppError(400, "Second guardian requires a name, relationship and phone.");
     }
 
     // Frontend may send either the fee tier's UUID (id) or its code (code); try both.
@@ -461,7 +474,14 @@ export class StudentService {
         },
       },
       placement: { create: { classId: placement.classId, academicTrack: placement.academicTrack, boardingStatus: placement.boardingStatus } },
-      guardians: { create: { name: resolvedGuardian.name, relationship: resolvedGuardian.relationship, phone: resolvedGuardian.phone, email: resolvedGuardian.email ?? null } },
+      guardians: {
+        create: [
+          { name: resolvedGuardian.name, relationship: resolvedGuardian.relationship, phone: resolvedGuardian.phone, email: resolvedGuardian.email ?? null },
+          ...(resolvedGuardian2
+            ? [{ name: resolvedGuardian2.name, relationship: resolvedGuardian2.relationship, phone: resolvedGuardian2.phone, email: resolvedGuardian2.email ?? null }]
+            : []),
+        ],
+      },
       billing: { create: { feeTierId: resolvedTierId, initialDeposit: billing.initialDeposit, currentBalance: computedBalance } },
       compliance: { create: { nationalId: compliance?.nationalId ?? null, emergencyName: compliance?.emergencyContact?.name ?? null, emergencyPhone: compliance?.emergencyContact?.phone ?? null, emergencyRelation: compliance?.emergencyContact?.relationship ?? null } },
     };

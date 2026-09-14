@@ -166,9 +166,6 @@ function EditStudentForm() {
 
         const compliance = student.compliance || {}
         setNationalId(compliance.nationalId || "")
-        setEmergencyContactName(compliance.emergencyName || "")
-        setEmergencyContactPhone(compliance.emergencyPhone || "")
-        setEmergencyContactRelation(compliance.emergencyRelation || "")
 
         const guardian = Array.isArray(student.guardians) ? student.guardians[0] : student.guardian
         setGuardianName(guardian?.name || "")
@@ -177,7 +174,12 @@ function EditStudentForm() {
         setGuardianEmail(guardian?.email || "")
 
         const billing = student.billing || {}
-        setFeeTierLabel(billing.feeTierId || billing.feeTier?.name || "")
+        // Show the tier's name + price, never the raw UUID.
+        setFeeTierLabel(
+          billing.feeTier?.name
+            ? `${billing.feeTier.name} — GH₵ ${Number(billing.feeTier.amount).toLocaleString("en-GH", { maximumFractionDigits: 0 })}`
+            : ""
+        )
         setBillingBalance(
           billing.currentBalance != null
             ? String(billing.currentBalance)
@@ -249,9 +251,6 @@ function EditStudentForm() {
       },
       compliance: {
         nationalId: nationalId.trim() || null,
-        emergencyName: emergencyContactName.trim() || null,
-        emergencyPhone: emergencyContactPhone.trim() || null,
-        emergencyRelation: emergencyContactRelation || null,
       },
     }
 
@@ -592,7 +591,6 @@ function EditStudentForm() {
                     {classes.map((cls) => (
                       <SelectItem key={cls.id} value={cls.id} className="text-xs">
                         {cls.name}
-                        {cls.section ? ` — Section ${cls.section}` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -689,61 +687,6 @@ function EditStudentForm() {
                     {isGhanaCardValid ? "✓ Valid" : "✗ Invalid — expected GHA-XXXXXXXXX-X"}
                   </span>
                 )}
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="emergency-name" className="text-xs font-semibold text-foreground">
-                    Emergency Contact Name{" "}
-                    <span className="text-zinc-400 dark:text-zinc-500 text-[10px] font-normal">(Optional)</span>
-                  </Label>
-                  <Input
-                    id="emergency-name"
-                    className="h-9 text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
-                    value={emergencyContactName}
-                    onChange={(e) => setEmergencyContactName(e.target.value)}
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <Phone className="h-3 w-3 text-zinc-400 dark:text-zinc-500" />
-                    <Label htmlFor="emergency-phone" className="text-xs font-semibold text-foreground">
-                      Emergency Phone{" "}
-                      <span className="text-zinc-400 dark:text-zinc-500 text-[10px] font-normal">(Optional)</span>
-                    </Label>
-                  </div>
-                  <Input
-                    id="emergency-phone"
-                    className="h-9 text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1 font-mono"
-                    value={emergencyContactPhone}
-                    onChange={(e) => setEmergencyContactPhone(e.target.value)}
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="emergency-relation" className="text-xs font-semibold text-foreground">
-                    Relationship{" "}
-                    <span className="text-zinc-400 dark:text-zinc-500 text-[10px] font-normal">(Optional)</span>
-                  </Label>
-                  <Select
-                    value={emergencyContactRelation}
-                    onValueChange={(val) => {
-                      setEmergencyContactRelation(val)
-                      markTouched("emergencyContactRelation")
-                    }}
-                    disabled={isSubmitting}
-                  >
-                    <SelectTrigger id="emergency-relation" className={selectTriggerClass("emergencyContactRelation", emergencyContactRelation)}>
-                      <SelectValue placeholder="Select..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="PARENT" className="text-xs">Parent</SelectItem>
-                      <SelectItem value="SIBLING" className="text-xs">Sibling</SelectItem>
-                      <SelectItem value="SPOUSE" className="text-xs">Spouse</SelectItem>
-                      <SelectItem value="OTHER" className="text-xs">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
             </div>
           </div>

@@ -340,6 +340,43 @@ describe('StudentService', () => {
       expect(createData.billing.create.feeTierId).toBe('tier-uuid-a');
       expect(createData.billing.create.currentBalance).toBe(1500);
     });
+
+    it('should create two guardians when guardian2 is provided (first is primary)', async () => {
+      (prisma.feeTier.findUnique as any).mockResolvedValue({ id: 'tier-uuid-a', code: 'TIER-A', amount: '2000', isActive: true });
+      (repo.createNestedStudent as any).mockResolvedValue({ id: 'new-1', studentId: 'STU-X', studentName: 'Jane' });
+
+      await service.createStudent({
+        ...VALID_ENROLLMENT_PAYLOAD,
+        guardian2: { name: 'Comfort Mensah', relationship: 'MOTHER', phone: '0240000000', email: null },
+      });
+
+      const createData = (repo.createNestedStudent as any).mock.calls[0][0];
+      expect(Array.isArray(createData.guardians.create)).toBe(true);
+      expect(createData.guardians.create).toHaveLength(2);
+      expect(createData.guardians.create[0].name).toBe('Parent Doe');
+      expect(createData.guardians.create[1].name).toBe('Comfort Mensah');
+    });
+
+    it('should create a single guardian when guardian2 is omitted', async () => {
+      (prisma.feeTier.findUnique as any).mockResolvedValue({ id: 'tier-uuid-a', code: 'TIER-A', amount: '2000', isActive: true });
+      (repo.createNestedStudent as any).mockResolvedValue({ id: 'new-1', studentId: 'STU-X', studentName: 'Jane' });
+
+      await service.createStudent(VALID_ENROLLMENT_PAYLOAD);
+
+      const createData = (repo.createNestedStudent as any).mock.calls[0][0];
+      expect(createData.guardians.create).toHaveLength(1);
+      expect(createData.guardians.create[0].name).toBe('Parent Doe');
+    });
+
+    it('should throw 400 when guardian2 is provided but incomplete', async () => {
+      await expect(service.createStudent({
+        ...VALID_ENROLLMENT_PAYLOAD,
+        guardian2: { name: 'Comfort Mensah', relationship: 'MOTHER', phone: '   ' },
+      })).rejects.toMatchObject({
+        statusCode: 400,
+        message: expect.stringContaining('Second guardian'),
+      });
+    });
   });
 
   // ── getFinancialMatrix ──

@@ -3,7 +3,7 @@
   import * as React from "react"
   import Link from "next/link"
   import { useRouter, useSearchParams } from "next/navigation"
-  import { ArrowLeft, CheckCircle2, AlertCircle, ShieldCheck, Phone } from "lucide-react"
+  import { ArrowLeft, CheckCircle2, AlertCircle, ShieldCheck, Plus } from "lucide-react"
   import { Button } from "@/components/ui/button"
   import { ScrollArea } from "@/components/ui/scroll-area"
   import { Input } from "@/components/ui/input"
@@ -76,15 +76,17 @@
 
     // ── STEP 4: STATUTORY COMPLIANCE & NATIONAL IDENTITY ──
     const [ghanaCardNumber, setGhanaCardNumber] = React.useState("")
-    const [emergencyContactName, setEmergencyContactName] = React.useState("")
-    const [emergencyContactPhone, setEmergencyContactPhone] = React.useState("")
-    const [emergencyContactRelation, setEmergencyContactRelation] = React.useState("")
 
-    // ── STEP 5: PRIMARY GUARDIAN & NEXT OF KIN LINKAGE ──
+    // ── STEP 5: GUARDIANS (UP TO TWO; FIRST IS PRIMARY/DEFAULT) ──
     const [guardianName, setGuardianName] = React.useState("")
     const [guardianRelationship, setGuardianRelationship] = React.useState("")
     const [guardianPhone, setGuardianPhone] = React.useState("")
     const [guardianEmail, setGuardianEmail] = React.useState("")
+    const [secondGuardianOpen, setSecondGuardianOpen] = React.useState(false)
+    const [secondGuardianName, setSecondGuardianName] = React.useState("")
+    const [secondGuardianRelationship, setSecondGuardianRelationship] = React.useState("")
+    const [secondGuardianPhone, setSecondGuardianPhone] = React.useState("")
+    const [secondGuardianEmail, setSecondGuardianEmail] = React.useState("")
 
     // ── STEP 6: TREASURY CONFIGURATION & FINANCE LEDGER TIERS ──
     const [feeTierId, setFeeTierId] = React.useState("")
@@ -162,18 +164,23 @@
         return
       }
 
-      // Step 5 — Select field
+      // Step 5 — Guardian + optional second guardian
       if (!guardianName.trim()) missingFields.push("Guardian Legal Name")
-      if (!guardianRelationship) missingFields.push("Guardian Relationship Matrix")
+      if (!guardianRelationship) missingFields.push("Guardian Relationship")
       if (!guardianPhone.trim()) missingFields.push("Guardian Primary Contact Number")
+      if (secondGuardianOpen) {
+        if (!secondGuardianName.trim()) missingFields.push("Second Guardian Name")
+        if (!secondGuardianRelationship) missingFields.push("Second Guardian Relationship")
+        if (!secondGuardianPhone.trim()) missingFields.push("Second Guardian Phone")
+      }
 
       // Step 6 — Select field
-      if (!feeTierId) missingFields.push("Assigned Fee Structures Billing Tier")
+      if (!feeTierId) missingFields.push("Assigned Fee Structure")
 
       // ── FAIL FAST ON FRONTEND ──
       if (missingFields.length > 0) {
         // Mark all select fields as touched so their red borders appear
-        const selectFields = ["gender", "classId", "academicTrack", "boardingStatus", "guardianRelationship", "feeTierId"]
+        const selectFields = ["gender", "classId", "academicTrack", "boardingStatus", "guardianRelationship", "secondGuardianRelationship", "feeTierId"]
         setTouched(new Set(selectFields))
 
         setFormState("error")
@@ -202,12 +209,7 @@
         },
         placement: { classId, academicTrack, boardingStatus },
         compliance: {
-          nationalId: ghanaCardNumber || null,
-          emergencyContact: {
-            name: emergencyContactName.trim() || null,
-            phone: emergencyContactPhone.trim() || null,
-            relationship: emergencyContactRelation || null,
-          },
+          nationalId: ghanaCardNumber.trim() || null,
         },
         guardian: {
           name: guardianName.trim(),
@@ -215,6 +217,14 @@
           phone: guardianPhone.trim(),
           email: guardianEmail.trim() || null,
         },
+        guardian2: secondGuardianOpen
+          ? {
+              name: secondGuardianName.trim(),
+              relationship: secondGuardianRelationship,
+              phone: secondGuardianPhone.trim(),
+              email: secondGuardianEmail.trim() || null,
+            }
+          : undefined,
         billing: {
           feeTierId,
           initialDeposit: initialDeposit ? parseFloat(initialDeposit) : 0,
@@ -654,7 +664,6 @@
                       {classes.map((cls) => (
                         <SelectItem key={cls.id} value={cls.id} className="text-xs">
                           {cls.name}
-                          {cls.section ? ` \u2014 Section ${cls.section}` : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -739,9 +748,7 @@
 
             {/* ═══════════════════════════════════════════════════════
                 STEP 4: STATUTORY COMPLIANCE & NATIONAL IDENTITY
-                Maps to → StudentCompliance (nationalId, emergencyName,
-                          emergencyPhone, emergencyRelation)
-                Controller flattens nested emergencyContact → DB columns
+                Maps to → StudentCompliance (nationalId, optional)
                 ═══════════════════════════════════════════════════════ */}
             <div className="relative pl-0 group sm:pl-10">
               <StepBadge num={4} />
@@ -749,14 +756,17 @@
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-zinc-500 dark:text-zinc-400" />
                   <h3 className="text-base font-semibold text-foreground tracking-tight">
-                    Statutory Compliance &amp; Emergency Nodes
+                    Statutory Compliance &amp; National Identity
                   </h3>
                 </div>
 
                 {/* Ghana Card — full-width, prominent */}
                 <div className="space-y-1.5">
                   <Label htmlFor="ghana-card" className="text-sm font-semibold sm:text-xs text-foreground">
-                    National ID Token / Ghana Card <span className="text-red-500">*</span>
+                    National ID Token / Ghana Card{" "}
+                    <span className="text-zinc-400 dark:text-zinc-500 text-[10px] font-normal">
+                      (Optional — leave blank if none)
+                    </span>
                   </Label>
                   <Input
                     id="ghana-card"
@@ -769,7 +779,6 @@
                     }`}
                     value={ghanaCardNumber}
                     onChange={(e) => handleGhanaCardChange(e.target.value)}
-                    required
                     disabled={isSubmitting}
                   />
                   <div className="flex items-center justify-between">
@@ -790,89 +799,18 @@
                   </div>
                 </div>
 
-                {/* Emergency Contact — 3-column row */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="emergency-name" className="text-sm font-semibold sm:text-xs text-foreground">
-                      Emergency Contact Name <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      id="emergency-name"
-                      placeholder="e.g. Nana Akua Boateng"
-                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
-                      value={emergencyContactName}
-                      onChange={(e) => setEmergencyContactName(e.target.value)}
-                      required
-                      disabled={isSubmitting}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <Phone className="h-3 w-3 text-zinc-400 dark:text-zinc-500" />
-                      <Label htmlFor="emergency-phone" className="text-sm font-semibold sm:text-xs text-foreground">
-                        Emergency Phone <span className="text-red-500">*</span>
-                      </Label>
-                    </div>
-                    <Input
-                      id="emergency-phone"
-                      placeholder="e.g. +233 20 XXX XXXX"
-                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1 font-mono"
-                      value={emergencyContactPhone}
-                      onChange={(e) => setEmergencyContactPhone(e.target.value)}
-                      required
-                      disabled={isSubmitting}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="emergency-relation" className="text-sm font-semibold sm:text-xs text-foreground">
-                      Relationship <span className="text-red-500">*</span>
-                    </Label>
-                    <Select
-                      value={emergencyContactRelation}
-                      onValueChange={(val) => {
-                        setEmergencyContactRelation(val)
-                        markTouched("emergencyContactRelation")
-                      }}
-                      disabled={isSubmitting}
-                    >
-                      <SelectTrigger
-                        id="emergency-relation"
-                        className={selectTriggerClass("emergencyContactRelation", emergencyContactRelation)}
-                      >
-                        <SelectValue placeholder="Select..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="PARENT" className="text-xs">
-                          Parent
-                        </SelectItem>
-                        <SelectItem value="SIBLING" className="text-xs">
-                          Sibling
-                        </SelectItem>
-                        <SelectItem value="SPOUSE" className="text-xs">
-                          Spouse
-                        </SelectItem>
-                        <SelectItem value="OTHER" className="text-xs">
-                          Other
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {selectHasError("emergencyContactRelation", emergencyContactRelation) && (
-                      <p className="text-[10px] text-red-500 font-medium">Relationship selection is required</p>
-                    )}
-                  </div>
-                </div>
               </div>
             </div>
 
             {/* ═══════════════════════════════════════════════════════
-                STEP 5: PRIMARY GUARDIAN & NEXT OF KIN LINKAGE
-                Maps to → Guardian (name, relationship, phone, email)
+                STEP 5: GUARDIANS (UP TO TWO; FIRST IS PRIMARY/DEFAULT)
+                Maps to → Guardian[] (name, relationship, phone, email)
                 ═══════════════════════════════════════════════════════ */}
             <div className="relative pl-0 group sm:pl-10">
               <StepBadge num={5} />
               <div className="space-y-5">
                 <h3 className="text-base font-semibold text-foreground tracking-tight">
-                  Primary Guardian &amp; Next of Kin Linkage
+                  Guardians &amp; Next of Kin
                 </h3>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -975,7 +913,7 @@
 
                 <div className="space-y-1.5">
                   <Label htmlFor="fee-tier" className="text-sm font-semibold sm:text-xs text-foreground">
-                    Assigned Fee Structures Billing Tier <span className="text-red-500">*</span>
+                    Assigned Fee Structure <span className="text-red-500">*</span>
                   </Label>
                   <Select
                     value={feeTierId}
