@@ -13,6 +13,28 @@ type StudentFinancialRow = Prisma.StudentGetPayload<{
   include: { account: true; invoices: true; payments: true; };
 }>;
 
+/**
+ * New-enrollee fee bands (FIRST TERM 2026/27 schedule).
+ *
+ * When a NEW student is enrolled, the fee is derived from the selected
+ * class: admission (one-time) + uniform (one-time) + termly tuition.
+ * Students already enrolled keep their original term fee for this term and
+ * move to these tuition amounts next term (a one-off tier bump, done at the
+ * start of the term — not here).
+ */
+export const NEW_ENROLLEE_FEE_BANDS = [
+  { key: 'EARLY_YEARS', pattern: /^(creche|nursery|kg\b|kindergarten)/i, admission: 700, uniform: 700, tuition: 450, tierCode: 'NEW-EARLYYEARS' },
+  { key: 'BASIC', pattern: /^(grade|basic|primary|class\s*\d)/i, admission: 700, uniform: 700, tuition: 500, tierCode: 'NEW-BASIC1-6' },
+  { key: 'JHS', pattern: /^(jhs|junior)/i, admission: 700, uniform: 840, tuition: 600, tierCode: 'NEW-JHS' },
+] as const;
+
+export type FeeBand = (typeof NEW_ENROLLEE_FEE_BANDS)[number];
+
+export function feeBandForClass(className: string): FeeBand | null {
+  const name = (className || '').trim();
+  return NEW_ENROLLEE_FEE_BANDS.find((band) => band.pattern.test(name)) ?? null;
+}
+
 interface InvoiceType {
   invoiceNo: string;
   amount: Prisma.Decimal;
@@ -392,7 +414,7 @@ export class StudentService {
     guardian?: { name: string; relationship: string; phone: string; email?: string | null };
     parent?: { name: string; relationship: string; phone: string; email?: string | null };
     guardian2?: { name: string; relationship: string; phone: string; email?: string | null } | null;
-    billing: { feeTierId: string; initialDeposit: number };
+    billing: { feeTierId?: string; initialDeposit: number };
     compliance?: { nationalId?: string | null; emergencyContact?: { name?: string | null; phone?: string | null; relationship?: string | null } | null };
     legacyStudentId?: string | null;
   }) {
@@ -415,31 +437,62 @@ export class StudentService {
       throw new AppError(400, "Second guardian requires a name, relationship and phone.");
     }
 
-    // Frontend may send either the fee tier's UUID (id) or its code (code); try both.
-    const feeTier =
-      (await prisma.feeTier.findUnique({ where: { id: billing.feeTierId } })) ??
-      (await prisma.feeTier.findUnique({ where: { code: billing.feeTierId } }));
-    // D-05: a failed tier lookup must never silently default the tariff to 0.
-    // Previously an unresolvable tier enrolled the student with a 0.00 balance
-    // and returned 201, so the school never billed them. Fail loudly instead.
-    if (!feeTier) {
-      throw new AppError(400, `Unknown fee tier: ${billing.feeTierId}`);
-    }
-    if (!feeTier.isActive) {
-      throw new AppError(400, `Fee tier ${feeTier.code} is inactive and cannot be assigned.`);
-    }
-
     const initialDeposit = Number(billing.initialDeposit);
     if (!Number.isFinite(initialDeposit) || initialDeposit < 0) {
       throw new AppError(400, 'Initial deposit must be a non-negative number.');
     }
 
-    const baseTariff = Number(feeTier.amount);
-    if (!Number.isFinite(baseTariff)) {
-      throw new AppError(500, `Fee tier ${feeTier.code} has a non-numeric amount.`);
+    // ── FEE RESOLUTION ─────────────────────────────────────────────
+    // Explicit feeTierId (legacy/import path): the tier amount IS the
+    // full charge, exactly as before.
+    // No feeTierId (enrollment UI): derive from the selected class's
+    // fee band — admission + uniform + termly tuition for new enrollees.
+    let feeTier: { id: string; code: string; amount: Prisma.Decimal; isActive: boolean } | null = null;
+    let totalCharge = 0;
+    let feeBreakdown: string | null = null;
+
+    if (billing.feeTierId) {
+      // Frontend may send either the fee tier's UUID (id) or its code (code); try both.
+      feeTier =
+        (await prisma.feeTier.findUnique({ where: { id: billing.feeTierId } })) ??
+        (await prisma.feeTier.findUnique({ where: { code: billing.feeTierId } }));
+      // D-05: a failed tier lookup must never silently default the tariff to 0.
+      // Previously an unresolvable tier enrolled the student with a 0.00 balance
+      // and returned 201, so the school never billed them. Fail loudly instead.
+      if (!feeTier) {
+        throw new AppError(400, `Unknown fee tier: ${billing.feeTierId}`);
+      }
+      if (!feeTier.isActive) {
+        throw new AppError(400, `Fee tier ${feeTier.code} is inactive and cannot be assigned.`);
+      }
+      totalCharge = Number(feeTier.amount);
+      if (!Number.isFinite(totalCharge)) {
+        throw new AppError(500, `Fee tier ${feeTier.code} has a non-numeric amount.`);
+      }
+    } else {
+      const cls = await prisma.class.findUnique({
+        where: { id: placement.classId },
+        select: { name: true },
+      });
+      const band = feeBandForClass(cls?.name || '');
+      if (!band) {
+        throw new AppError(
+          400,
+          `Class "${cls?.name || placement.classId}" has no fee structure. Choose a class from the academic ladder.`,
+        );
+      }
+      const bandTier = await prisma.feeTier.findUnique({ where: { code: band.tierCode } });
+      if (!bandTier || !bandTier.isActive) {
+        // Fail loudly rather than enrolling unbilled (D-05).
+        throw new AppError(500, `Fee band tier ${band.tierCode} is missing or inactive — run the fee-band data script.`);
+      }
+      feeTier = bandTier;
+      totalCharge = band.admission + band.uniform + band.tuition;
+      feeBreakdown = `Admission ${band.admission} + Uniform ${band.uniform} + Termly Tuition ${band.tuition}`;
     }
+
     const resolvedTierId = feeTier.id;
-    const computedBalance = Math.max(0, baseTariff - initialDeposit);
+    const computedBalance = Math.max(0, totalCharge - initialDeposit);
 
     // Cohort id: JCS-<2-digit JHS3 completion year>-<3-digit sequence>.
     // Derived from the class being enrolled into, so peers share a code and
@@ -487,7 +540,44 @@ export class StudentService {
     };
 
     // createNestedStudent accepts optional tx; omit tx → uses root prisma client.
-    return this.repo.createNestedStudent(dbPayload);
+    const created = await this.repo.createNestedStudent(dbPayload);
+
+    // New-enrollee path: issue the FIRST TERM 2026/27 invoice for the full
+    // band charge (admission + uniform + tuition) so collections and
+    // receipts attach to it. Enrollment is deliberately not wrapped in
+    // $transaction (PgBouncer P2028), so if invoicing fails the student
+    // exists without an invoice — report the student id for manual
+    // reconciliation rather than silently returning success.
+    if (feeBreakdown) {
+      const termStructure = await prisma.feeStructureConfiguration.findUnique({
+        where: { sectionId: placement.classId },
+        select: { dueDate: true },
+      });
+      const paidAmount = Math.min(initialDeposit, totalCharge);
+      const status: 'UNPAID' | 'PARTIAL' | 'PAID' =
+        paidAmount >= totalCharge ? 'PAID' : paidAmount > 0 ? 'PARTIAL' : 'UNPAID';
+      try {
+        await prisma.invoice.create({
+          data: {
+            invoiceNo: `INV-${created.studentId}-FT2627`,
+            studentId: created.id,
+            description: `FIRST TERM 2026/27 invoice | ${feeBreakdown}`,
+            amount: totalCharge,
+            paidAmount,
+            status,
+            dueDate: termStructure?.dueDate ?? new Date('2026-11-30'),
+          },
+        });
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : 'unknown error';
+        throw new AppError(
+          500,
+          `Student ${created.studentId} was enrolled but the first term invoice could not be issued (${detail}). Reconcile manually.`,
+        );
+      }
+    }
+
+    return created;
   }
 
   /**

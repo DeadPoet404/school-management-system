@@ -7,8 +7,9 @@ vi.mock('@/lib/prisma', () => ({
     feeTier: { findUnique: vi.fn() },
     class: { findUnique: vi.fn() },
     student: { findMany: vi.fn(), findUnique: vi.fn() },
-    invoice: { groupBy: vi.fn() },
+    invoice: { groupBy: vi.fn(), create: vi.fn() },
     payment: { groupBy: vi.fn() },
+    feeStructureConfiguration: { findUnique: vi.fn() },
     $transaction: vi.fn(),
   },
 }));
@@ -18,7 +19,7 @@ vi.mock('@/utils/hash', () => ({
 }));
 
 import { prisma } from '@/lib/prisma';
-import { StudentService } from '@/modules/students/student.service';
+import { StudentService, feeBandForClass } from '@/modules/students/student.service';
 import { createMockStudentRepo } from '@/__tests__/helpers/mock-repositories';
 
 // ── Fixtures ──
@@ -469,6 +470,133 @@ describe('StudentService', () => {
 
       expect(data[0].invoices).toEqual([]);
       expect(data[0].payments).toEqual([]);
+    });
+  });
+
+  // ── New-enrollee fee bands (auto fee from selected class) ──
+  describe('new-enrollee fee bands', () => {
+    const bandTier = (code: string, amount: string) => ({ id: `tier-${code}`, code, amount, isActive: true });
+
+    const mockBandLookup = (code: string, amount: string) => {
+      (prisma.feeTier.findUnique as any).mockImplementation(async ({ where }: any) =>
+        where.code === code ? bandTier(code, amount) : null,
+      );
+    };
+
+    it('feeBandForClass maps ladder names to bands', () => {
+      expect(feeBandForClass('Creche')?.key).toBe('EARLY_YEARS');
+      expect(feeBandForClass('Nursery 2B')?.key).toBe('EARLY_YEARS');
+      expect(feeBandForClass('KG 1A')?.key).toBe('EARLY_YEARS');
+      expect(feeBandForClass('Grade 3B')?.key).toBe('BASIC');
+      expect(feeBandForClass('JHS 2A')?.key).toBe('JHS');
+      expect(feeBandForClass('Unassigned')).toBeNull();
+    });
+
+    it('enrolls without feeTierId: BASIC band total 1900, issues FIRST TERM invoice', async () => {
+      mockBandLookup('NEW-BASIC1-6', '500');
+      (prisma.feeStructureConfiguration.findUnique as any).mockResolvedValue({ dueDate: new Date('2026-11-30') });
+      (prisma.invoice.create as any).mockResolvedValue({ id: 'inv-1' });
+      (repo.createNestedStudent as any).mockResolvedValue({ id: 'new-1', studentId: 'JCS-32-001', studentName: 'Jane' });
+
+      await service.createStudent({
+        ...VALID_ENROLLMENT_PAYLOAD,
+        billing: { initialDeposit: 0 },
+      });
+
+      const createData = (repo.createNestedStudent as any).mock.calls[0][0];
+      expect(createData.billing.create.feeTierId).toBe('tier-NEW-BASIC1-6');
+      expect(createData.billing.create.currentBalance).toBe(1900);
+
+      expect(prisma.invoice.create).toHaveBeenCalledTimes(1);
+      const inv = (prisma.invoice.create as any).mock.calls[0][0].data;
+      expect(inv.amount).toBe(1900);
+      expect(inv.paidAmount).toBe(0);
+      expect(inv.status).toBe('UNPAID');
+      expect(inv.invoiceNo).toBe('INV-JCS-32-001-FT2627');
+      expect(inv.description).toContain('Admission 700 + Uniform 700 + Termly Tuition 500');
+      expect(inv.dueDate).toEqual(new Date('2026-11-30'));
+    });
+
+    it('JHS band: uniform 840 → total 2140', async () => {
+      (prisma.class.findUnique as any).mockResolvedValue({ name: 'JHS 2B' });
+      mockBandLookup('NEW-JHS', '600');
+      (prisma.invoice.create as any).mockResolvedValue({ id: 'inv-1' });
+      (repo.createNestedStudent as any).mockResolvedValue({ id: 'new-1', studentId: 'JCS-27-001', studentName: 'Jane' });
+
+      await service.createStudent({
+        ...VALID_ENROLLMENT_PAYLOAD,
+        billing: { initialDeposit: 0 },
+      });
+
+      const createData = (repo.createNestedStudent as any).mock.calls[0][0];
+      expect(createData.billing.create.currentBalance).toBe(2140);
+      const inv = (prisma.invoice.create as any).mock.calls[0][0].data;
+      expect(inv.amount).toBe(2140);
+      expect(inv.description).toContain('Admission 700 + Uniform 840 + Termly Tuition 600');
+    });
+
+    it('EARLY_YEARS band: total 1850 (Creche)', async () => {
+      (prisma.class.findUnique as any).mockResolvedValue({ name: 'Creche' });
+      mockBandLookup('NEW-EARLYYEARS', '450');
+      (prisma.invoice.create as any).mockResolvedValue({ id: 'inv-1' });
+      (repo.createNestedStudent as any).mockResolvedValue({ id: 'new-1', studentId: 'JCS-39-001', studentName: 'Jane' });
+
+      await service.createStudent({
+        ...VALID_ENROLLMENT_PAYLOAD,
+        billing: { initialDeposit: 0 },
+      });
+
+      const createData = (repo.createNestedStudent as any).mock.calls[0][0];
+      expect(createData.billing.create.currentBalance).toBe(1850);
+    });
+
+    it('applies the deposit against the band total (PARTIAL)', async () => {
+      mockBandLookup('NEW-BASIC1-6', '500');
+      (prisma.invoice.create as any).mockResolvedValue({ id: 'inv-1' });
+      (repo.createNestedStudent as any).mockResolvedValue({ id: 'new-1', studentId: 'JCS-32-001', studentName: 'Jane' });
+
+      await service.createStudent({
+        ...VALID_ENROLLMENT_PAYLOAD,
+        billing: { initialDeposit: 1000 },
+      });
+
+      const createData = (repo.createNestedStudent as any).mock.calls[0][0];
+      expect(createData.billing.create.currentBalance).toBe(900);
+      const inv = (prisma.invoice.create as any).mock.calls[0][0].data;
+      expect(inv.paidAmount).toBe(1000);
+      expect(inv.status).toBe('PARTIAL');
+    });
+
+    it('rejects a class with no fee band (e.g. Unassigned)', async () => {
+      (prisma.class.findUnique as any).mockResolvedValue({ name: 'Unassigned' });
+      await expect(
+        service.createStudent({ ...VALID_ENROLLMENT_PAYLOAD, billing: { initialDeposit: 0 } }),
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        message: expect.stringContaining('no fee structure'),
+      });
+    });
+
+    it('fails loudly when the band tier is missing', async () => {
+      (prisma.feeTier.findUnique as any).mockResolvedValue(null);
+      await expect(
+        service.createStudent({ ...VALID_ENROLLMENT_PAYLOAD, billing: { initialDeposit: 0 } }),
+      ).rejects.toMatchObject({
+        statusCode: 500,
+        message: expect.stringContaining('NEW-BASIC1-6'),
+      });
+    });
+
+    it('legacy path: explicit feeTierId uses the tier amount and issues no invoice', async () => {
+      (prisma.invoice.create as any).mockResolvedValue({ id: 'inv-1' });
+      (repo.createNestedStudent as any).mockResolvedValue({ id: 'new-1', studentId: 'JCS-32-001', studentName: 'Jane' });
+
+      await service.createStudent(VALID_ENROLLMENT_PAYLOAD); // feeTierId: TIER-A (default mock)
+
+      const createData = (repo.createNestedStudent as any).mock.calls[0][0];
+      expect(createData.billing.create.feeTierId).toBe('tier-uuid-a');
+      expect(createData.billing.create.currentBalance).toBe(1500);
+      expect(prisma.invoice.create).not.toHaveBeenCalled();
     });
   });
 });

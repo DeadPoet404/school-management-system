@@ -16,8 +16,8 @@
     SelectValue,
   } from "@/components/ui/select"
   import { fetchWithAuth } from "@/lib/fetch-with-auth"
-  import type { ReferenceClass, ReferenceFeeTier } from "@/lib/api/reference"
-  import { useClasses, useFeeTiers } from "@/lib/api/reference"
+  import type { ReferenceClass } from "@/lib/api/reference"
+  import { useClasses } from "@/lib/api/reference"
 
 
 
@@ -30,7 +30,15 @@
   // submission carried invalid foreign keys. Shapes now come from the
   // live /api/reference catalogue.
   type ClassOption = ReferenceClass
-  type FeeTierOption = ReferenceFeeTier
+
+  // ── FEE BANDS — display mirror of NEW_ENROLLEE_FEE_BANDS (backend). ──
+  // The server is the source of truth and enforces the same schedule; this
+  // exists only to preview the charge while the class is being chosen.
+  const ENROLLEE_FEE_BANDS = [
+    { pattern: /^(creche|nursery|kg\b|kindergarten)/i, admission: 700, uniform: 700, tuition: 450, label: "Early Years (Creche – KG 2)" },
+    { pattern: /^(grade|basic|primary|class\s*\d)/i, admission: 700, uniform: 700, tuition: 500, label: "Basic (Grade 1 – 6)" },
+    { pattern: /^(jhs|junior)/i, admission: 700, uniform: 840, tuition: 600, label: "JHS (1 – 3)" },
+  ]
 
   // ── MAIN COMPONENT ──
   function ComprehensiveEnrollmentWizard() {
@@ -87,8 +95,7 @@
     const [secondGuardianPhone, setSecondGuardianPhone] = React.useState("")
     const [secondGuardianEmail, setSecondGuardianEmail] = React.useState("")
 
-    // ── STEP 6: TREASURY CONFIGURATION & FINANCE LEDGER TIERS ──
-    const [feeTierId, setFeeTierId] = React.useState("")
+    // ── STEP 6: FEES (AUTO FROM CLASS) & INITIAL DEPOSIT ──
     const [initialDeposit, setInitialDeposit] = React.useState("")
 
     // ── SERVER CONFIRMATION TELEMETRY ──
@@ -97,7 +104,16 @@
 
     // ── REFERENCE DATA (live, from /api/reference) ──
     const { data: classes = [], isLoading: classesLoading } = useClasses()
-    const { data: feeTiers = [], isLoading: feeTiersLoading } = useFeeTiers()
+
+    // Fee structure is derived from the selected class (no manual picker).
+    const selectedClass = classes.find((c) => c.id === classId)
+    const selectedFeeBand = React.useMemo(
+      () =>
+        selectedClass
+          ? ENROLLEE_FEE_BANDS.find((b) => b.pattern.test((selectedClass.name || "").trim())) ?? null
+          : null,
+      [selectedClass]
+    )
 
     const isSubmitting = formState === "submitting"
 
@@ -172,13 +188,10 @@
         if (!secondGuardianPhone.trim()) missingFields.push("Second Guardian Phone")
       }
 
-      // Step 6 — Select field
-      if (!feeTierId) missingFields.push("Assigned Fee Structure")
-
       // ── FAIL FAST ON FRONTEND ──
       if (missingFields.length > 0) {
         // Mark all select fields as touched so their red borders appear
-        const selectFields = ["gender", "classId", "boardingStatus", "guardianRelationship", "secondGuardianRelationship", "feeTierId"]
+        const selectFields = ["gender", "classId", "boardingStatus", "guardianRelationship", "secondGuardianRelationship"]
         setTouched(new Set(selectFields))
 
         setFormState("error")
@@ -225,8 +238,9 @@
               email: secondGuardianEmail.trim() || null,
             }
           : undefined,
+        // feeTierId intentionally omitted: the server derives the band tier
+        // (admission + uniform + termly tuition) from the selected class.
         billing: {
-          feeTierId,
           initialDeposit: initialDeposit ? parseFloat(initialDeposit) : 0,
         },
       }
@@ -973,53 +987,62 @@
             </div>
 
             {/* ═══════════════════════════════════════════════════════
-                STEP 6: TREASURY CONFIGURATION & FINANCE LEDGER TIERS
-                Maps to → BillingLedger (feeTierId, initialDeposit, currentBalance)
+                STEP 6: FEES (AUTO FROM CLASS) & INITIAL DEPOSIT
+                Maps to → BillingLedger (band tier from class, initialDeposit,
+                currentBalance) + FIRST TERM 2026/27 invoice (server-side)
                 ═══════════════════════════════════════════════════════ */}
             <div className="relative pl-0 group sm:pl-10">
               <StepBadge num={6} isLast />
               <div className="space-y-5">
                 <h3 className="text-base font-semibold text-foreground tracking-tight">
-                  Treasury Configuration &amp; Finance Ledger Tiers
+                  Fees &amp; Initial Deposit
                 </h3>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="fee-tier" className="text-sm font-semibold sm:text-xs text-foreground">
-                    Assigned Fee Structure <span className="text-red-500">*</span>
-                  </Label>
-                  <Select
-                    value={feeTierId}
-                    onValueChange={(val) => {
-                      setFeeTierId(val)
-                      markTouched("feeTierId")
-                    }}
-                    disabled={isSubmitting || feeTiersLoading}
-                  >
-                    <SelectTrigger
-                      id="fee-tier"
-                      className={selectTriggerClass("feeTierId", feeTierId)}
-                    >
-                      <SelectValue placeholder="Assign treasury clearing template..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {feeTiers.map((tier) => (
-                        <SelectItem key={tier.id} value={tier.id} className="text-xs">
-                          {tier.name} \u2014 GH\u20b5 {Number(tier.amount).toLocaleString("en-GH", {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })} / Term
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {selectHasError("feeTierId", feeTierId) && (
-                    <p className="text-[10px] text-red-500 font-medium">Fee tier selection is required</p>
+                <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/40">
+                  {selectedClass ? (
+                    selectedFeeBand ? (
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold text-foreground">
+                          {selectedClass.name} — {selectedFeeBand.label}
+                        </p>
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div>
+                            <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Admission</p>
+                            <p className="font-mono text-xs font-medium">GH₵ {selectedFeeBand.admission.toLocaleString("en-GH")}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Uniform</p>
+                            <p className="font-mono text-xs font-medium">GH₵ {selectedFeeBand.uniform.toLocaleString("en-GH")}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Term fees</p>
+                            <p className="font-mono text-xs font-medium">GH₵ {selectedFeeBand.tuition.toLocaleString("en-GH")}</p>
+                          </div>
+                        </div>
+                        <div className="border-t border-zinc-200 pt-1.5 dark:border-zinc-800">
+                          <p className="text-xs">
+                            <span className="text-zinc-500 dark:text-zinc-400">Total due — FIRST TERM 2026/27: </span>
+                            <span className="font-mono font-semibold text-foreground">
+                              GH₵ {(selectedFeeBand.admission + selectedFeeBand.uniform + selectedFeeBand.tuition).toLocaleString("en-GH")}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                        Class “{selectedClass.name}” has no fee structure — pick a class from the academic ladder.
+                      </p>
+                    )
+                  ) : (
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                      Select a class above — the fee structure (admission + uniform + term fees) is assigned automatically.
+                    </p>
                   )}
                 </div>
 
                 <div className="space-y-1.5">
                   <Label htmlFor="deposit" className="text-sm font-semibold sm:text-xs text-foreground">
-                    Initial Clearing Commit Deposit Amount (GH₵){" "}
+                    Initial Deposit (GH₵){" "}
                     <span className="text-zinc-400 dark:text-zinc-500 text-[10px] font-normal">
                       (Optional)
                     </span>
