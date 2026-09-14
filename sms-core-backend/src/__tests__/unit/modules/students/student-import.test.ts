@@ -35,7 +35,7 @@ describe('student import — legacyStudentId', () => {
     const result = parseCsv([ROW]);
     expect(result.errors).toEqual([]);
     expect(result.rows).toHaveLength(1);
-    expect(result.rows[0].payload.legacyStudentId).toBe('JCS-0101');
+    expect(result.rows.map((row) => row.payload.legacyStudentId)).toEqual(['JCS-0101']);
   });
 
   it('maps the legacyStudentId column name itself as well', () => {
@@ -50,7 +50,7 @@ describe('student import — legacyStudentId', () => {
       size: Buffer.byteLength(csv),
     });
     expect(result.errors).toEqual([]);
-    expect(result.rows[0].payload.legacyStudentId).toBe('JCS-0101');
+    expect(result.rows.map((row) => row.payload.legacyStudentId)).toEqual(['JCS-0101']);
   });
 
   it('leaves legacyStudentId null when the column is absent', () => {
@@ -65,6 +65,6 @@ describe('student import — legacyStudentId', () => {
       size: Buffer.byteLength(csv),
     });
     expect(result.errors).toEqual([]);
-    expect(result.rows[0].payload.legacyStudentId).toBeNull();
+    expect(result.rows.map((row) => row.payload.legacyStudentId)).toEqual([null]);
   });
 });
