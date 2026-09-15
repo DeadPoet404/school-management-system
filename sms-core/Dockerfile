@@ -5,10 +5,14 @@ WORKDIR /app
 ARG NEXT_PUBLIC_API_URL=/api
 ARG NEXT_PUBLIC_APP_ENV=production
 ARG BACKEND_URL=http://localhost:5000
+# Deployment identity (passed by CI): guarantees a fresh image digest per
+# deploy so `docker compose up -d` always recreates the container.
+ARG GIT_SHA=unknown
 
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ENV NEXT_PUBLIC_APP_ENV=${NEXT_PUBLIC_APP_ENV}
 ENV BACKEND_URL=${BACKEND_URL}
+ENV GIT_SHA=${GIT_SHA}
 
 COPY package.json package-lock.json ./
 RUN npm ci

@@ -53,6 +53,7 @@ jobs:
           git checkout main
           git reset --hard origin/main
           git log --oneline -2
+          export GIT_SHA=$(git rev-parse HEAD)
           echo "== building + starting staging services =="
           docker compose -f deploy/staging/docker-compose.yml --env-file /etc/jocomfy-staging/staging.env up -d --build
           echo "waiting 60s for settle..."
@@ -60,6 +61,10 @@ jobs:
           echo "== staging health gate =="
           curl -sf http://localhost:5100/api/health && echo " -> backend OK"
           curl -sf -o /dev/null -w "frontend HTTP %{http_code}\n" http://localhost:3102/
+          echo "== staging image SHA gate =="
+          LIVE_SHA=$(curl -sf http://localhost:5100/api/health | sed -n 's/.*"gitSha":"\([^"]*\)".*/\1/p')
+          echo "image reports gitSha=${LIVE_SHA:-<none>} (expected ${GIT_SHA})"
+          [ "$LIVE_SHA" = "$GIT_SHA" ] || { echo "STALE IMAGE — staging is not running the deployed commit; aborting"; exit 1; }
           echo "STAGING DEPLOY OK"
           REMOTE
 
@@ -93,7 +98,7 @@ jobs:
           set -euo pipefail
           cd /root/school-management-system
           echo "== backup first (standing rule) =="
-          bash scripts/backup.sh
+          bash scripts/backup.sh < /dev/null
           echo "== selecting target =="
           if [ -n "${TARGET_SHA:-}" ]; then
             git fetch origin
@@ -104,6 +109,8 @@ jobs:
             git reset --hard origin/main
           fi
           git log --oneline -2
+          export GIT_SHA=$(git rev-parse HEAD)
+          echo "deploying commit: ${GIT_SHA}"
           echo "== building + starting production services =="
           docker compose up -d --build
           echo "waiting 75s for settle..."
@@ -113,5 +120,9 @@ jobs:
           curl -sf -o /dev/null -w "frontend /login HTTP %{http_code}\n" http://localhost:3000/login
           curl -sf https://sms.jocomfy.com/api/health && echo " -> public API OK"
           curl -sf -o /dev/null -w "public /login HTTP %{http_code}\n" https://sms.jocomfy.com/login
+          echo "== production image SHA gate =="
+          LIVE_SHA=$(curl -sf http://localhost:5000/api/health | sed -n 's/.*"gitSha":"\([^"]*\)".*/\1/p')
+          echo "image reports gitSha=${LIVE_SHA:-<none>} (expected ${GIT_SHA})"
+          [ "$LIVE_SHA" = "$GIT_SHA" ] || { echo "STALE IMAGE — production is not running the deployed commit; aborting"; exit 1; }
           echo "PRODUCTION DEPLOY OK"
           REMOTE

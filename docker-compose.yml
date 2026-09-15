@@ -9,7 +9,10 @@ x-logging: &default-logging
 
 services:
   backend:
-    build: ./sms-core-backend
+    build:
+      context: ./sms-core-backend
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
     restart: unless-stopped
     networks: [sms-net]
     ports:
@@ -92,6 +95,7 @@ services:
         # Without this, rewrites default to http://localhost:5000, which points
         # back to the frontend container and causes ECONNREFUSED.
         BACKEND_URL: http://backend:5000
+        GIT_SHA: ${GIT_SHA:-unknown}
     restart: unless-stopped
     networks: [sms-net]
     ports:

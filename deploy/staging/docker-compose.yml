@@ -11,6 +11,8 @@ services:
     image: jocomfy-staging-backend:latest
     build:
       context: ../../sms-core-backend
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
     restart: unless-stopped
     ports:
       - "127.0.0.1:5100:5000"

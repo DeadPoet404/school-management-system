@@ -41,6 +41,14 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# ── Deployment identity ──
+# CI passes GIT_SHA as a build arg (see docker-compose.yml). /api/health
+# reports it, and the deploy workflow hard-fails when the running image
+# does not match the deployed commit — stale-image deploys can no longer
+# pass the health gate silently.
+ARG GIT_SHA=unknown
+ENV GIT_SHA=${GIT_SHA}
+
 COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
 COPY --from=builder --chown=appuser:appgroup /tmp/prisma-cli ./node_modules/prisma
 COPY --from=builder --chown=appuser:appgroup /app/package.json ./package.json

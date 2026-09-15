@@ -129,10 +129,13 @@ PG_DUMP_ARGS=(
 # Credentials ride in the URL env/args — same local exposure class as the
 # previous host-side invocation (docker group == host root).
 run_pg_dump() {
+  # No -i: pg_dump takes its input from the database URL, and an attached
+  # stdin would let the container swallow whatever feeds the calling script
+  # (the GHA deploy script arrives on stdin — see deploy.yml).
   if [ "$DOCKER_MODE" = 1 ]; then
-    docker run --rm -i --network host -e DB_URL "$IMG"       pg_dump "${PG_DUMP_ARGS[@]}" "$DB_URL"
+    docker run --rm --network host -e DB_URL "$IMG"          pg_dump "${PG_DUMP_ARGS[@]}" "$DB_URL" < /dev/null
   else
-    "$PGDUMP" "${PG_DUMP_ARGS[@]}" "$DB_URL"
+    "$PGDUMP" "${PG_DUMP_ARGS[@]}" "$DB_URL" < /dev/null
   fi
 }
 run_psql_stdin() {  # SQL is piped in on stdin

@@ -177,6 +177,11 @@ app.get('/api/health', async (_req, res) => {
       status: healthy ? 'healthy' : 'degraded',
       timestamp: new Date().toISOString(),
       uptime: Math.floor(process.uptime()),
+      // Deployment identity baked into the image by CI (GIT_SHA build arg).
+      // The deploy workflow compares this to the commit it deployed and
+      // fails red when the running image is stale — a health 200 alone
+      // proves nothing about which code is actually running.
+      gitSha: process.env.GIT_SHA || 'unknown',
       db: { status: dbStatus, latencyMs: Date.now() - start },
     }
   });
