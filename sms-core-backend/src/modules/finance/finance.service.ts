@@ -6,7 +6,7 @@ import { IFinanceRepository, TransactionClient } from "@/types/repositories";
 import { FinanceRepository } from "./finance.repository";
 import type { ReceiptPdfData } from "@/lib/pdf";
 import type { ReceiptPrintData } from "@/lib/receipt-print";
-import { CANONICAL_FIRST_COMPONENTS, ENROLLMENT_UMBRELLA } from "@/lib/fee-allocation";
+import { ENROLLMENT_UMBRELLA, canonicalOrder, canonicalizeFeeName, isCoreFeeName } from "@/lib/fee-allocation";
 import {
   createStudentPhotoStorage,
   StudentPhotoStorageConfigurationError,
@@ -426,12 +426,17 @@ export class FinanceService {
         include: { components: true },
       });
       if (config) {
-        const lines = config.components
-          .slice(0, CANONICAL_FIRST_COMPONENTS.length)
-          .map((c, index) => ({
-            name: CANONICAL_FIRST_COMPONENTS[index] ?? c.name,
-            amount: parseDecimal(c.amount),
-          }));
+        // Core rows matched BY MEANING (row order varies per class), merged
+        // per label, shown in canonical order: Admission, Uniform, Tuition.
+        const byLabel = new Map<string, number>();
+        for (const c of config.components) {
+          if (!isCoreFeeName(c.name)) continue;
+          const label = canonicalizeFeeName(c.name);
+          byLabel.set(label, (byLabel.get(label) ?? 0) + parseDecimal(c.amount));
+        }
+        const lines = [...byLabel.entries()]
+          .map(([name, amount]) => ({ name, amount }))
+          .sort((a, b) => canonicalOrder(a.name) - canonicalOrder(b.name));
         if (lines.length > 0) {
           feeBreakdown = { lines, total: lines.reduce((sum, line) => sum + line.amount, 0) };
         }

@@ -67,9 +67,7 @@ interface DbStudent {
 // collection allocated to it render the class fee breakdown.
 const ENROLLMENT_UMBRELLA = "First Term Enrollment (Admission + Uniform + Tuition)"
 
-// Fixed names of the first three fee rows (kept in sync with the fee
-// structure module and the backend canonical list).
-const CANONICAL_FIRST_ROWS = ["Admission Fee", "School Uniform", "Termly Tuition"] as const
+import { canonicalizeFeeName } from "@/lib/fee-names"
 
 // Used ONLY for classes that have no saved fee structure yet.
 const ALLOCATION_FALLBACKS = [
@@ -164,11 +162,10 @@ export function PaymentInflowCollectionLog({
 
   const allocationOptions = useMemo(() => {
     const section = activeSection ? feeMatrix?.[activeSection] : undefined
+    // Core rows (Admission/Uniform/Tuition) show their fixed canonical
+    // names — matched by meaning, so row position never matters.
     const names = (section?.components ?? [])
-      .map((c, index) => {
-        const trimmed = (c.name || "").trim()
-        return index < CANONICAL_FIRST_ROWS.length ? CANONICAL_FIRST_ROWS[index]! : trimmed
-      })
+      .map((c) => canonicalizeFeeName(c.name || "") ?? (c.name || "").trim())
       .filter(Boolean)
     const base = names.length > 0 ? names : [...ALLOCATION_FALLBACKS]
     const list: string[] = []

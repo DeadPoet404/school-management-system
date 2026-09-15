@@ -31,6 +31,7 @@ import {
   ComboboxItem,
   ComboboxList,
 } from "@/components/ui/combobox"
+import { canonicalizeFeeName } from "@/lib/fee-names"
 
 // --- TYPES & SCHEMA CONTRACTS ---
 export interface FeeComponent {
@@ -60,22 +61,20 @@ const FREQUENCY_OPTIONS = [
   "Monthly Optional Cycle",
 ] as const
 
-// The first three fee rows carry FIXED canonical names (Admin directive
-// 2026-09): the inputs are locked and the labels always read these. Rows
-// four and beyond are school-defined extra expenses with free-form names —
-// and they feed the payment-allocation options on the collection receipts.
-const CANONICAL_FIRST_ROWS = ["Admission Fee", "School Uniform", "Termly Tuition"] as const
-
+// The three core fee rows (Admission Fee, School Uniform, Termly Tuition)
+// carry FIXED canonical names matched by meaning — their inputs are locked
+// and the labels always read the canonical form, whatever row they sit in.
+// Any other row is a school-defined extra expense with a free-form name —
+// and it feeds the payment-allocation options on the collection receipts.
 function canonicalizeMatrix(matrix: Record<string, SectionFeeMatrix>): Record<string, SectionFeeMatrix> {
   const next: Record<string, SectionFeeMatrix> = {}
   for (const [sectionId, section] of Object.entries(matrix)) {
     next[sectionId] = {
       ...section,
-      components: section.components.map((item, index) =>
-        index < CANONICAL_FIRST_ROWS.length
-          ? { ...item, name: CANONICAL_FIRST_ROWS[index]! }
-          : item
-      ),
+      components: section.components.map((item) => {
+        const fixed = canonicalizeFeeName(item.name)
+        return fixed ? { ...item, name: fixed } : item
+      }),
     }
   }
   return next
@@ -349,20 +348,21 @@ export function FeeStructureInvoiceConfig({
               </div>
 
               <div className="space-y-3 max-w-2xl">
-                {currentMatrix.components.map((item, index) => {
-                  const isCanonicalRow = index < CANONICAL_FIRST_ROWS.length
+                {currentMatrix.components.map((item) => {
+                  const fixedName = canonicalizeFeeName(item.name)
                   return (
                   <div key={item.id} className="flex items-center gap-4 bg-stone-50/50 dark:bg-zinc-900/20 p-3 rounded-lg border border-stone-100/80 dark:border-zinc-800/50 group/fee">
                     
                     <div className="flex-[2] flex items-center gap-2">
                       <Receipt className="h-3.5 w-3.5 text-stone-400 dark:text-zinc-500 shrink-0" />
-                      {isCanonicalRow ? (
-                        // Rows 1-3: fixed, non-editable names.
+                      {fixedName ? (
+                        // Core rows: fixed, non-editable names (matched by
+                        // meaning, so row position never matters).
                         <div
                           className="h-8 flex-1 flex items-center rounded border border-stone-200 dark:border-zinc-800 bg-stone-100/70 dark:bg-zinc-800/60 px-2 text-xs font-semibold text-stone-600 dark:text-zinc-300 select-none"
-                          title="Fixed fee name — the first three rows always read Admission Fee, School Uniform and Termly Tuition."
+                          title="Fixed fee name — Admission Fee, School Uniform and Termly Tuition are locked."
                         >
-                          {CANONICAL_FIRST_ROWS[index]}
+                          {fixedName}
                         </div>
                       ) : (
                         <Input
