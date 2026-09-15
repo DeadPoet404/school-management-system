@@ -447,27 +447,30 @@ export class StudentService {
     // full charge, exactly as before.
     // No feeTierId (enrollment UI): derive from the selected class's
     // fee band — admission + uniform + termly tuition for new enrollees.
-    let feeTier: { id: string; code: string; amount: Prisma.Decimal; isActive: boolean } | null = null;
-    let totalCharge = 0;
+    // Both branches below assign these before first use (or throw), so no
+    // initializers — eslint no-useless-assignment.
+    let feeTier: { id: string; code: string; amount: Prisma.Decimal; isActive: boolean };
+    let totalCharge: number;
     let feeBreakdown: string | null = null;
 
     if (billing.feeTierId) {
       // Frontend may send either the fee tier's UUID (id) or its code (code); try both.
-      feeTier =
+      const looked =
         (await prisma.feeTier.findUnique({ where: { id: billing.feeTierId } })) ??
         (await prisma.feeTier.findUnique({ where: { code: billing.feeTierId } }));
       // D-05: a failed tier lookup must never silently default the tariff to 0.
       // Previously an unresolvable tier enrolled the student with a 0.00 balance
       // and returned 201, so the school never billed them. Fail loudly instead.
-      if (!feeTier) {
+      if (!looked) {
         throw new AppError(400, `Unknown fee tier: ${billing.feeTierId}`);
       }
-      if (!feeTier.isActive) {
-        throw new AppError(400, `Fee tier ${feeTier.code} is inactive and cannot be assigned.`);
+      if (!looked.isActive) {
+        throw new AppError(400, `Fee tier ${looked.code} is inactive and cannot be assigned.`);
       }
-      totalCharge = Number(feeTier.amount);
+      feeTier = looked;
+      totalCharge = Number(looked.amount);
       if (!Number.isFinite(totalCharge)) {
-        throw new AppError(500, `Fee tier ${feeTier.code} has a non-numeric amount.`);
+        throw new AppError(500, `Fee tier ${looked.code} has a non-numeric amount.`);
       }
     } else {
       const cls = await prisma.class.findUnique({
