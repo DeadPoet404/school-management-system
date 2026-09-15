@@ -358,7 +358,10 @@
     // MAIN FORM RENDER
     // ═══════════════════════════════════════════════════════════
     return (
-      <div className="mx-auto flex w-full max-w-3xl flex-col space-y-5 bg-transparent py-3 sm:space-y-6 sm:py-4">
+      // Full-height self-contained column: the form area is a dedicated
+      // overflow-y-auto region, so the page scrolls correctly on every
+      // screen size regardless of the outer layout's scroll chain.
+      <div className="mx-auto flex h-full w-full max-w-3xl flex-col space-y-5 bg-transparent py-3 sm:space-y-6 sm:py-4">
         {/* ── HEADER ── */}
         <div className="flex flex-col gap-2 shrink-0">
           <Link
@@ -380,14 +383,18 @@
 
         {/* ── ERROR BANNER ── */}
         {formState === "error" && errorMessage && (
-          <div className="flex items-start gap-2 p-3 rounded-lg border border-red-200 bg-red-50/50 dark:border-red-950/30 dark:bg-red-950/20">
+          <div className="flex shrink-0 items-start gap-2 p-3 rounded-lg border border-red-200 bg-red-50/50 dark:border-red-950/30 dark:bg-red-950/20">
             <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
             <p className="text-sm text-red-700 dark:text-red-300 font-medium">{errorMessage}</p>
           </div>
         )}
 
-        {/* ── SCROLLABLE FORM CANVAS ── */}
-        <div className="w-full">
+        {/* ── SCROLLABLE FORM CANVAS ──
+            Dedicated scroll region: takes the remaining height and scrolls
+            vertically. Plain overflow-y-auto (the previous shadcn
+            ScrollArea with a fixed md:h-[700px] window would not scroll
+            reliably on short screens). */}
+        <div className="min-h-0 flex-1 overflow-y-auto">
           <form onSubmit={handleSubmit} className="space-y-8 pb-28 pr-0 sm:space-y-12 sm:pb-12 sm:pr-4">
             {/* ═══════════════════════════════════════════════════════
                 STEP 1: ACCOUNT ACCESS & CORE CREDENTIALS
