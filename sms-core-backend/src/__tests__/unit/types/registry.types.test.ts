@@ -224,6 +224,33 @@ describe('SMS-002: registry enrollment account date fields', () => {
     });
   });
 
+  describe('studentEnrollmentSchema (fee auto-assigned from class)', () => {
+    it('accepts a billing block WITHOUT feeTierId (enrollment derives the band tier from the class)', () => {
+      const result = studentEnrollmentSchema.safeParse({
+        ...STUDENT_UI_PAYLOAD,
+        billing: { initialDeposit: 0 },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('still accepts an explicit feeTierId (import/legacy path)', () => {
+      const result = studentEnrollmentSchema.safeParse(STUDENT_UI_PAYLOAD);
+      expect(result.success).toBe(true);
+    });
+
+    it('still rejects an empty-string feeTierId', () => {
+      const result = studentEnrollmentSchema.safeParse({
+        ...STUDENT_UI_PAYLOAD,
+        billing: { feeTierId: '', initialDeposit: 0 },
+      });
+      if (!result.success) {
+        expect(issuePaths(result.error)).toContain('billing.feeTierId');
+      } else {
+        expect.fail('expected empty feeTierId to be rejected');
+      }
+    });
+  });
+
   describe('studentEnrollmentSchema (unchanged behavior)', () => {
     it('still accepts account.enrollmentDate for students', () => {
       const result = studentEnrollmentSchema.safeParse(STUDENT_UI_PAYLOAD);

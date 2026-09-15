@@ -71,7 +71,14 @@ export default function OperationsPage() {
     <div className="w-full h-full min-h-0 bg-zinc-50/40 dark:bg-zinc-950/20 flex justify-center overflow-hidden">
       <div className="flex h-full w-full max-w-6xl bg-background border-x border-zinc-100 dark:border-zinc-900 text-zinc-900 dark:text-zinc-50 overflow-hidden">
         <OperationsSidebar activeSubItem={activeSubItem} onSelect={handleSelect} />
-        {TargetWorkspaceComponent ? <TargetWorkspaceComponent /> : null}
+        {/* The workspace pane must be able to scroll horizontally: on
+            tablet / small-laptop widths several modules (tables, grids)
+            are wider than the remaining pane, and the surrounding layers
+            are overflow-hidden, which used to clip them with no way to
+            reach the end. */}
+        <div className="min-w-0 flex-1 overflow-x-auto">
+          {TargetWorkspaceComponent ? <TargetWorkspaceComponent /> : null}
+        </div>
       </div>
     </div>
   )

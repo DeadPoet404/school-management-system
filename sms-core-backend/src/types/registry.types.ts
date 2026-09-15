@@ -52,7 +52,10 @@ account: baseAccountSchema.extend({
     email: z.string().nullable(),
   }),
   billing: z.object({
-    feeTierId: z.string().min(1, "Assigned billing tier configuration is required."),
+    // Optional: the enrollment UI derives the band tier from the selected
+    // class (admission + uniform + termly tuition). Explicit ids remain for
+    // the import/legacy path.
+    feeTierId: z.string().min(1, "Assigned billing tier configuration is required.").optional(),
     initialDeposit: z.number().nonnegative("Initial ledger deposit cannot fall below 0.00."),
   }),
 });
