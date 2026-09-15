@@ -98,8 +98,13 @@ services:
         GIT_SHA: ${GIT_SHA:-unknown}
     restart: unless-stopped
     networks: [sms-net]
+    # VPS topology: caddy fronts :443 and reverse-proxies to 127.0.0.1:3002.
+    # Host port 3000 is reserved by another service on this VPS (see the
+    # Aug-28 hotfix that introduced docker-compose.override.yml, since
+    # retired) — do NOT "fix" this back to 3000:3000 without also
+    # re-pointing caddy, or the public site breaks.
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3002:3000"
     environment:
       # BACKEND_URL is read by next.config.ts at SERVER RUNTIME (rewrites).
       # This is NOT exposed to the browser — it is a server-side variable only.

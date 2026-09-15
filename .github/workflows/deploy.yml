@@ -117,13 +117,15 @@ jobs:
           sleep 75
           echo "== production health gate =="
           curl -sf http://localhost:5000/api/health && echo " -> backend OK"
-          # Frontend starts only after the backend is healthy — retry up to
-          # 60s for Next.js to finish booting before the single verdict curl.
+          # Frontend is published on 127.0.0.1:3002 on this VPS (caddy fronts
+          # :443 -> 3002; host port 3000 is reserved) — see docker-compose.yml.
+          # It starts only after the backend is healthy, so retry up to 60s
+          # for Next.js to finish booting before the verdict curl.
           for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
-            curl -sf -o /dev/null http://localhost:3000/login && break
+            curl -sf -o /dev/null http://127.0.0.1:3002/login && break
             sleep 5
           done
-          curl -sf -o /dev/null -w "frontend /login HTTP %{http_code}\n" http://localhost:3000/login
+          curl -sf -o /dev/null -w "frontend /login HTTP %{http_code}\n" http://127.0.0.1:3002/login
           curl -sf https://sms.jocomfy.com/api/health && echo " -> public API OK"
           for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
             curl -sf -o /dev/null https://sms.jocomfy.com/login && break
