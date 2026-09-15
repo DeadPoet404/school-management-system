@@ -99,17 +99,56 @@ describe('renderReceiptPrintHtml', () => {
 
     expect(html).toContain('waitForImage(studentPhoto');
     expect(html).not.toContain('waitForImage(schoolLogo');
-    expect(html).toContain('window.setTimeout(() => window.print(), 180)');
+    expect(html).toContain('window.setTimeout(() => window.print(), 60)');
     expect(html).toContain('onclick="window.print()"');
   });
 
   it('bounds the image wait so the print dialog opens even when the photo is slow', () => {
     const html = renderReceiptPrintHtml(receipt);
 
-    expect(html).toContain('const PHOTO_WAIT_MS = 2500;');
+    // Admin 2026-09: receipts must display faster — 900ms photo cap + 60ms delay.
+    expect(html).toContain('const PHOTO_WAIT_MS = 900;');
     expect(html).not.toContain('LOGO_WAIT_MS');
     expect(html).toContain('window.setTimeout(() => settle(true), timeoutMs)');
     expect(html).not.toContain('window.addEventListener("load"');
+  });
+
+  it('renders the first-term fee breakdown for enrollment-umbrella receipts', () => {
+    const html = renderReceiptPrintHtml({
+      ...receipt,
+      allocationTarget: 'First Term Enrollment (Admission + Uniform + Tuition)',
+      feeBreakdown: {
+        lines: [
+          { name: 'Admission Fee', amount: 700 },
+          { name: 'School Uniform', amount: 700 },
+          { name: 'Termly Tuition', amount: 450 },
+        ],
+        total: 1850,
+      },
+    });
+
+    expect(html).toContain('First-term fee structure');
+    expect(html).toContain('>Admission Fee</span>');
+    expect(html).toContain('>School Uniform</span>');
+    expect(html).toContain('>Termly Tuition</span>');
+    expect(html).toContain('GHS 700.00');
+    expect(html).toContain('GHS 450.00');
+    expect(html).toContain('>Total first-term fee structure</span>');
+    expect(html).toContain('GHS 1,850.00');
+    // The single-line allocation table is replaced, not duplicated.
+    expect(html).not.toContain('Payment allocation');
+    // Classic elements survive the redesign.
+    expect(html).toContain('id="student-avatar"');
+    expect(html).toContain('Amount received');
+    expect(html).toContain('Outstanding balance');
+  });
+
+  it('keeps the single allocation line when no fee breakdown is present', () => {
+    const html = renderReceiptPrintHtml(receipt);
+
+    expect(html).toContain('Payment allocation');
+    expect(html).toContain('>Tuition Baseline Core</span>');
+    expect(html).not.toContain('First-term fee structure');
   });
 
   it('always uses the bundled same-origin school logo, overriding any stored logoUrl', () => {

@@ -56,7 +56,7 @@ export class FinanceRepository implements IFinanceRepository {
     return tx.paymentCollection.findUnique({
       where: { id: collectionId },
       include: {
-        class: { select: { name: true, section: true } },
+        class: { select: { id: true, name: true, section: true } },
         student: { select: { studentId: true, photoKey: true, billing: { select: { currentBalance: true } } } },
       },
     });

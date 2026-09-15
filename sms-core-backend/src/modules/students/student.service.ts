@@ -9,6 +9,7 @@ import { academicYearOf, cohortForClass, formatStudentId } from "@/lib/student-i
 import { hashPassword } from "@/utils/hash";
 import { parseStudentImportFile, type StudentImportError, type StudentImportUploadedFile } from "./student.import";
 import { FinanceService } from "@/modules/finance/finance.service";
+import { ENROLLMENT_UMBRELLA } from "@/lib/fee-allocation";
 
 type StudentFinancialRow = Prisma.StudentGetPayload<{
   include: { account: true; invoices: true; payments: true; };
@@ -608,7 +609,10 @@ export class StudentService {
             amountPaid: Math.min(initialDeposit, totalCharge),
             paymentMethod: 'CASH',
             referenceNo: invoiceNo,
-            allocationTarget: 'Initial Deposit — FIRST TERM 2026/27',
+            // The umbrella label marks this as a first-term enrollment
+            // payment: its receipt renders the class fee breakdown
+            // (Admission + Uniform + Termly Tuition), not a single line.
+            allocationTarget: ENROLLMENT_UMBRELLA,
             studentInternalId: created.id,
           });
           depositReceipt = { receiptNumber: collection.receiptNumber, collectionId: collection.id };

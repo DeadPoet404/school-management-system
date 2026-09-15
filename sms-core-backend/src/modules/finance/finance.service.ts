@@ -6,6 +6,7 @@ import { IFinanceRepository, TransactionClient } from "@/types/repositories";
 import { FinanceRepository } from "./finance.repository";
 import type { ReceiptPdfData } from "@/lib/pdf";
 import type { ReceiptPrintData } from "@/lib/receipt-print";
+import { CANONICAL_FIRST_COMPONENTS, ENROLLMENT_UMBRELLA } from "@/lib/fee-allocation";
 import {
   createStudentPhotoStorage,
   StudentPhotoStorageConfigurationError,
@@ -413,6 +414,30 @@ export class FinanceService {
 
     const institution = await this.repo.findReceiptInstitution();
 
+    // Enrollment umbrella: render the student's class first-term fee
+    // breakdown (canonical Admission / Uniform / Tuition rows + total) so
+    // new-student receipts show what the money covers.
+    let feeBreakdown: { lines: { name: string; amount: number }[]; total: number } | null = null;
+    if (record.allocationTarget === ENROLLMENT_UMBRELLA && record.class) {
+      // No orderBy: mirrors findAllFeeConfigurations, so the receipt rows
+      // follow the same order the fee structure UI shows.
+      const config = await prisma.feeStructureConfiguration.findUnique({
+        where: { sectionId: record.class.id },
+        include: { components: true },
+      });
+      if (config) {
+        const lines = config.components
+          .slice(0, CANONICAL_FIRST_COMPONENTS.length)
+          .map((c, index) => ({
+            name: CANONICAL_FIRST_COMPONENTS[index] ?? c.name,
+            amount: parseDecimal(c.amount),
+          }));
+        if (lines.length > 0) {
+          feeBreakdown = { lines, total: lines.reduce((sum, line) => sum + line.amount, 0) };
+        }
+      }
+    }
+
     return {
       data: {
         receiptNumber: record.receiptNumber,
@@ -428,6 +453,7 @@ export class FinanceService {
         allocationTarget: record.allocationTarget,
         outstandingBalance: record.student?.billing ? parseDecimal(record.student.billing.currentBalance) : null,
         institution,
+        feeBreakdown,
       },
       studentPhotoKey:
         typeof record.student?.photoKey === 'string' && record.student.photoKey.trim()

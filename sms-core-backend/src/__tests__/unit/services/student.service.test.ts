@@ -587,7 +587,7 @@ describe('StudentService', () => {
         amountPaid: 1000,
         paymentMethod: 'CASH',
         referenceNo: 'INV-JCS-32-001-FT2627',
-        allocationTarget: 'Initial Deposit — FIRST TERM 2026/27',
+        allocationTarget: 'First Term Enrollment (Admission + Uniform + Tuition)',
         studentInternalId: 'new-1',
       });
 

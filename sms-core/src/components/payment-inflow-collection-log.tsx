@@ -62,7 +62,17 @@ interface DbStudent {
   }
 }
 
-const ALLOCATION_TARGETS = [
+// Umbrella allocation for NEW enrollees (first-term bundle). The same label
+// is used by the enrollment deposit receipt; receipts generated for a
+// collection allocated to it render the class fee breakdown.
+const ENROLLMENT_UMBRELLA = "First Term Enrollment (Admission + Uniform + Tuition)"
+
+// Fixed names of the first three fee rows (kept in sync with the fee
+// structure module and the backend canonical list).
+const CANONICAL_FIRST_ROWS = ["Admission Fee", "School Uniform", "Termly Tuition"] as const
+
+// Used ONLY for classes that have no saved fee structure yet.
+const ALLOCATION_FALLBACKS = [
   "Tuition Baseline Core",
   "Midday Catering & Snacks",
   "Computer Laboratory Access",
@@ -76,7 +86,7 @@ const DEFAULT_FORM_STATE = (): IntakeFormState => ({
   amountPaid: "",
   paymentMethod: "CASH",
   referenceNo: "",
-  allocationTarget: "Tuition Baseline Core"
+  allocationTarget: "Termly Tuition"
 })
 
 interface PaymentInflowCollectionLogProps {
@@ -127,6 +137,59 @@ export function PaymentInflowCollectionLog({
     () => academicSections.find(s => s.id === activeSection)?.label || "",
     [activeSection, academicSections],
   )
+
+  // ── ALLOCATION OPTIONS from the class fee structure ──────────────────────
+  // The "What does this payment cover?" list is built from the selected
+  // class's saved fee structure: the enrollment umbrella first (for new
+  // students), then the class fee rows — rows 1-3 under their fixed
+  // canonical names, row 4+ exactly as entered in Fee Structure &
+  // Invoicing (e.g. extra levies). Continuing students default to
+  // "Termly Tuition".
+  const [feeMatrix, setFeeMatrix] = useState<Record<string, { components: { name: string }[] }> | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchWithAuth("/finance/fee-structures")
+      .then(async (res) => {
+        const payload = await res.json()
+        if (!cancelled && payload.success && payload.data) setFeeMatrix(payload.data)
+      })
+      .catch(() => {
+        // Fee matrix unavailable — the static fallback list stays.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const allocationOptions = useMemo(() => {
+    const section = activeSection ? feeMatrix?.[activeSection] : undefined
+    const names = (section?.components ?? [])
+      .map((c, index) => {
+        const trimmed = (c.name || "").trim()
+        return index < CANONICAL_FIRST_ROWS.length ? CANONICAL_FIRST_ROWS[index]! : trimmed
+      })
+      .filter(Boolean)
+    const base = names.length > 0 ? names : [...ALLOCATION_FALLBACKS]
+    const list: string[] = []
+    for (const candidate of [ENROLLMENT_UMBRELLA, ...base]) {
+      if (!list.includes(candidate)) list.push(candidate)
+    }
+    return list
+  }, [feeMatrix, activeSection])
+
+  const defaultAllocation = allocationOptions.includes("Termly Tuition")
+    ? "Termly Tuition"
+    : allocationOptions[0] ?? ""
+
+  // Keep the selected allocation valid as the class (and its fee rows) change.
+  useEffect(() => {
+    setFormState((prev) =>
+      prev.allocationTarget && allocationOptions.includes(prev.allocationTarget)
+        ? prev
+        : { ...prev, allocationTarget: defaultAllocation },
+    )
+  }, [allocationOptions, defaultAllocation])
 
 
   // --- UNIFIED DATA RECOVERY MATRIX ---
@@ -407,9 +470,9 @@ export function PaymentInflowCollectionLog({
                   <ArrowRight className="h-3 w-3 text-stone-400 dark:text-zinc-500" /> Allocation
                 </Label>
                 <Combobox
-                  items={ALLOCATION_TARGETS}
+                  items={allocationOptions}
                   value={formState.allocationTarget}
-                  onValueChange={(val) => updateFormField("allocationTarget", val ?? "Tuition Baseline Core")}
+                  onValueChange={(val) => updateFormField("allocationTarget", val ?? defaultAllocation)}
                 >
                   <ComboboxInput
                     placeholder="Route Allocation Target"

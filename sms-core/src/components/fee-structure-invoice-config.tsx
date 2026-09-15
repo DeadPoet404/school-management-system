@@ -60,6 +60,27 @@ const FREQUENCY_OPTIONS = [
   "Monthly Optional Cycle",
 ] as const
 
+// The first three fee rows carry FIXED canonical names (Admin directive
+// 2026-09): the inputs are locked and the labels always read these. Rows
+// four and beyond are school-defined extra expenses with free-form names —
+// and they feed the payment-allocation options on the collection receipts.
+const CANONICAL_FIRST_ROWS = ["Admission Fee", "School Uniform", "Termly Tuition"] as const
+
+function canonicalizeMatrix(matrix: Record<string, SectionFeeMatrix>): Record<string, SectionFeeMatrix> {
+  const next: Record<string, SectionFeeMatrix> = {}
+  for (const [sectionId, section] of Object.entries(matrix)) {
+    next[sectionId] = {
+      ...section,
+      components: section.components.map((item, index) =>
+        index < CANONICAL_FIRST_ROWS.length
+          ? { ...item, name: CANONICAL_FIRST_ROWS[index]! }
+          : item
+      ),
+    }
+  }
+  return next
+}
+
 const EMPTY_FEE: SectionFeeMatrix = {
   components: [],
   billingConfig: { issueDate: "", dueDate: "", allowInstallments: true, lateFeeRate: "" },
@@ -118,7 +139,7 @@ export function FeeStructureInvoiceConfig({
         const payload = await response.json()
         
         if (payload.success && payload.data && Object.keys(payload.data).length > 0) {
-          setFeeMatrixState((prev) => ({ ...prev, ...payload.data }))
+          setFeeMatrixState((prev) => ({ ...prev, ...canonicalizeMatrix(payload.data) }))
         }
       } catch (error) {
         console.error("[Fee Matrix Sync Error]:", error)
@@ -210,7 +231,8 @@ export function FeeStructureInvoiceConfig({
       const response = await fetchWithAuth("/finance/fee-structures", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: feeMatrixState }),
+        // Rows 1-3 always save under their fixed canonical names.
+        body: JSON.stringify({ data: canonicalizeMatrix(feeMatrixState) }),
       })
       
       const payload = await response.json()
@@ -327,18 +349,30 @@ export function FeeStructureInvoiceConfig({
               </div>
 
               <div className="space-y-3 max-w-2xl">
-                {currentMatrix.components.map((item) => (
+                {currentMatrix.components.map((item, index) => {
+                  const isCanonicalRow = index < CANONICAL_FIRST_ROWS.length
+                  return (
                   <div key={item.id} className="flex items-center gap-4 bg-stone-50/50 dark:bg-zinc-900/20 p-3 rounded-lg border border-stone-100/80 dark:border-zinc-800/50 group/fee">
                     
                     <div className="flex-[2] flex items-center gap-2">
                       <Receipt className="h-3.5 w-3.5 text-stone-400 dark:text-zinc-500 shrink-0" />
-                      <Input
-                        type="text"
-                        value={item.name}
-                        onChange={(e) => updateFeeComponent(item.id, "name", e.target.value)}
-                        className="h-8 text-xs rounded border-stone-200 dark:border-zinc-800 font-medium bg-background px-2"
-                        placeholder="e.g. Technology & Lab Fee"
-                      />
+                      {isCanonicalRow ? (
+                        // Rows 1-3: fixed, non-editable names.
+                        <div
+                          className="h-8 flex-1 flex items-center rounded border border-stone-200 dark:border-zinc-800 bg-stone-100/70 dark:bg-zinc-800/60 px-2 text-xs font-semibold text-stone-600 dark:text-zinc-300 select-none"
+                          title="Fixed fee name — the first three rows always read Admission Fee, School Uniform and Termly Tuition."
+                        >
+                          {CANONICAL_FIRST_ROWS[index]}
+                        </div>
+                      ) : (
+                        <Input
+                          type="text"
+                          value={item.name}
+                          onChange={(e) => updateFeeComponent(item.id, "name", e.target.value)}
+                          className="h-8 text-xs rounded border-stone-200 dark:border-zinc-800 font-medium bg-background px-2"
+                          placeholder="e.g. Technology & Lab Fee"
+                        />
+                      )}
                     </div>
                     
                     <div className="flex-1 flex items-center gap-1.5">
@@ -397,7 +431,8 @@ export function FeeStructureInvoiceConfig({
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
-                ))}
+                  )
+                })}
                 
                 {currentMatrix.components.length === 0 && (
                   <p className="text-xs text-stone-400 dark:text-zinc-500 italic">No structured fee items mapped to this grade block. Click Add Entry above.</p>

@@ -120,6 +120,57 @@ export function renderReceiptPrintHtml(data: ReceiptPrintData): string {
         >`
     : '';
 
+  // Enrollment-umbrella receipts show the class first-term fee breakdown
+  // (canonical Admission / Uniform / Tuition rows + total) instead of a
+  // single allocation line; every other receipt keeps the classic table.
+  const allocationSection = data.feeBreakdown
+    ? `    <section class="payment-section">
+      <h2 class="payment-heading">First-term fee structure</h2>
+
+      <div class="payment-table" role="table" aria-label="First-term fee breakdown">
+        <div class="payment-row header" role="row">
+          <span>No.</span>
+          <span>Fee</span>
+          <span></span>
+          <span>Amount</span>
+        </div>
+${data.feeBreakdown.lines
+  .map(
+    (line, index) => `        <div class="payment-row body" role="row">
+          <span>${String(index + 1).padStart(2, '0')}</span>
+          <span>${escapeHtml(line.name)}</span>
+          <span></span>
+          <span>${escapeHtml(currency)} ${escapeHtml(formatMoney(line.amount))}</span>
+        </div>`,
+  )
+  .join('\n')}
+        <div class="payment-row body total" role="row">
+          <span></span>
+          <span>Total first-term fee structure</span>
+          <span></span>
+          <span>${escapeHtml(currency)} ${escapeHtml(formatMoney(data.feeBreakdown.total))}</span>
+        </div>
+      </div>
+    </section>`
+    : `    <section class="payment-section">
+      <h2 class="payment-heading">Payment allocation</h2>
+
+      <div class="payment-table" role="table" aria-label="Payment allocation">
+        <div class="payment-row header" role="row">
+          <span>No.</span>
+          <span>Fee allocation</span>
+          <span>Method</span>
+          <span>Amount</span>
+        </div>
+        <div class="payment-row body" role="row">
+          <span>01</span>
+          <span>${escapeHtml(data.allocationTarget)}</span>
+          <span>${escapeHtml(data.paymentMethod)}</span>
+          <span>${escapeHtml(currency)} ${escapeHtml(formatMoney(data.amountPaid))}</span>
+        </div>
+      </div>
+    </section>`;
+
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -429,6 +480,21 @@ export function renderReceiptPrintHtml(data: ReceiptPrintData): string {
       white-space: nowrap;
     }
 
+    .payment-row.body.total {
+      background: var(--navy);
+    }
+
+    .payment-row.body.total > :nth-child(2),
+    .payment-row.body.total > :nth-child(4) {
+      color: #ffffff;
+      font-weight: 800;
+    }
+
+    .payment-row.body.total > :nth-child(4) {
+      color: #ffd873;
+      font-size: 8.3pt;
+    }
+
     .total-area {
       display: grid;
       grid-template-columns: minmax(0, 1fr) 55mm;
@@ -706,24 +772,7 @@ export function renderReceiptPrintHtml(data: ReceiptPrintData): string {
       </div>
     </section>
 
-    <section class="payment-section">
-      <h2 class="payment-heading">Payment allocation</h2>
-
-      <div class="payment-table" role="table" aria-label="Payment allocation">
-        <div class="payment-row header" role="row">
-          <span>No.</span>
-          <span>Fee allocation</span>
-          <span>Method</span>
-          <span>Amount</span>
-        </div>
-        <div class="payment-row body" role="row">
-          <span>01</span>
-          <span>${escapeHtml(data.allocationTarget)}</span>
-          <span>${escapeHtml(data.paymentMethod)}</span>
-          <span>${escapeHtml(currency)} ${escapeHtml(formatMoney(data.amountPaid))}</span>
-        </div>
-      </div>
-    </section>
+    ${allocationSection}
 
     <section class="total-area">
       <div>
@@ -801,8 +850,9 @@ export function renderReceiptPrintHtml(data: ReceiptPrintData): string {
       // starts when the DOM is ready instead of every page resource
       // has finished loading (window.load). The school logo is a same-origin
       // bundled asset, so it never gates the dialog — only an actual load
-      // error hides it.
-      const PHOTO_WAIT_MS = 2500;
+      // error hides it. Admin 2026-09: receipts must display faster — the
+      // wait is capped at 900ms and the final delay trimmed to 60ms.
+      const PHOTO_WAIT_MS = 900;
 
       function waitForImage(image, timeoutMs, onFailure) {
         if (!image) return Promise.resolve();
@@ -851,7 +901,7 @@ export function renderReceiptPrintHtml(data: ReceiptPrintData): string {
         });
 
         studentPhotoTask.finally(() => {
-          window.setTimeout(() => window.print(), 180);
+          window.setTimeout(() => window.print(), 60);
         });
       }
 

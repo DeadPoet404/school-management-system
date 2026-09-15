@@ -39,6 +39,16 @@ export interface ReceiptPdfData {
   allocationTarget: string;
   outstandingBalance: number | null;
   institution?: ReceiptInstitution | null;
+  /**
+   * Set when the collection's allocation target is the enrollment umbrella:
+   * the canonical first-term fee rows for the student's class. The A5 print
+   * receipt renders these as a breakdown table (old receipts have no
+   * breakdown and must keep rendering their single allocation line).
+   */
+  feeBreakdown?: {
+    lines: { name: string; amount: number }[];
+    total: number;
+  } | null;
 }
 
 export interface RenderOptions {
