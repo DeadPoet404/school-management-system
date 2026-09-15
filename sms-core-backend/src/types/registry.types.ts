@@ -33,11 +33,17 @@ account: baseAccountSchema.extend({
   }),
   compliance: z.object({
     nationalId: z.string().regex(/^GHA-\d{9}-\d$/, "National ID must match GHA-XXXXXXXXX-X").nullable(),
-    emergencyContact: z.object({
-      name: z.string().nullable(),
-      phone: z.string().nullable(),
-      relationship: z.string().nullable(),
-    }),
+    // The enrollment form no longer collects emergency contact details
+    // (removed from the UI); keep the field optional so clean payloads
+    // validate. Older clients may still send an object.
+    emergencyContact: z
+      .object({
+        name: z.string().nullable(),
+        phone: z.string().nullable(),
+        relationship: z.string().nullable(),
+      })
+      .nullable()
+      .optional(),
   }),
   // D-04: the enrollment wizard sends `guardian`, but this schema declared
   // `parent`. Zod strips unknown keys, so the guardian object was deleted
@@ -51,6 +57,18 @@ account: baseAccountSchema.extend({
     phone: z.string().min(1, "Guardian primary contact phone number is mandatory."),
     email: z.string().nullable(),
   }),
+  // Second guardian is optional in the enrollment UI (up to two). It MUST be
+  // declared here: zod strips undeclared keys, so an unlisted guardian2 was
+  // silently deleted before the service could persist it.
+  guardian2: z
+    .object({
+      name: z.string().min(1, "Second guardian legal name is required."),
+      relationship: z.string().min(1, "Second guardian relationship is required."),
+      phone: z.string().min(1, "Second guardian contact phone number is mandatory."),
+      email: z.string().nullable(),
+    })
+    .nullable()
+    .optional(),
   billing: z.object({
     // Optional: the enrollment UI derives the band tier from the selected
     // class (admission + uniform + termly tuition). Explicit ids remain for

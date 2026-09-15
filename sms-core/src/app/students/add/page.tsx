@@ -5,7 +5,6 @@
   import { useRouter, useSearchParams } from "next/navigation"
   import { ArrowLeft, CheckCircle2, AlertCircle, ShieldCheck, Plus } from "lucide-react"
   import { Button } from "@/components/ui/button"
-  import { ScrollArea } from "@/components/ui/scroll-area"
   import { Input } from "@/components/ui/input"
   import { Label } from "@/components/ui/label"
   import {
@@ -388,7 +387,7 @@
         )}
 
         {/* ── SCROLLABLE FORM CANVAS ── */}
-        <ScrollArea className="h-auto max-h-none w-full rounded-none border-none bg-transparent shadow-none md:h-[700px]">
+        <div className="w-full">
           <form onSubmit={handleSubmit} className="space-y-8 pb-28 pr-0 sm:space-y-12 sm:pb-12 sm:pr-4">
             {/* ═══════════════════════════════════════════════════════
                 STEP 1: ACCOUNT ACCESS & CORE CREDENTIALS
@@ -1080,7 +1079,7 @@
               </div>
             </div>
           </form>
-        </ScrollArea>
+        </div>
       </div>
     )
   }

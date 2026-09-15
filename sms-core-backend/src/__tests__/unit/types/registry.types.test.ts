@@ -249,6 +249,44 @@ describe('SMS-002: registry enrollment account date fields', () => {
         expect.fail('expected empty feeTierId to be rejected');
       }
     });
+
+    it('accepts a compliance block without emergencyContact (the form no longer collects it)', () => {
+      const result = studentEnrollmentSchema.safeParse({
+        ...STUDENT_UI_PAYLOAD,
+        compliance: { nationalId: null },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('still accepts a legacy compliance block WITH emergencyContact', () => {
+      const result = studentEnrollmentSchema.safeParse(STUDENT_UI_PAYLOAD);
+      expect(result.success).toBe(true);
+    });
+
+    it('passes guardian2 through instead of stripping it', () => {
+      const payload = {
+        ...STUDENT_UI_PAYLOAD,
+        guardian2: {
+          name: 'Abena Arthur',
+          relationship: 'Mother',
+          phone: '0244111222',
+          email: null,
+        },
+      };
+      const result = studentEnrollmentSchema.safeParse(payload);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.guardian2?.name).toBe('Abena Arthur');
+      }
+    });
+
+    it('accepts guardian2: null (second guardian left empty in the UI)', () => {
+      const result = studentEnrollmentSchema.safeParse({
+        ...STUDENT_UI_PAYLOAD,
+        guardian2: null,
+      });
+      expect(result.success).toBe(true);
+    });
   });
 
   describe('studentEnrollmentSchema (unchanged behavior)', () => {
