@@ -15,6 +15,7 @@ import {
   Wallet
 } from "lucide-react"
 import { fetchWithAuth } from "@/lib/fetch-with-auth"
+import { printReceiptInPage } from "@/lib/print-receipt"
 import { useClasses } from "@/lib/api/reference"
 import { ClassTabStrip } from "@/components/class-tab-strip"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -197,9 +198,6 @@ export function PaymentInflowCollectionLog({
     setSubmitting(true)
 
     // SMS-007: pre-open the receipt tab synchronously — popup blockers deny window.open after an await.
-    // Declared OUTSIDE try so the catch block can close the tab on network errors.
-    const receiptWindow = window.open("", "_blank")
-
     try {
       // ✅ FIXED: removed the outer fetch() wrapper — fetchWithAuth IS the fetch
       const response = await fetchWithAuth("/finance/collections", {
@@ -221,16 +219,16 @@ export function PaymentInflowCollectionLog({
         setFormState(DEFAULT_FORM_STATE())
         fetchSectionData(activeSection)
         setSuccessMessage(payload.message || "Payment collection recorded successfully.")
-        if (receiptWindow) {
-          // SMS-007: pop the print-ready PDF (browser print-or-cancel flow)
-          receiptWindow.location.href = `/api/finance/payments/${payload.data.id}/receipt.print`
-        }
+        // SMS-007: trigger the print dialog IN PLACE — the A5 receipt is
+        // rendered in a hidden iframe and its own script opens the native
+        // print dialog. No new tab, no navigation away from the console.
+        printReceiptInPage(payload.data.id).catch((err) => {
+          console.error("[Receipt Print Trigger Error]:", err)
+        })
       } else {
-        receiptWindow?.close()
         setError(payload.message || "Failed to process collection inflow.")
       }
     } catch (error) {
-      receiptWindow?.close()
       console.error("[Collection Pipeline Ingress Write Error]:", error)
       setError(error instanceof Error ? error.message : "Network error while processing collection inflow.")
     } finally {
@@ -508,8 +506,12 @@ export function PaymentInflowCollectionLog({
                           type="button"
                           variant="outline"
                           className="h-9 gap-1.5 border-stone-200 px-3 text-xs text-stone-600 hover:bg-stone-100 hover:text-stone-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-50 sm:h-8 sm:px-2"
-                          title="Open A5 print receipt"
-                          onClick={() => window.open(`/api/finance/payments/${rcpt.id}/receipt.print`, "_blank", "noopener,noreferrer")}
+                          title="Print A5 receipt (opens the print dialog in place)"
+                          onClick={() => {
+                            printReceiptInPage(rcpt.id).catch((err) => {
+                              console.error("[Receipt Print Trigger Error]:", err)
+                            })
+                          }}
                         >
                           <Printer className="h-3.5 w-3.5" />
                           <span>Print A5</span>

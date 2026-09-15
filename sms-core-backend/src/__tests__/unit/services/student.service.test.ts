@@ -550,21 +550,64 @@ describe('StudentService', () => {
       expect(createData.billing.create.currentBalance).toBe(1850);
     });
 
-    it('applies the deposit against the band total (PARTIAL)', async () => {
+    // Regression (double-count fix): the initial deposit must NOT be baked
+    // into invoice.paidAmount / the ledger. The invoice opens UNPAID at
+    // zero paid, the ledger opens at the FULL charge, and the deposit is
+    // processed through the standard collection pipeline exactly once —
+    // which is also what triggers the receipt system.
+    const financeStub = { processInflowCollection: vi.fn() };
+
+    it('records the band-path deposit as a real collection (receipt + counted once)', async () => {
       mockBandLookup('NEW-BASIC1-6', '500');
       (prisma.invoice.create as any).mockResolvedValue({ id: 'inv-1' });
       (repo.createNestedStudent as any).mockResolvedValue({ id: 'new-1', studentId: 'JCS-32-001', studentName: 'Jane' });
+      (financeStub.processInflowCollection as any).mockResolvedValue({ id: 'col-42', receiptNumber: 'REC-2026-0042' });
+      service = new StudentService(repo, financeStub as any);
 
-      await service.createStudent({
+      const result = await service.createStudent({
         ...VALID_ENROLLMENT_PAYLOAD,
         billing: { initialDeposit: 1000 },
       });
 
+      // Ledger opens at the full charge — the collection decrements it once.
       const createData = (repo.createNestedStudent as any).mock.calls[0][0];
-      expect(createData.billing.create.currentBalance).toBe(900);
+      expect(createData.billing.create.currentBalance).toBe(1900);
+
+      // Invoice opens at zero paid (no baked-in deposit).
       const inv = (prisma.invoice.create as any).mock.calls[0][0].data;
-      expect(inv.paidAmount).toBe(1000);
-      expect(inv.status).toBe('PARTIAL');
+      expect(inv.amount).toBe(1900);
+      expect(inv.paidAmount).toBe(0);
+      expect(inv.status).toBe('UNPAID');
+
+      // Deposit flows through the standard collection pipeline.
+      expect(financeStub.processInflowCollection).toHaveBeenCalledTimes(1);
+      expect(financeStub.processInflowCollection).toHaveBeenCalledWith({
+        sectionId: 'class-1',
+        studentName: 'Jane',
+        amountPaid: 1000,
+        paymentMethod: 'CASH',
+        referenceNo: 'INV-JCS-32-001-FT2627',
+        allocationTarget: 'Initial Deposit — FIRST TERM 2026/27',
+        studentInternalId: 'new-1',
+      });
+
+      // The receipt is surfaced for the enrollment UI.
+      expect(result.depositReceipt).toEqual({ receiptNumber: 'REC-2026-0042', collectionId: 'col-42' });
+    });
+
+    it('band path without a deposit: no collection, depositReceipt null', async () => {
+      mockBandLookup('NEW-BASIC1-6', '500');
+      (prisma.invoice.create as any).mockResolvedValue({ id: 'inv-1' });
+      (repo.createNestedStudent as any).mockResolvedValue({ id: 'new-1', studentId: 'JCS-32-001', studentName: 'Jane' });
+      service = new StudentService(repo, financeStub as any);
+
+      const result = await service.createStudent({
+        ...VALID_ENROLLMENT_PAYLOAD,
+        billing: { initialDeposit: 0 },
+      });
+
+      expect(financeStub.processInflowCollection).not.toHaveBeenCalled();
+      expect(result.depositReceipt).toBeNull();
     });
 
     it('rejects a class with no fee band (e.g. Unassigned)', async () => {

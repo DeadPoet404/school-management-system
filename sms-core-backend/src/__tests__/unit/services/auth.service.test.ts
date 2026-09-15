@@ -105,6 +105,20 @@ describe('AuthService', () => {
       });
     });
 
+    // Regression: an email that exists in more than one account table used
+    // to silently resolve to the STUDENT row, which turned an admin login
+    // into a student session (observed on staging with test data).
+    it('should throw 409 when the email is registered under multiple account types', async () => {
+      (prisma.studentAccount.findUnique as any).mockResolvedValue(STUDENT_ACCOUNT);
+      (prisma.staffAccount.findUnique as any).mockResolvedValue(STAFF_ACCOUNT);
+      mockedComparePassword.mockResolvedValue(true);
+
+      await expect(service.login('student@school.com', 'pw')).rejects.toMatchObject({
+        statusCode: 409,
+        message: expect.stringContaining('more than one account type'),
+      });
+    });
+
     it('should throw 403 when account status is DEPARTED', async () => {
       (prisma.studentAccount.findUnique as any).mockResolvedValue(DEPARTED_STUDENT);
       mockedComparePassword.mockResolvedValue(true);

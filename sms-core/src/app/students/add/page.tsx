@@ -3,7 +3,7 @@
   import * as React from "react"
   import Link from "next/link"
   import { useRouter, useSearchParams } from "next/navigation"
-  import { ArrowLeft, CheckCircle2, AlertCircle, ShieldCheck, Plus } from "lucide-react"
+  import { ArrowLeft, CheckCircle2, AlertCircle, ShieldCheck, Plus, Printer } from "lucide-react"
   import { Button } from "@/components/ui/button"
   import { Input } from "@/components/ui/input"
   import { Label } from "@/components/ui/label"
@@ -15,6 +15,7 @@
     SelectValue,
   } from "@/components/ui/select"
   import { fetchWithAuth } from "@/lib/fetch-with-auth"
+  import { printReceiptInPage } from "@/lib/print-receipt"
   import type { ReferenceClass } from "@/lib/api/reference"
   import { useClasses } from "@/lib/api/reference"
 
@@ -100,6 +101,9 @@
     // ── SERVER CONFIRMATION TELEMETRY ──
     const [createdStudentId, setCreatedStudentId] = React.useState<string | null>(null)
     const [createdStudentName, setCreatedStudentName] = React.useState<string | null>(null)
+    // Set only when an initial deposit was recorded during enrollment — the
+    // server returns the collection's receipt so it can be printed in place.
+    const [depositReceipt, setDepositReceipt] = React.useState<{ receiptNumber: string; collectionId: string } | null>(null)
 
     // ── REFERENCE DATA (live, from /api/reference) ──
     const { data: classes = [], isLoading: classesLoading } = useClasses()
@@ -147,6 +151,7 @@
       e.preventDefault()
       setFormState("submitting")
       setErrorMessage(null)
+      setDepositReceipt(null)
 
       // ═══════════════════════════════════════════════════════════
       // FRONTEND VALIDATION GATE
@@ -270,6 +275,7 @@
         const savedStudent = json.data
         setCreatedStudentId(savedStudent.studentId || savedStudent.id)
         setCreatedStudentName(savedStudent.studentName)
+        setDepositReceipt(savedStudent.depositReceipt ?? null)
         setFormState("success")
       } catch (err: any) {
         setFormState("error")
@@ -323,6 +329,28 @@
               </span>
               .
             </p>
+            {depositReceipt && (
+              <div className="mt-3 flex flex-col items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50/60 px-4 py-3 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+                <p className="text-xs text-emerald-800 dark:text-emerald-300">
+                  Initial deposit recorded — receipt{" "}
+                  <span className="font-mono font-semibold tracking-wider">{depositReceipt.receiptNumber}</span>
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5 border-emerald-300 text-xs text-emerald-800 hover:bg-emerald-100/60 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-900/30"
+                  onClick={() => {
+                    printReceiptInPage(depositReceipt.collectionId).catch((err) => {
+                      console.error("[Enrollment Receipt Print Error]:", err)
+                    })
+                  }}
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  Print deposit receipt
+                </Button>
+              </div>
+            )}
             <div className="flex items-center gap-3 mt-4">
               <Button
                 variant="outline"

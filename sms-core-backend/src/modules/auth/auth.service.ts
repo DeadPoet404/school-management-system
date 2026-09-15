@@ -6,6 +6,7 @@ import { comparePassword, hashPassword } from '@/utils/hash';
 import { AppError } from '@/middleware/error.handler';
 import { JwtPayload } from '@/types/auth.types';
 import { invalidateUserTokensBefore } from '@/lib/token-blocklist';
+import { logger } from '@/lib/logger';
 
 export class AuthService {
   // SMS-004: Google OAuth client for portal sign-in verification.
@@ -361,6 +362,24 @@ export class AuthService {
         include: { teacher: { select: { id: true, status: true } } },
       }),
     ]);
+
+    // Collision guard: an email is only allowed to live in ONE account type.
+    // The previous behavior let the student row win silently, which is what
+    // turned an admin login into a student session when the same email had
+    // (by mistake or test data) been registered as a student portal too.
+    const matchedTypes = [
+      studentAccount?.student ? 'STUDENT' : null,
+      staffAccount?.staff ? 'STAFF' : null,
+      teacherAccount?.teacher ? 'TEACHER' : null,
+    ].filter((t): t is string => t !== null);
+
+    if (matchedTypes.length > 1) {
+      logger.warn({ email, matchedTypes }, '[AUTH] Login blocked: email registered under multiple account types');
+      throw new AppError(
+        409,
+        'This email is registered under more than one account type. Contact the administrator to resolve the duplicate account.',
+      );
+    }
 
     // Use optional chaining instead of ! to handle edge case where
     // account exists but related record was hard-deleted

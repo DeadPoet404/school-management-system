@@ -8,6 +8,7 @@ import { formatInstitutionalId } from "@/utils";
 import { academicYearOf, cohortForClass, formatStudentId } from "@/lib/student-id";
 import { hashPassword } from "@/utils/hash";
 import { parseStudentImportFile, type StudentImportError, type StudentImportUploadedFile } from "./student.import";
+import { FinanceService } from "@/modules/finance/finance.service";
 
 type StudentFinancialRow = Prisma.StudentGetPayload<{
   include: { account: true; invoices: true; payments: true; };
@@ -59,7 +60,10 @@ interface StudentFilters {
 }
 
 export class StudentService {
-  constructor(private repo: IStudentRepository = new StudentRepository()) {}
+  constructor(
+    private repo: IStudentRepository = new StudentRepository(),
+    private readonly financeService: FinanceService = new FinanceService(),
+  ) {}
 
   /**
    * SMS-005: Portal self-view profile. Portal-shaped DTO only -- compliance,
@@ -495,7 +499,13 @@ export class StudentService {
     }
 
     const resolvedTierId = feeTier.id;
-    const computedBalance = Math.max(0, totalCharge - initialDeposit);
+    // Legacy/import path (explicit feeTierId): the tier amount IS the full
+    // charge and the deposit is netted straight off the ledger, exactly as
+    // before (no invoice is issued on that path).
+    // Band path (enrollment UI): the ledger opens at the FULL charge and
+    // the deposit is processed below as a real collection, so the same
+    // cash can never be counted twice.
+    const computedBalance = feeBreakdown ? totalCharge : Math.max(0, totalCharge - initialDeposit);
 
     // Cohort id: JCS-<2-digit JHS3 completion year>-<3-digit sequence>.
     // Derived from the class being enrolled into, so peers share a code and
@@ -551,23 +561,26 @@ export class StudentService {
     // $transaction (PgBouncer P2028), so if invoicing fails the student
     // exists without an invoice — report the student id for manual
     // reconciliation rather than silently returning success.
+    let depositReceipt: { receiptNumber: string; collectionId: string } | null = null;
+
     if (feeBreakdown) {
       const termStructure = await prisma.feeStructureConfiguration.findUnique({
         where: { sectionId: placement.classId },
         select: { dueDate: true },
       });
-      const paidAmount = Math.min(initialDeposit, totalCharge);
-      const status: 'UNPAID' | 'PARTIAL' | 'PAID' =
-        paidAmount >= totalCharge ? 'PAID' : paidAmount > 0 ? 'PARTIAL' : 'UNPAID';
+      const invoiceNo = `INV-${created.studentId}-FT2627`;
       try {
+        // The invoice opens at zero paid: every payment applied to it
+        // (including the initial deposit below) flows through the standard
+        // collection pipeline exactly once.
         await prisma.invoice.create({
           data: {
-            invoiceNo: `INV-${created.studentId}-FT2627`,
+            invoiceNo,
             studentId: created.id,
             description: `FIRST TERM 2026/27 invoice | ${feeBreakdown}`,
             amount: totalCharge,
-            paidAmount,
-            status,
+            paidAmount: 0,
+            status: 'UNPAID',
             dueDate: termStructure?.dueDate ?? new Date('2026-11-30'),
           },
         });
@@ -578,9 +591,38 @@ export class StudentService {
           `Student ${created.studentId} was enrolled but the first term invoice could not be issued (${detail}). Reconcile manually.`,
         );
       }
+
+      // An initial deposit is real cash on hand: process it through the
+      // standard collection pipeline (receipt + payment + ledger decrement
+      // + invoice application) so it is counted exactly once — and the
+      // receipt system is triggered just like for any other payment.
+      // Baking it into invoice.paidAmount/ledger here (previous behavior)
+      // made the same cash double-counted when the deposit was later
+      // recorded to produce its receipt, flipping the invoice to PAID
+      // while the balance was still owed.
+      if (initialDeposit > 0) {
+        try {
+          const collection = await this.financeService.processInflowCollection({
+            sectionId: placement.classId,
+            studentName: created.studentName,
+            amountPaid: Math.min(initialDeposit, totalCharge),
+            paymentMethod: 'CASH',
+            referenceNo: invoiceNo,
+            allocationTarget: 'Initial Deposit — FIRST TERM 2026/27',
+            studentInternalId: created.id,
+          });
+          depositReceipt = { receiptNumber: collection.receiptNumber, collectionId: collection.id };
+        } catch (err) {
+          const detail = err instanceof Error ? err.message : 'unknown error';
+          throw new AppError(
+            500,
+            `Student ${created.studentId} was enrolled but the initial deposit could not be recorded (${detail}). Reconcile manually.`,
+          );
+        }
+      }
     }
 
-    return created;
+    return { ...created, depositReceipt };
   }
 
   /**

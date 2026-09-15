@@ -129,7 +129,18 @@ export class StudentController {
         billing: billing || payroll,
       });
 
-      return res.status(201).json({ success: true, message: "Student enrollment pipeline complete.", data: { id: newStudent.id, studentId: newStudent.studentId, studentName: newStudent.studentName } });
+      return res.status(201).json({
+        success: true,
+        message: "Student enrollment pipeline complete.",
+        data: {
+          id: newStudent.id,
+          studentId: newStudent.studentId,
+          studentName: newStudent.studentName,
+          // Set only when an initial deposit was recorded during enrollment
+          // (band path); the enrollment UI shows the receipt + print button.
+          ...(newStudent.depositReceipt ? { depositReceipt: newStudent.depositReceipt } : {}),
+        },
+      });
     } catch (error) {
       next(error);
     }
