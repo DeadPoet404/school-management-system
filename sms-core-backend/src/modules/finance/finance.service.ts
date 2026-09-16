@@ -6,7 +6,6 @@ import { IFinanceRepository, TransactionClient } from "@/types/repositories";
 import { FinanceRepository } from "./finance.repository";
 import type { ReceiptPdfData } from "@/lib/pdf";
 import type { ReceiptPrintData } from "@/lib/receipt-print";
-import { ENROLLMENT_UMBRELLA, canonicalOrder, canonicalizeFeeName, isCoreFeeName } from "@/lib/fee-allocation";
 import {
   createStudentPhotoStorage,
   StudentPhotoStorageConfigurationError,
@@ -414,35 +413,6 @@ export class FinanceService {
 
     const institution = await this.repo.findReceiptInstitution();
 
-    // Enrollment umbrella: render the student's class first-term fee
-    // breakdown (canonical Admission / Uniform / Tuition rows + total) so
-    // new-student receipts show what the money covers.
-    let feeBreakdown: { lines: { name: string; amount: number }[]; total: number } | null = null;
-    if (record.allocationTarget === ENROLLMENT_UMBRELLA && record.class) {
-      // No orderBy: mirrors findAllFeeConfigurations, so the receipt rows
-      // follow the same order the fee structure UI shows.
-      const config = await prisma.feeStructureConfiguration.findUnique({
-        where: { sectionId: record.class.id },
-        include: { components: true },
-      });
-      if (config) {
-        // Core rows matched BY MEANING (row order varies per class), merged
-        // per label, shown in canonical order: Admission, Uniform, Tuition.
-        const byLabel = new Map<string, number>();
-        for (const c of config.components) {
-          if (!isCoreFeeName(c.name)) continue;
-          const label = canonicalizeFeeName(c.name);
-          byLabel.set(label, (byLabel.get(label) ?? 0) + parseDecimal(c.amount));
-        }
-        const lines = [...byLabel.entries()]
-          .map(([name, amount]) => ({ name, amount }))
-          .sort((a, b) => canonicalOrder(a.name) - canonicalOrder(b.name));
-        if (lines.length > 0) {
-          feeBreakdown = { lines, total: lines.reduce((sum, line) => sum + line.amount, 0) };
-        }
-      }
-    }
-
     return {
       data: {
         receiptNumber: record.receiptNumber,
@@ -458,7 +428,6 @@ export class FinanceService {
         allocationTarget: record.allocationTarget,
         outstandingBalance: record.student?.billing ? parseDecimal(record.student.billing.currentBalance) : null,
         institution,
-        feeBreakdown,
       },
       studentPhotoKey:
         typeof record.student?.photoKey === 'string' && record.student.photoKey.trim()

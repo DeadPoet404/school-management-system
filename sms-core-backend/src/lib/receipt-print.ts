@@ -120,56 +120,6 @@ export function renderReceiptPrintHtml(data: ReceiptPrintData): string {
         >`
     : '';
 
-  // Enrollment-umbrella receipts show the class first-term fee breakdown
-  // (canonical Admission / Uniform / Tuition rows + total) instead of a
-  // single allocation line; every other receipt keeps the classic table.
-  const allocationSection = data.feeBreakdown
-    ? `    <section class="payment-section">
-      <h2 class="payment-heading">First-term fee structure</h2>
-
-      <div class="payment-table" role="table" aria-label="First-term fee breakdown">
-        <div class="payment-row header" role="row">
-          <span>No.</span>
-          <span>Fee</span>
-          <span></span>
-          <span>Amount</span>
-        </div>
-${data.feeBreakdown.lines
-  .map(
-    (line, index) => `        <div class="payment-row body" role="row">
-          <span>${String(index + 1).padStart(2, '0')}</span>
-          <span>${escapeHtml(line.name)}</span>
-          <span></span>
-          <span>${escapeHtml(currency)} ${escapeHtml(formatMoney(line.amount))}</span>
-        </div>`,
-  )
-  .join('\n')}
-        <div class="payment-row body total" role="row">
-          <span></span>
-          <span>Total first-term fee structure</span>
-          <span></span>
-          <span>${escapeHtml(currency)} ${escapeHtml(formatMoney(data.feeBreakdown.total))}</span>
-        </div>
-      </div>
-    </section>`
-    : `    <section class="payment-section">
-      <h2 class="payment-heading">Payment allocation</h2>
-
-      <div class="payment-table" role="table" aria-label="Payment allocation">
-        <div class="payment-row header" role="row">
-          <span>No.</span>
-          <span>Fee allocation</span>
-          <span>Method</span>
-          <span>Amount</span>
-        </div>
-        <div class="payment-row body" role="row">
-          <span>01</span>
-          <span>${escapeHtml(data.allocationTarget)}</span>
-          <span>${escapeHtml(data.paymentMethod)}</span>
-          <span>${escapeHtml(currency)} ${escapeHtml(formatMoney(data.amountPaid))}</span>
-        </div>
-      </div>
-    </section>`;
 
   return `<!doctype html>
 <html lang="en">
@@ -427,7 +377,8 @@ ${data.feeBreakdown.lines
 
     .payment-table {
       overflow: hidden;
-      border-radius: 4mm;
+      /* Admin 2026-09: tighter corners on the fee box. */
+      border-radius: 1mm;
     }
 
     .payment-row {
@@ -480,20 +431,6 @@ ${data.feeBreakdown.lines
       white-space: nowrap;
     }
 
-    .payment-row.body.total {
-      background: var(--navy);
-    }
-
-    .payment-row.body.total > :nth-child(2),
-    .payment-row.body.total > :nth-child(4) {
-      color: #ffffff;
-      font-weight: 800;
-    }
-
-    .payment-row.body.total > :nth-child(4) {
-      color: #ffd873;
-      font-size: 8.3pt;
-    }
 
     .total-area {
       display: grid;
@@ -523,7 +460,8 @@ ${data.feeBreakdown.lines
 
     .totals {
       overflow: hidden;
-      border-radius: 3mm;
+      /* Admin 2026-09: tighter corners on the balance/received box. */
+      border-radius: 1mm;
     }
 
     .total-line {
@@ -772,7 +710,24 @@ ${data.feeBreakdown.lines
       </div>
     </section>
 
-    ${allocationSection}
+    <section class="payment-section">
+      <h2 class="payment-heading">What this payment covers</h2>
+
+      <div class="payment-table" role="table" aria-label="Payment allocation">
+        <div class="payment-row header" role="row">
+          <span>No.</span>
+          <span>Fee allocation</span>
+          <span>Method</span>
+          <span>Amount</span>
+        </div>
+        <div class="payment-row body" role="row">
+          <span>01</span>
+          <span>${escapeHtml(data.allocationTarget)}</span>
+          <span>${escapeHtml(data.paymentMethod)}</span>
+          <span>${escapeHtml(currency)} ${escapeHtml(formatMoney(data.amountPaid))}</span>
+        </div>
+      </div>
+    </section>
 
     <section class="total-area">
       <div>
