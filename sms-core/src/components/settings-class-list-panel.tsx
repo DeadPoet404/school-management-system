@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useClasses } from "@/lib/api/reference"
 import { fetchWithAuth } from "@/lib/fetch-with-auth"
+import { printPdfInPage } from "@/lib/print-pdf"
 
 /**
  * Settings → Class List: generate a print-ready PDF roster for any class.
@@ -40,25 +41,17 @@ export default function ClassListPanel() {
   async function handleGenerate() {
     if (!selected) return
     setGenerating(true)
-    // Open the tab synchronously so mobile browsers do not block the PDF
-    // after the request resolves (same pattern as receipt PDFs).
-    const win = window.open("", "_blank")
     try {
       const response = await fetchWithAuth(
         `/students/class-list.pdf?classId=${encodeURIComponent(selected.id)}`,
       )
       if (!response.ok) throw new Error("Class list PDF request failed")
       const url = URL.createObjectURL(await response.blob())
-      if (win) {
-        win.opener = null
-        win.location.href = url
-        window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
-      } else {
-        URL.revokeObjectURL(url)
-        toast.error("Your browser blocked the PDF window. Please allow pop-ups and try again.")
-      }
+      // Prints in place (hidden iframe + print dialog); falls back to a
+      // new tab on viewers that cannot be scripted.
+      printPdfInPage(url)
+      toast.success("Class list ready — the print dialog is opening.")
     } catch (err) {
-      win?.close()
       toast.error(err instanceof Error ? err.message : "Unable to generate the class list PDF.")
     } finally {
       setGenerating(false)
