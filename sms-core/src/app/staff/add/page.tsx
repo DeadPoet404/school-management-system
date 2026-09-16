@@ -266,8 +266,8 @@ function ComprehensiveStaffEnrollmentWizard() {
           </Link>
         </div>
 
-        <div className="flex flex-col items-center justify-center py-16 gap-4">
-          <CheckCircle2 className="h-12 w-12 text-emerald-600 animate-in fade-in zoom-in-95 duration-300" />
+        <div className="flex flex-col items-center justify-center py-16 gap-4 motion-stagger">
+          <CheckCircle2 className="h-12 w-12 text-emerald-600" />
           <h2 className="text-2xl font-semibold text-foreground tracking-tight">
             Staff Member Enrolled
           </h2>

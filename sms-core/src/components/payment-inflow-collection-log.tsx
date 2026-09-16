@@ -18,6 +18,7 @@ import { fetchWithAuth } from "@/lib/fetch-with-auth"
 import { printReceiptInPage } from "@/lib/print-receipt"
 import { useClasses } from "@/lib/api/reference"
 import { ClassTabStrip } from "@/components/class-tab-strip"
+import { Skeleton } from "@/components/ui/skeleton"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -511,9 +512,31 @@ export function PaymentInflowCollectionLog({
 
               <div className="space-y-2.5 max-w-2xl">
                 {loading ? (
-                  <div className="text-xs text-stone-400 dark:text-zinc-500 italic py-4 animate-pulse flex items-center gap-2">
-                    <span className="h-2 w-2 bg-stone-400 dark:bg-zinc-500 rounded-full animate-ping" />
-                    Loading receipts...
+                  // Receipt-shaped skeletons mirroring the real cards,
+                  // revealed with a 60ms stagger (motion system).
+                  <div className="space-y-2.5" aria-busy="true" aria-label="Loading receipts">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="rounded-xl border border-stone-200/60 bg-stone-50 p-3.5 animate-fade-in-soft dark:border-zinc-800/60 dark:bg-zinc-950"
+                        style={{ animationDelay: `${i * 60}ms` }}
+                      >
+                        <div className="flex items-start gap-3">
+                          <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
+                          <div className="min-w-0 flex-1 space-y-2 pt-0.5">
+                            <div className="flex items-center gap-2">
+                              <Skeleton className="h-3.5 w-36" />
+                              <Skeleton className="h-4 w-24 rounded" />
+                            </div>
+                            <Skeleton className="h-3 w-48" />
+                          </div>
+                        </div>
+                        <div className="mt-3 flex items-center justify-between border-t border-stone-200/70 pt-3 dark:border-zinc-800/70">
+                          <Skeleton className="h-4 w-16" />
+                          <Skeleton className="h-8 w-28 rounded-lg" />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : history.map((rcpt) => (
                   <article

@@ -186,8 +186,8 @@ function ComprehensiveTeacherEnrollmentWizard() {
           </Link>
         </div>
 
-        <div className="flex flex-col items-center justify-center py-16 gap-4">
-          <CheckCircle2 className="h-12 w-12 text-emerald-600 animate-in fade-in zoom-in-95 duration-300" />
+        <div className="flex flex-col items-center justify-center py-16 gap-4 motion-stagger">
+          <CheckCircle2 className="h-12 w-12 text-emerald-600" />
           <h2 className="text-2xl font-semibold text-foreground tracking-tight">Faculty Member Enrolled</h2>
           <p className="text-sm text-muted-foreground text-center max-w-md leading-relaxed">
             <span className="font-medium text-foreground">{createdTeacherName}</span> has been saved inside database

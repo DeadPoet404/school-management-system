@@ -11,6 +11,7 @@ import {
   StudentPasswordResetDialog,
   type StudentPasswordResetTarget,
 } from "@/components/student-password-reset-dialog"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export type StudentOverviewRow = {
   id: string
@@ -308,9 +309,25 @@ export function StudentOverviewTable({ data: initialData }: StudentOverviewTable
   ]
 
   if (loading) {
+    // Skeleton table shaped like the real grid (13 columns) with the
+    // motion system's shimmer sweep; rows fade slightly to add depth.
+    const widths = [64, 132, 56, 76, 116, 96, 48, 76, 64, 84, 64, 76, 72]
     return (
-      <div className="flex h-48 w-full items-center justify-center text-sm text-zinc-500 animate-pulse">
-        Loading real-time student overview records...
+      <div className="w-full animate-fade-in-soft p-4" aria-busy="true" aria-label="Loading student overview">
+        <div className="flex items-center gap-3 border-b border-zinc-100 pb-3 dark:border-zinc-900">
+          {widths.map((w, i) => (
+            <Skeleton key={i} className="h-3.5" style={{ width: w }} />
+          ))}
+        </div>
+        <div className="space-y-3.5 pt-3.5">
+          {Array.from({ length: 8 }).map((_, row) => (
+            <div key={row} className="flex items-center gap-3">
+              {widths.map((w, i) => (
+                <Skeleton key={i} className="h-3" style={{ width: w, opacity: 1 - row * 0.07 }} />
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
     )
   }

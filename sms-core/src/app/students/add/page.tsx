@@ -364,8 +364,8 @@
             </Link>
           </div>
 
-          <div className="flex flex-col items-center justify-center py-16 gap-4 border border-dashed rounded-xl border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/20">
-            <CheckCircle2 className="h-12 w-12 text-emerald-600 animate-in fade-in zoom-in-95 duration-300" />
+          <div className="flex flex-col items-center justify-center py-16 gap-4 border border-dashed rounded-xl border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/20 motion-stagger">
+            <CheckCircle2 className="h-12 w-12 text-emerald-600" />
             <h2 className="text-2xl font-semibold text-foreground tracking-tight">
               Student Enrolled Successfully
             </h2>

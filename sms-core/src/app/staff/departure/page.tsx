@@ -124,8 +124,8 @@ function StaffDepartureForm() {
           </Link>
         </div>
 
-        <div className="flex flex-col items-center justify-center py-16 gap-4">
-          <CheckCircle2 className="h-12 w-12 text-amber-600 animate-in fade-in zoom-in-95 duration-300" />
+        <div className="flex flex-col items-center justify-center py-16 gap-4 motion-stagger">
+          <CheckCircle2 className="h-12 w-12 text-amber-600" />
           <h2 className="text-2xl font-semibold text-foreground tracking-tight">Staff Access Revoked</h2>
           <p className="text-sm text-muted-foreground text-center max-w-md leading-relaxed">
             <span className="font-medium text-foreground">{staffName || "The staff member"}</span> has been offboarded from active operational matrices. Core payroll loops and system credentials have been archived safely under ID{" "}
