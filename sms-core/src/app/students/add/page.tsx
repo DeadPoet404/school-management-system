@@ -81,22 +81,13 @@
 
     // ── STEP 1: ACCOUNT ACCESS & CORE CREDENTIALS ──
     const [fullName, setFullName] = React.useState("")
-    const [email, setEmail] = React.useState("")
     const [password, setPassword] = React.useState("")
     const [enrollmentDate, setEnrollmentDate] = React.useState("")
 
-    // Portal email is generated from the student's name (first.last@) so an
-    // operator never types a staff/admin address into it. The field stays
-    // editable for collisions (same-name students) — manual edits are kept.
-    const autoEmailRef = React.useRef("")
-    React.useEffect(() => {
-      const generated = generatePortalEmail(fullName)
-      if (!generated) return
-      setEmail((current) =>
-        current === "" || current === autoEmailRef.current ? generated : current,
-      )
-      autoEmailRef.current = generated
-    }, [fullName])
+    // Portal email is COMPUTED from the student's name — it is not a browser
+    // input field, so autofill can never inject a staff/admin address into
+    // it. "CHRISTOPHER ATSU" → christopher.atsu@jocomfy.com
+    const portalEmail = generatePortalEmail(fullName)
 
     // ── STEP 2: PERSONAL DEMOGRAPHICS & BACKGROUND ──
     const [dateOfBirth, setDateOfBirth] = React.useState("")
@@ -192,7 +183,7 @@
 
       // Step 1
       if (!fullName.trim()) missingFields.push("Full Legal Name")
-      if (!email.trim()) missingFields.push("Portal Access Address")
+      if (!portalEmail) missingFields.push("Portal Access Address")
       if (!password.trim()) missingFields.push("Temporary Security Token")
       if (!enrollmentDate) missingFields.push("Official Enrollment Date")
 
@@ -239,7 +230,7 @@
       const enrollmentPayload = {
         account: {
           fullName: fullName.trim(),
-          email: email.trim(),
+          email: portalEmail,
           password,
           enrollmentDate,
         },
@@ -498,22 +489,17 @@
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <Label htmlFor="student-email" className="text-sm font-semibold sm:text-xs text-foreground">
+                    <Label className="text-sm font-semibold sm:text-xs text-foreground">
                       Portal Access Address <span className="text-red-500">*</span>
                     </Label>
-                    <Input
-                      id="student-email"
-                      type="email"
-                      placeholder="Auto-filled from the student's name"
-                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                      disabled={isSubmitting}
-                      autoComplete="off"
-                    />
+                    <div
+                      aria-live="polite"
+                      className="h-11 sm:h-9 flex items-center rounded-md bg-stone-50 dark:bg-zinc-900/40 border-zinc-200 dark:border-zinc-800 px-3 text-sm sm:text-xs font-medium text-stone-700 dark:text-zinc-300 select-all"
+                    >
+                      {portalEmail || "…"}
+                    </div>
                     <p className="text-[11px] leading-snug text-stone-500 dark:text-zinc-400">
-                      Generated from the student's name — edit only for same-name collisions. Never use a staff or teacher address here.
+                      Computed from the student's full name — not typed by anyone.
                     </p>
                   </div>
                   <div className="space-y-1.5">
@@ -530,6 +516,7 @@
                       required
                       minLength={6}
                       disabled={isSubmitting}
+                      autoComplete="new-password"
                     />
                   </div>
                 </div>
