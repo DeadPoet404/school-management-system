@@ -40,6 +40,23 @@
     { pattern: /^(jhs|junior)/i, admission: 700, uniform: 840, tuition: 600, label: "JHS (1 – 3)" },
   ]
 
+  /**
+   * Auto-generate the student portal email from the full name:
+   * "CHRISTOPHER ATSU" -> christopher.atsu@jocomfy.com.
+   * Keeps only alphabetic parts, joins first + last with a dot.
+   */
+  function generatePortalEmail(fullName: string): string {
+    const parts = fullName
+      .trim()
+      .toLowerCase()
+      .split(/[^a-z]+/)
+      .filter((part) => part.length > 0)
+    if (parts.length === 0) return ""
+    const local =
+      parts.length === 1 ? parts[0]! : `${parts[0]}.${parts[parts.length - 1]!}`
+    return `${local}@jocomfy.com`
+  }
+
   // ── MAIN COMPONENT ──
   function ComprehensiveEnrollmentWizard() {
     const router = useRouter()
@@ -67,6 +84,19 @@
     const [email, setEmail] = React.useState("")
     const [password, setPassword] = React.useState("")
     const [enrollmentDate, setEnrollmentDate] = React.useState("")
+
+    // Portal email is generated from the student's name (first.last@) so an
+    // operator never types a staff/admin address into it. The field stays
+    // editable for collisions (same-name students) — manual edits are kept.
+    const autoEmailRef = React.useRef("")
+    React.useEffect(() => {
+      const generated = generatePortalEmail(fullName)
+      if (!generated) return
+      setEmail((current) =>
+        current === "" || current === autoEmailRef.current ? generated : current,
+      )
+      autoEmailRef.current = generated
+    }, [fullName])
 
     // ── STEP 2: PERSONAL DEMOGRAPHICS & BACKGROUND ──
     const [dateOfBirth, setDateOfBirth] = React.useState("")
@@ -474,13 +504,17 @@
                     <Input
                       id="student-email"
                       type="email"
-                      placeholder="e.g. student.name@domain.edu"
+                      placeholder="Auto-filled from the student's name"
                       className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
                       disabled={isSubmitting}
+                      autoComplete="off"
                     />
+                    <p className="text-[11px] leading-snug text-stone-500 dark:text-zinc-400">
+                      Generated from the student's name — edit only for same-name collisions. Never use a staff or teacher address here.
+                    </p>
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="student-password" className="text-sm font-semibold sm:text-xs text-foreground">

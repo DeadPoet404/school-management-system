@@ -430,6 +430,25 @@ export class StudentService {
       throw new AppError(400, "Missing essential guardian contact relationships from structural payload.");
     }
 
+    // Portal email must never collide with a staff/teacher account (a
+    // collision makes the staff/teacher unable to log in, because account
+    // lookup prefers the student row) or with another student's portal.
+    const portalEmail = account.email.trim().toLowerCase();
+    const [staffCollision, teacherCollision, studentCollision] = await Promise.all([
+      prisma.staffAccount.findUnique({ where: { email: portalEmail }, select: { id: true } }),
+      prisma.teacherAccount.findUnique({ where: { email: portalEmail }, select: { id: true } }),
+      prisma.studentAccount.findUnique({ where: { portalEmail }, select: { id: true } }),
+    ]);
+    if (staffCollision) {
+      throw new AppError(409, "That portal email is already in use by a staff account — the enrollment form auto-generates one from the student's name; pick a different address.");
+    }
+    if (teacherCollision) {
+      throw new AppError(409, "That portal email is already in use by a teacher account — the enrollment form auto-generates one from the student's name; pick a different address.");
+    }
+    if (studentCollision) {
+      throw new AppError(409, "That portal email is already in use by another student — pick a different address.");
+    }
+
     // Optional second guardian (enrollment UI allows up to two; the first is
     // the primary/default).
     const resolvedGuardian2 = guardian2 ?? null;

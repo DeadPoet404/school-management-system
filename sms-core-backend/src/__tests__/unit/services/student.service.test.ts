@@ -10,6 +10,9 @@ vi.mock('@/lib/prisma', () => ({
     invoice: { groupBy: vi.fn(), create: vi.fn() },
     payment: { groupBy: vi.fn() },
     feeStructureConfiguration: { findUnique: vi.fn() },
+    staffAccount: { findUnique: vi.fn() },
+    teacherAccount: { findUnique: vi.fn() },
+    studentAccount: { findUnique: vi.fn() },
     $transaction: vi.fn(),
   },
 }));
@@ -56,6 +59,10 @@ describe('StudentService', () => {
     (prisma.$transaction as any).mockImplementation(async (fn: any) => fn({}));
     // Default: feeTier found
     (prisma.feeTier.findUnique as any).mockResolvedValue({ id: 'tier-uuid-a', code: 'TIER-A', amount: '2000', isActive: true });
+    // Default: no portal email collisions
+    (prisma.staffAccount.findUnique as any).mockResolvedValue(null);
+    (prisma.teacherAccount.findUnique as any).mockResolvedValue(null);
+    (prisma.studentAccount.findUnique as any).mockResolvedValue(null);
     // Default: enrolling class resolves to a canonical ladder rung, and the
     // cohort has no members yet, so the first id issued is sequence 001.
     (prisma.class.findUnique as any).mockResolvedValue({ name: 'Grade 3A' });
@@ -64,6 +71,32 @@ describe('StudentService', () => {
   });
 
   // ── getById ──
+  describe('enrollment portal email collisions', () => {
+    it('rejects with 409 when the portal email belongs to a staff account', async () => {
+      (prisma.staffAccount.findUnique as any).mockResolvedValueOnce({ id: 'staff-acc-1' });
+
+      await expect(service.createStudent(VALID_ENROLLMENT_PAYLOAD)).rejects.toMatchObject({
+        statusCode: 409,
+      });
+    });
+
+    it('rejects with 409 when the portal email belongs to a teacher account', async () => {
+      (prisma.teacherAccount.findUnique as any).mockResolvedValueOnce({ id: 'teacher-acc-1' });
+
+      await expect(service.createStudent(VALID_ENROLLMENT_PAYLOAD)).rejects.toMatchObject({
+        statusCode: 409,
+      });
+    });
+
+    it('rejects with 409 when the portal email belongs to another student', async () => {
+      (prisma.studentAccount.findUnique as any).mockResolvedValueOnce({ id: 'student-acc-1' });
+
+      await expect(service.createStudent(VALID_ENROLLMENT_PAYLOAD)).rejects.toMatchObject({
+        statusCode: 409,
+      });
+    });
+  });
+
   describe('getById', () => {
     it('should throw 404 when student not found', async () => {
       (repo.findById as any).mockResolvedValue(null);
