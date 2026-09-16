@@ -71,7 +71,7 @@ export function renderClassListPrintHtml(data: ClassListPdfData): string {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${className} — Class List</title>
   <style>
-    @page { size: A4 portrait; margin: 12mm 14mm 14mm; }
+    @page { size: A4 portrait; margin: 7mm 12mm 10mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { background: #ffffff; }
     body {
@@ -84,67 +84,67 @@ export function renderClassListPrintHtml(data: ClassListPdfData): string {
     .topline { text-align: right; }
     .generated { font-size: 7.5pt; color: #9aa0ae; }
 
-    .logo-frame { display: flex; justify-content: center; margin-top: 2mm; }
-    .logo-frame img { width: 26mm; height: 26mm; object-fit: contain; }
+    .logo-frame { display: flex; justify-content: center; margin-top: 0; }
+    .logo-frame img { width: 18mm; height: 18mm; object-fit: contain; }
     .logo-frame.is-missing { display: none; }
 
     .school {
-      margin-top: 3mm;
+      margin-top: 1.5mm;
       text-align: center;
-      font-size: 20pt;
+      font-size: 16pt;
       font-weight: 700;
       letter-spacing: 1px;
       color: #082a70;
     }
     .school-sub {
-      margin-top: 1.2mm;
+      margin-top: 0.8mm;
       text-align: center;
-      font-size: 8pt;
+      font-size: 7pt;
       font-weight: 700;
-      letter-spacing: 1.5px;
+      letter-spacing: 1.2px;
       color: #e4b43c;
     }
     .motto {
-      margin-top: 0.8mm;
+      margin-top: 0.5mm;
       text-align: center;
-      font-size: 8pt;
+      font-size: 7pt;
       font-style: italic;
       color: #6b7280;
     }
 
-    .rule-navy { margin-top: 3.2mm; height: 1.8pt; background: #082a70; }
+    .rule-navy { margin-top: 2mm; height: 1.8pt; background: #082a70; }
     .rule-gold { margin-top: 2.6pt; height: 0.9pt; background: #e4b43c; }
 
     .class-title {
-      margin-top: 6mm;
+      margin-top: 3mm;
       text-align: center;
-      font-size: 17pt;
+      font-size: 14pt;
       font-weight: 700;
       color: #082a70;
     }
     .class-sub {
-      margin-top: 1mm;
+      margin-top: 0.8mm;
       text-align: center;
-      font-size: 12pt;
+      font-size: 10.5pt;
       font-weight: 700;
       color: #082a70;
     }
     .term {
-      margin-top: 1.5mm;
+      margin-top: 1mm;
       text-align: center;
-      font-size: 9.5pt;
+      font-size: 8.5pt;
       color: #6b7280;
     }
 
     .info-bar {
       display: flex;
       align-items: center;
-      margin-top: 5mm;
+      margin-top: 3mm;
       border: 0.8pt solid #e6d79f;
       border-radius: 4px;
       background: #fdf8ea;
-      padding: 2.6mm 4mm;
-      font-size: 9.5pt;
+      padding: 2mm 3.5mm;
+      font-size: 8.5pt;
     }
     .info-left { flex: 1 1 50%; }
     .info-right { flex: 1 1 50%; text-align: right; }
@@ -154,40 +154,40 @@ export function renderClassListPrintHtml(data: ClassListPdfData): string {
 
     table {
       width: 100%;
-      margin-top: 5mm;
+      margin-top: 3mm;
       border-collapse: collapse;
     }
     thead { display: table-header-group; }
     thead th {
       background: #082a70;
       color: #ffffff;
-      font-size: 8.5pt;
+      font-size: 8pt;
       font-weight: 700;
       text-align: left;
-      padding: 2.4mm 2.5mm;
+      padding: 1.8mm 2.5mm;
       border-bottom: 2.2pt solid #e4b43c;
     }
     th.c-no, td.c-no { width: 11%; text-align: center; }
     th.c-gender, td.c-gender { width: 14%; text-align: center; }
     td {
       border: 0.4pt solid #d9dde6;
-      padding: 2.3mm 2.5mm;
-      font-size: 9.5pt;
+      padding: 1.7mm 2.5mm;
+      font-size: 9pt;
     }
     tr:nth-child(even) td { background: #f6f7f9; }
     tr { page-break-inside: avoid; break-inside: avoid; }
-    .mono { font-family: 'Courier New', Courier, monospace; font-size: 8.5pt; color: #3c4256; }
+    .mono { font-family: 'Courier New', Courier, monospace; font-size: 8pt; color: #3c4256; }
     td.c-no { font-size: 9pt; color: #3c4256; }
     td.empty { text-align: center; font-style: italic; color: #6b7280; padding: 5mm; }
 
     .signatures {
-      margin-top: 16mm;
+      margin-top: 10mm;
       page-break-inside: avoid;
       break-inside: avoid;
-      font-size: 9pt;
+      font-size: 8.5pt;
       color: #3c4256;
     }
-    .sig-row { display: flex; justify-content: space-between; margin-bottom: 10mm; }
+    .sig-row { display: flex; justify-content: space-between; margin-bottom: 8mm; }
 
     .screen-actions {
       position: absolute;
