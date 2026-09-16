@@ -36,7 +36,12 @@ export function WorkspaceLayout({ children }: { children: React.ReactNode }) {
             </header>
 
             <div className="relative flex-1 flex flex-col min-h-0">
-              <main className="w-full flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar flex flex-col">
+              {/* Keyed by pathname: every route change remounts this pane so
+                  the page enters with the motion system's fade + rise. */}
+              <main
+                key={pathname}
+                className="w-full flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar flex flex-col animate-fade-rise"
+              >
                 {pathAllowed ? children : <AccessDeniedPanel role={role} onLogout={logout} />}
               </main>
             </div>

@@ -39,6 +39,113 @@ function useClassTiers(sections: ClassTabOption[]) {
   }, [sections])
 }
 
+interface TabRowProps {
+  sections: ClassTabOption[]
+  activeSection: string
+  onSelect: (id: string) => void
+  label: string
+  rowIndex: number
+  rowRef: (node: HTMLDivElement | null) => void
+}
+
+/**
+ * One horizontally scrolling row of class pills with a sliding active
+ * indicator: a single white pill that glides to the selected class
+ * (motion system: 220ms, soft quint-out) instead of each button
+ * toggling its own background.
+ */
+function TabRow({ sections, activeSection, onSelect, label, rowIndex, rowRef }: TabRowProps) {
+  const innerRef = React.useRef<HTMLDivElement | null>(null)
+  const [indicator, setIndicator] = React.useState<{
+    left: number
+    width: number
+    instant: boolean
+  } | null>(null)
+  // The first placement must not slide in from the left edge.
+  const hasPlaced = React.useRef(false)
+
+  const measure = React.useCallback(
+    (instant: boolean) => {
+      const inner = innerRef.current
+      if (!inner) return
+      const el = inner.querySelector<HTMLButtonElement>(
+        `[data-section-id="${CSS.escape(activeSection)}"]`
+      )
+      if (el) {
+        setIndicator({ left: el.offsetLeft, width: el.offsetWidth, instant })
+      } else {
+        setIndicator(null)
+      }
+    },
+    [activeSection]
+  )
+
+  // Track the active tab (also re-runs when sections change, e.g. class
+  // lists that load async).
+  React.useEffect(() => {
+    measure(!hasPlaced.current)
+    hasPlaced.current = true
+  }, [measure])
+
+  // Keep the indicator aligned when the row re-lays out: viewport resize,
+  // and the Poppins webfont swapping in (text widths change).
+  React.useEffect(() => {
+    const remeasure = () => measure(false)
+    window.addEventListener("resize", remeasure)
+    if (typeof document !== "undefined" && "fonts" in document) {
+      document.fonts.ready.then(remeasure).catch(() => {})
+    }
+    return () => window.removeEventListener("resize", remeasure)
+  }, [measure])
+
+  return (
+    <div
+      ref={rowRef}
+      role="tablist"
+      aria-label={`${label} row ${rowIndex + 1}`}
+      className="w-full overflow-x-auto overscroll-x-contain [scrollbar-width:thin] rounded-lg border border-stone-200/40 bg-stone-100 p-1.5 dark:border-zinc-800/40 dark:bg-zinc-900/50"
+    >
+      <div ref={innerRef} className="relative flex w-max items-center">
+        {indicator ? (
+          <div
+            aria-hidden
+            className="absolute inset-y-0 left-0 rounded border border-stone-200/20 bg-white shadow-sm dark:border-zinc-700/30 dark:bg-zinc-800"
+            style={{
+              width: indicator.width,
+              transform: `translateX(${indicator.left}px)`,
+              transition: indicator.instant
+                ? "none"
+                : "transform 220ms var(--ease-soft), width 220ms var(--ease-soft)",
+            }}
+          />
+        ) : null}
+        {sections.map((section, idx) => (
+          <React.Fragment key={section.id}>
+            <button
+              type="button"
+              role="tab"
+              data-section-id={section.id}
+              aria-selected={activeSection === section.id}
+              onClick={() => onSelect(section.id)}
+              className={cn(
+                "relative z-10 shrink-0 whitespace-nowrap rounded px-3 py-1 text-center text-[11px] font-medium tracking-tight transition-all",
+                activeSection === section.id
+                  ? "font-semibold text-stone-900 dark:text-zinc-50"
+                  : "text-stone-500 hover:bg-stone-50/60 hover:text-stone-800 dark:text-zinc-400 dark:hover:bg-zinc-900/20 dark:hover:text-zinc-200"
+              )}
+            >
+              {section.label}
+            </button>
+            {idx < sections.length - 1 && (
+              <div className="mx-0.5 h-3 w-[1px] shrink-0 bg-stone-300 dark:bg-zinc-700" />
+            )}
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /**
  * Tablet/desktop rendition: two rows of inline pills.
  *
@@ -74,39 +181,17 @@ function ClassTabRows({
   }, [activeSection, sections])
 
   const renderRow = (rowSections: ClassTabOption[], rowIndex: number) => (
-    <div
-      ref={(node) => {
+    <TabRow
+      key={rowIndex}
+      sections={rowSections}
+      activeSection={activeSection}
+      onSelect={onSelect}
+      label={label}
+      rowIndex={rowIndex}
+      rowRef={(node) => {
         rowRefs.current[rowIndex] = node
       }}
-      role="tablist"
-      aria-label={`${label} row ${rowIndex + 1}`}
-      className="w-full overflow-x-auto overscroll-x-contain [scrollbar-width:thin] rounded-lg border border-stone-200/40 bg-stone-100 p-1.5 dark:border-zinc-800/40 dark:bg-zinc-900/50"
-    >
-      <div className="flex w-max items-center">
-        {rowSections.map((section, idx) => (
-          <React.Fragment key={section.id}>
-            <button
-              type="button"
-              role="tab"
-              data-section-id={section.id}
-              aria-selected={activeSection === section.id}
-              onClick={() => onSelect(section.id)}
-              className={cn(
-                "shrink-0 whitespace-nowrap rounded px-3 py-1 text-center text-[11px] font-medium tracking-tight transition-all",
-                activeSection === section.id
-                  ? "border border-stone-200/20 bg-white font-semibold text-stone-900 shadow-sm dark:border-zinc-700/30 dark:bg-zinc-800 dark:text-zinc-50"
-                  : "text-stone-500 hover:bg-stone-50/60 hover:text-stone-800 dark:text-zinc-400 dark:hover:bg-zinc-900/20 dark:hover:text-zinc-200"
-              )}
-            >
-              {section.label}
-            </button>
-            {idx < rowSections.length - 1 && (
-              <div className="mx-0.5 h-3 w-[1px] shrink-0 bg-stone-300 dark:bg-zinc-700" />
-            )}
-          </React.Fragment>
-        ))}
-      </div>
-    </div>
+    />
   )
 
   return (

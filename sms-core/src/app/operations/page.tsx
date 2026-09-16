@@ -77,7 +77,13 @@ export default function OperationsPage() {
             are overflow-hidden, which used to clip them with no way to
             reach the end. */}
         <div className="min-w-0 flex-1 overflow-x-auto">
-          {TargetWorkspaceComponent ? <TargetWorkspaceComponent /> : null}
+          {/* Keyed by module: switching from the sidebar re-enters the
+              workspace with the motion system's fade + rise. */}
+          {TargetWorkspaceComponent ? (
+            <div key={activeSubItem} className="h-full animate-fade-rise">
+              <TargetWorkspaceComponent />
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

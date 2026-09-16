@@ -65,7 +65,10 @@ export function OperationsMobileHome({ role }: OperationsMobileHomeProps) {
         </header>
 
         <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
-          <Workspace />
+          {/* Keyed by module: switching modules re-enters with fade + rise. */}
+          <div key={activeModule.id} className="animate-fade-rise">
+            <Workspace />
+          </div>
         </div>
       </div>
     )
