@@ -58,6 +58,23 @@ function Button({
   }) {
   const Comp = asChild ? Slot.Root : "button"
 
+  // Slot must slot onto exactly one child element. With the loading spinner
+  // plus children that would be two, so asChild renders the child as-is.
+  // (asChild is used for links/nav, where a spinner never appears.)
+  if (asChild) {
+    return (
+      <Comp
+        data-slot="button"
+        data-variant={variant}
+        data-size={size}
+        className={cn(buttonVariants({ variant, size, className }))}
+        {...props}
+      >
+        {children}
+      </Comp>
+    )
+  }
+
   return (
     <Comp
       data-slot="button"
