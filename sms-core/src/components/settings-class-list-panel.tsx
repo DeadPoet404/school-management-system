@@ -15,13 +15,12 @@ import {
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useClasses } from "@/lib/api/reference"
-import { fetchWithAuth } from "@/lib/fetch-with-auth"
-import { printPdfInPage } from "@/lib/print-pdf"
+import { printClassListInPage } from "@/lib/print-class-list"
 
 /**
- * Settings → Class List: generate a print-ready PDF roster for any class.
- * Active students only, sorted A–Z, on the official school letterhead
- * (same branding as the payment receipts).
+ * Settings → Class List: print the roster of any class. Active students
+ * only, sorted A–Z, on the official school letterhead (same branding as
+ * the payment receipts). Opens the browser's native print dialog.
  */
 export default function ClassListPanel() {
   const { data: classes, isLoading } = useClasses()
@@ -42,17 +41,12 @@ export default function ClassListPanel() {
     if (!selected) return
     setGenerating(true)
     try {
-      const response = await fetchWithAuth(
-        `/students/class-list.pdf?classId=${encodeURIComponent(selected.id)}`,
-      )
-      if (!response.ok) throw new Error("Class list PDF request failed")
-      const url = URL.createObjectURL(await response.blob())
-      // Prints in place (hidden iframe + print dialog); falls back to a
-      // new tab on viewers that cannot be scripted.
-      printPdfInPage(url)
+      // Loads the print-ready page into a hidden iframe; its script opens
+      // the browser's native print dialog (same flow as receipt printing).
+      await printClassListInPage(selected.id)
       toast.success("Class list ready — the print dialog is opening.")
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Unable to generate the class list PDF.")
+      toast.error(err instanceof Error ? err.message : "Unable to print the class list.")
     } finally {
       setGenerating(false)
     }
@@ -64,12 +58,13 @@ export default function ClassListPanel() {
         <CardTitle>Class List PDF</CardTitle>
         <CardDescription>
           Print-ready roster of a class — official school letterhead, active
-          students only, sorted A–Z. Opens in a new tab, ready to print or save.
+          students only, sorted A–Z. Opens the browser&apos;s print dialog,
+          ready to print or save as PDF.
         </CardDescription>
         <CardAction>
           <Button size="sm" onClick={handleGenerate} loading={generating} disabled={!selected}>
             <Printer />
-            Generate PDF
+            Print Class List
           </Button>
         </CardAction>
       </CardHeader>
@@ -96,7 +91,7 @@ export default function ClassListPanel() {
         )}
         <p className="text-xs text-muted-foreground">
           {selected
-            ? "The PDF shows every active student currently placed in this class."
+            ? "The list shows every active student currently placed in this class."
             : "Pick a class, then generate the PDF."}
         </p>
       </CardContent>

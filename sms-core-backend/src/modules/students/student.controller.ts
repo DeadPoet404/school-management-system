@@ -10,6 +10,7 @@ import {
 import { resolveSessionStudentId } from "@/middleware/self-access";
 import { AppError } from "@/middleware/error.handler";
 import { renderClassListPdf, renderTranscriptPdf } from "@/lib/pdf";
+import { renderClassListPrintHtml } from "@/lib/class-list-print";
 
 type UploadedStudentImportFile = {
   buffer: Buffer;
@@ -107,6 +108,22 @@ export class StudentController {
         `inline; filename="${fileClass}-Class-List-${data.academicYear.replace('/', '-')}.pdf"`,
       );
       return res.send(pdfBuffer);
+    } catch (error) { next(error); }
+  };
+
+  /**
+   * SMS-009b: GET /api/students/class-list.print?classId=... (ADMIN + STAFF).
+   * Print-ready HTML that opens the browser's native print dialog on load —
+   * the standard Ctrl+P dialog (no PDF download, no new tab).
+   */
+  public streamClassListPrint = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
+    try {
+      const classId = typeof req.query.classId === 'string' ? req.query.classId.trim() : '';
+      if (!classId) throw new AppError(400, 'classId query parameter is required.');
+      const data = await this.studentService.getClassListForPdf(classId);
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-store');
+      return res.send(renderClassListPrintHtml(data));
     } catch (error) { next(error); }
   };
 
