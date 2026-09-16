@@ -3,7 +3,7 @@
   import * as React from "react"
   import Link from "next/link"
   import { useRouter, useSearchParams } from "next/navigation"
-  import { ArrowLeft, CheckCircle2, AlertCircle, ShieldCheck, Plus, Printer } from "lucide-react"
+  import { ArrowLeft, CheckCircle2, AlertCircle, ShieldCheck, Plus, Printer, Pencil, Lock } from "lucide-react"
   import { Button } from "@/components/ui/button"
   import { Input } from "@/components/ui/input"
   import { Label } from "@/components/ui/label"
@@ -57,6 +57,21 @@
     return `${local}@jocomfy.com`
   }
 
+  /**
+   * Auto-generate the temporary portal password (shown to the operator so
+   * it can be handed to the student). Unambiguous alphabet only — no
+   * 0/O, 1/l/I.
+   */
+  function generateTemporaryToken(): string {
+    const alphabet = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    const bytes = crypto.getRandomValues(new Uint8Array(10))
+    let secret = ""
+    for (let i = 0; i < bytes.length; i += 1) {
+      secret += alphabet[bytes[i]! % alphabet.length]
+    }
+    return `JCS-${secret}`
+  }
+
   // ── MAIN COMPONENT ──
   function ComprehensiveEnrollmentWizard() {
     const router = useRouter()
@@ -80,14 +95,20 @@
     const selectHasError = (field: string, value: string) => touched.has(field) && !value
 
     // ── STEP 1: ACCOUNT ACCESS & CORE CREDENTIALS ──
+    // Both credential fields are AUTO-GENERATED and read-only by default —
+    // they are not browser inputs on page load, so autofill can never
+    // inject a staff/admin address or a saved password. The pencil icon
+    // unlocks manual entry for genuine edge cases (name collisions).
     const [fullName, setFullName] = React.useState("")
-    const [password, setPassword] = React.useState("")
+    const [portalOverride, setPortalOverride] = React.useState("")
+    const [portalEditing, setPortalEditing] = React.useState(false)
+    const [securityToken, setSecurityToken] = React.useState(generateTemporaryToken)
+    const [tokenEditing, setTokenEditing] = React.useState(false)
     const [enrollmentDate, setEnrollmentDate] = React.useState("")
 
-    // Portal email is COMPUTED from the student's name — it is not a browser
-    // input field, so autofill can never inject a staff/admin address into
-    // it. "CHRISTOPHER ATSU" → christopher.atsu@jocomfy.com
-    const portalEmail = generatePortalEmail(fullName)
+    // Computed from the student's name unless the operator unlocked and
+    // typed an override. "CHRISTOPHER ATSU" → christopher.atsu@jocomfy.com
+    const portalEmail = portalOverride.trim() || generatePortalEmail(fullName)
 
     // ── STEP 2: PERSONAL DEMOGRAPHICS & BACKGROUND ──
     const [dateOfBirth, setDateOfBirth] = React.useState("")
@@ -184,7 +205,7 @@
       // Step 1
       if (!fullName.trim()) missingFields.push("Full Legal Name")
       if (!portalEmail) missingFields.push("Portal Access Address")
-      if (!password.trim()) missingFields.push("Temporary Security Token")
+      if (!securityToken.trim() || securityToken.trim().length < 6) missingFields.push("Temporary Security Token")
       if (!enrollmentDate) missingFields.push("Official Enrollment Date")
 
       // Step 2
@@ -231,7 +252,7 @@
         account: {
           fullName: fullName.trim(),
           email: portalEmail,
-          password,
+          password: securityToken.trim(),
           enrollmentDate,
         },
         demographics: {
@@ -298,6 +319,12 @@
         setCreatedStudentName(savedStudent.studentName)
         setDepositReceipt(savedStudent.depositReceipt ?? null)
         setFormState("success")
+        // Fresh credentials for any next enrollment — the generated token
+        // must never be reused across two different students.
+        setPortalOverride("")
+        setPortalEditing(false)
+        setTokenEditing(false)
+        setSecurityToken(generateTemporaryToken())
       } catch (err: any) {
         setFormState("error")
         setErrorMessage(err?.message || "Failed to commit atomic registration ingestion transaction pipelines.")
@@ -492,32 +519,102 @@
                     <Label className="text-sm font-semibold sm:text-xs text-foreground">
                       Portal Access Address <span className="text-red-500">*</span>
                     </Label>
-                    <div
-                      aria-live="polite"
-                      className="h-11 sm:h-9 flex items-center rounded-md bg-stone-50 dark:bg-zinc-900/40 border-zinc-200 dark:border-zinc-800 px-3 text-sm sm:text-xs font-medium text-stone-700 dark:text-zinc-300 select-all"
-                    >
-                      {portalEmail || "…"}
-                    </div>
+                    {portalEditing ? (
+                      <div className="flex items-center gap-1.5">
+                        <Input
+                          value={portalOverride}
+                          onChange={(e) => setPortalOverride(e.target.value)}
+                          onFocus={(e) => e.currentTarget.select()}
+                          autoFocus
+                          autoComplete="off"
+                          className="h-11 sm:h-9 flex-1 text-sm sm:text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
+                          disabled={isSubmitting}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setPortalEditing(false)}
+                          title="Lock the computed address"
+                          className="h-11 sm:h-9 w-11 sm:w-9 p-0 shrink-0 border-zinc-200 dark:border-zinc-800 text-stone-500 dark:text-zinc-400"
+                          disabled={isSubmitting}
+                        >
+                          <Lock className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="h-11 sm:h-9 flex items-center justify-between gap-2 rounded-md bg-stone-50 dark:bg-zinc-900/40 border-zinc-200 dark:border-zinc-800 px-3 select-all">
+                        <span aria-live="polite" className="truncate text-sm sm:text-xs font-medium text-stone-700 dark:text-zinc-300">
+                          {portalEmail || "…"}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => {
+                            setPortalOverride(portalEmail)
+                            setPortalEditing(true)
+                          }}
+                          title="Edit portal address (normally computed from the name)"
+                          className="h-7 w-7 p-0 shrink-0 text-stone-400 hover:text-stone-700 dark:hover:text-zinc-200"
+                          disabled={isSubmitting}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    )}
                     <p className="text-[11px] leading-snug text-stone-500 dark:text-zinc-400">
-                      Computed from the student's full name — not typed by anyone.
+                      {portalEditing
+                        ? "Type the address, then lock it."
+                        : "Computed from the student's full name — tap the pencil to change."}
                     </p>
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="student-password" className="text-sm font-semibold sm:text-xs text-foreground">
+                    <Label className="text-sm font-semibold sm:text-xs text-foreground">
                       Temporary Security Token <span className="text-red-500">*</span>
                     </Label>
-                    <Input
-                      id="student-password"
-                      type="password"
-                      placeholder="Minimum 6 characters"
-                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      minLength={6}
-                      disabled={isSubmitting}
-                      autoComplete="new-password"
-                    />
+                    {tokenEditing ? (
+                      <div className="flex items-center gap-1.5">
+                        <Input
+                          value={securityToken}
+                          onChange={(e) => setSecurityToken(e.target.value)}
+                          onFocus={(e) => e.currentTarget.select()}
+                          autoFocus
+                          autoComplete="new-password"
+                          className="h-11 sm:h-9 flex-1 font-mono text-sm sm:text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1"
+                          disabled={isSubmitting}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setTokenEditing(false)}
+                          title="Lock the token"
+                          className="h-11 sm:h-9 w-11 sm:w-9 p-0 shrink-0 border-zinc-200 dark:border-zinc-800 text-stone-500 dark:text-zinc-400"
+                          disabled={isSubmitting}
+                        >
+                          <Lock className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="h-11 sm:h-9 flex items-center justify-between gap-2 rounded-md bg-stone-50 dark:bg-zinc-900/40 border-zinc-200 dark:border-zinc-800 px-3 select-all">
+                        <span className="truncate font-mono text-sm sm:text-xs font-semibold tracking-wide text-stone-700 dark:text-zinc-300">
+                          {securityToken}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => setTokenEditing(true)}
+                          title="Set a custom token (normally auto-generated)"
+                          className="h-7 w-7 p-0 shrink-0 text-stone-400 hover:text-stone-700 dark:hover:text-zinc-200"
+                          disabled={isSubmitting}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    )}
+                    <p className="text-[11px] leading-snug text-stone-500 dark:text-zinc-400">
+                      {tokenEditing
+                        ? "Type the token, then lock it."
+                        : "Auto-generated — share it with the student, or tap the pencil to set your own."}
+                    </p>
                   </div>
                 </div>
               </div>
