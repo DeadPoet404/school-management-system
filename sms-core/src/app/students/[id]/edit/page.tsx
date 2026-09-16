@@ -80,12 +80,9 @@ function EditStudentForm() {
   const [emergencyContactPhone, setEmergencyContactPhone] = React.useState("")
   const [emergencyContactRelation, setEmergencyContactRelation] = React.useState("")
 
-  // ── READ-ONLY fields — displayed for context/parity with the Add
-  // Student wizard, but NOT sent on submit. The backend's PATCH
-  // /students/:id endpoint has no support for editing guardian or
-  // billing records; sending them would be silently dropped by the
-  // API's validation layer, so the UI is explicit about this instead
-  // of pretending the edit would be saved. ──
+  // ── Primary guardian: editable (PATCH /students/:id upserts the
+  // student's guardian record). Billing remains read-only — the API
+  // has no endpoint for editing ledger records. ──
   const [guardianName, setGuardianName] = React.useState("")
   const [guardianRelationship, setGuardianRelationship] = React.useState("")
   const [guardianPhone, setGuardianPhone] = React.useState("")
@@ -230,8 +227,13 @@ function EditStudentForm() {
 
     setFormState("submitting")
 
-    // Only fields accepted by studentUpdateSchema are sent. Guardian and
-    // billing data are intentionally excluded — see the note above.
+    // Only fields accepted by studentUpdateSchema are sent. Billing data
+    // is intentionally excluded — see the note above. The guardian block
+    // is sent only when at least one field is filled (the API requires
+    // non-empty name/relationship/phone when present).
+    const guardianFilled =
+      guardianName.trim() || guardianRelationship.trim() || guardianPhone.trim()
+
     const updatePayload = {
       studentName: studentName.trim(),
       demographics: {
@@ -251,6 +253,16 @@ function EditStudentForm() {
       compliance: {
         nationalId: nationalId.trim() || null,
       },
+      ...(guardianFilled
+        ? {
+            guardian: {
+              name: guardianName.trim(),
+              relationship: guardianRelationship.trim(),
+              phone: guardianPhone.trim(),
+              email: guardianEmail.trim() || null,
+            },
+          }
+        : {}),
     }
 
     try {
@@ -662,32 +674,31 @@ function EditStudentForm() {
             </div>
           </div>
 
-          {/* STEP 5: PRIMARY GUARDIAN (READ-ONLY) */}
+          {/* STEP 5: PRIMARY GUARDIAN (editable — saved with the student) */}
           <div className="relative pl-10 group">
             <StepBadge num={5} />
             <div className="space-y-5">
               <h3 className="text-base font-semibold text-foreground tracking-tight">
                 Primary Guardian &amp; Next of Kin Linkage
               </h3>
-              <LockedNote text="Guardian details cannot be edited from this screen yet." />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-foreground">Guardian Legal Name</Label>
-                  <Input className="h-9 text-xs rounded-md bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-500" value={guardianName} disabled />
+                  <Input className="h-9 text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1" value={guardianName} onChange={(e) => setGuardianName(e.target.value)} placeholder="e.g. Akosua Mensah" />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-foreground">Relationship</Label>
-                  <Input className="h-9 text-xs rounded-md bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-500" value={guardianRelationship} disabled />
+                  <Input className="h-9 text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1" value={guardianRelationship} onChange={(e) => setGuardianRelationship(e.target.value)} placeholder="e.g. Mother, Father, Grandmother" />
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-foreground">Primary Contact Number</Label>
-                  <Input className="h-9 text-xs rounded-md bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-500 font-mono" value={guardianPhone} disabled />
+                  <Input className="h-9 text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1 font-mono" value={guardianPhone} onChange={(e) => setGuardianPhone(e.target.value)} placeholder="e.g. 024 412 3456" />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-foreground">Communication Email Address</Label>
-                  <Input className="h-9 text-xs rounded-md bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-500" value={guardianEmail} disabled />
+                  <Input className="h-9 text-xs rounded-md bg-background border-zinc-200 dark:border-zinc-800 focus-visible:ring-1" value={guardianEmail} onChange={(e) => setGuardianEmail(e.target.value)} placeholder="e.g. guardian@email.com" />
                 </div>
               </div>
             </div>

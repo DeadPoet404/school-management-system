@@ -7,6 +7,8 @@
  * A PDF has a fixed physical page size once generated, so print fidelity is
  * achieved with intentional A5 and A4 layouts rather than browser scaling.
  */
+import * as fs from 'fs';
+import * as path from 'path';
 import PDFDocument from 'pdfkit';
 import { amountInWords } from './amount-in-words';
 
@@ -750,3 +752,261 @@ export function renderTranscriptPdf(data: TranscriptPdfData, opts: RenderOptions
   });
 }
 
+
+// ── SMS-009: class list renderer (A4, multi-page) ───────────────────────────
+//
+// Print-ready class roster matching the school's official design:
+// logo + wordmark header, double rule, gold info bar, navy table head,
+// zebra rows, signature block, and a page footer on every page.
+
+export interface ClassListStudentRow {
+  name: string;
+  studentId: string;
+  gender: string | null;
+}
+
+export interface ClassListPdfData {
+  className: string;
+  termName: string;
+  academicYear: string;
+  dateOfIssue: Date | string;
+  /** Active students of the class, sorted A–Z by name. */
+  students: ClassListStudentRow[];
+}
+
+const CLASS_LIST_BRAND = {
+  navy: '#082a70',
+  gold: '#e4b43c',
+  ink: '#172341',
+  zebra: '#f6f7f9',
+  rule: '#d9dde6',
+  muted: '#6b7280',
+  faint: '#9aa0ae',
+  cream: '#fdf8ea',
+  creamBorder: '#e6d79f',
+};
+
+let classListLogoCache: Buffer | null | undefined;
+function loadClassListLogo(): Buffer | null {
+  if (classListLogoCache !== undefined) return classListLogoCache;
+  try {
+    classListLogoCache = fs.readFileSync(
+      path.join(__dirname, '..', 'assets', 'jocomfy-school-logo.png'),
+    );
+  } catch {
+    // Branding asset missing from the build: render without the crest
+    // rather than failing the whole print.
+    classListLogoCache = null;
+  }
+  return classListLogoCache;
+}
+
+const CLASS_LIST_MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+function classListDateLabel(value: Date | string): string {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getDate()} ${CLASS_LIST_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+/** 'FIRST TERM' -> 'First Term' (keeps the PDF title case, as printed). */
+export function titleCaseTerm(raw: string): string {
+  return raw
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+}
+
+export function renderClassListPdf(
+  data: ClassListPdfData,
+  opts: RenderOptions = {},
+): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: 'A4', margin: 36, compress: opts.compress ?? true });
+    const chunks: Buffer[] = [];
+    doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+
+    // ASCII-only metadata: non-ASCII characters make pdfkit emit UTF-16BE
+    // strings that search tooling (and tests) cannot match.
+    doc.info.Title = `Class List - ${data.className}`;
+    doc.info.Subject = `JOCOMFY SCHOOL - ${data.className} Class List - ${data.academicYear} ${data.termName}`;
+    doc.info.Keywords = `class-list,${data.className},students:${data.students.length}`;
+
+    const left = doc.page.margins.left;
+    const width = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const bottom = doc.page.height - doc.page.margins.bottom;
+    const generatedLabel = `Generated ${classListDateLabel(data.dateOfIssue)}`;
+    const dateLabel = classListDateLabel(data.dateOfIssue);
+    const termLine = `${data.academicYear} Academic Year — ${titleCaseTerm(data.termName)}`;
+    let page = 0;
+
+    // ── Footer: hairline + brand / class / page, on every page. ──
+    // NOTE 1: text must stay ABOVE the bottom margin — text below it makes
+    // pdfkit's line wrapper keep adding pages (infinite recursion).
+    // NOTE 2: 'pageAdded' fires during construction for page 1, before any
+    // listener exists, so the footer is drawn manually too (idempotent per
+    // page object).
+    const footerDrawnPages = new Set<object>();
+    const drawFooter = () => {
+      if (footerDrawnPages.has(doc.page)) return;
+      footerDrawnPages.add(doc.page);
+      page += 1;
+      const y = bottom - 16;
+      doc.save();
+      doc.moveTo(left, y).lineTo(left + width, y).lineWidth(0.5).strokeColor('#e3e5ea').stroke();
+      doc.fontSize(7.5).font('Helvetica').fillColor(CLASS_LIST_BRAND.faint);
+      doc.text('Jocomfy School  •  Knowledge & Wisdom', left, y + 5, { width: 200, lineBreak: false });
+      doc.text(`${data.className}  •  ${data.students.length} students`, left, y + 5, {
+        width,
+        align: 'center',
+        lineBreak: false,
+      });
+      doc.text(`Page ${page}`, left + width - 120, y + 5, { width: 120, align: 'right', lineBreak: false });
+      doc.restore();
+    };
+    doc.on('pageAdded', drawFooter);
+
+    // ── Table columns ──
+    const colNo = 46;
+    const colName = 262;
+    const colId = 128;
+    const colGender = width - colNo - colName - colId;
+    const xName = left + colNo;
+    const xId = xName + colName;
+    const xGender = xId + colId;
+    const rowHeight = 24;
+
+    const drawTableHead = (y: number) => {
+      doc.save();
+      doc.rect(left, y, width, 22).fill(CLASS_LIST_BRAND.navy);
+      doc.rect(left, y + 22, width, 2.2).fill(CLASS_LIST_BRAND.gold);
+      doc.fontSize(8.5).font('Helvetica-Bold').fillColor('#ffffff');
+      doc.text('NO.', left, y + 7.5, { width: colNo, align: 'center', lineBreak: false });
+      doc.text('STUDENT NAME', xName + 8, y + 7.5, { width: colName - 16, lineBreak: false });
+      doc.text('STUDENT ID', xId + 8, y + 7.5, { width: colId - 16, lineBreak: false });
+      doc.text('GENDER', xGender, y + 7.5, { width: colGender, align: 'center', lineBreak: false });
+      doc.restore();
+      return y + 24.2;
+    };
+
+    // ── Page-1 letterhead ──
+    doc.fontSize(7.5).font('Helvetica').fillColor(CLASS_LIST_BRAND.faint)
+      .text(generatedLabel, left, 22, { width, align: 'right', lineBreak: false });
+
+    const logo = loadClassListLogo();
+    let y = 32;
+    if (logo) {
+      const logoSize = 82;
+      doc.image(logo, (doc.page.width - logoSize) / 2, y, { width: logoSize, height: logoSize });
+      y += logoSize + 10;
+    }
+
+    doc.fontSize(20).font('Helvetica-Bold').fillColor(CLASS_LIST_BRAND.navy)
+      .text('JOCOMFY SCHOOL', left, y, { width, align: 'center', lineBreak: false });
+    y += 22;
+    doc.fontSize(8).font('Helvetica-Bold').fillColor(CLASS_LIST_BRAND.gold)
+      .text('CRECHE  •  K.G.  •  PRIMARY  •  JHS', left, y, { width, align: 'center', lineBreak: false });
+    y += 12;
+    doc.fontSize(8).font('Helvetica-Oblique').fillColor(CLASS_LIST_BRAND.muted)
+      .text('Motto: Knowledge & Wisdom', left, y, { width, align: 'center', lineBreak: false });
+    y += 12;
+
+    // Double rule: navy over gold.
+    doc.moveTo(left, y).lineTo(left + width, y).lineWidth(1.8).strokeColor(CLASS_LIST_BRAND.navy).stroke();
+    doc.moveTo(left, y + 2.6).lineTo(left + width, y + 2.6).lineWidth(0.9).strokeColor(CLASS_LIST_BRAND.gold).stroke();
+    y += 20;
+
+    doc.fontSize(17).font('Helvetica-Bold').fillColor(CLASS_LIST_BRAND.navy)
+      .text(data.className.toUpperCase(), left, y, { width, align: 'center', lineBreak: false });
+    y += 20;
+    doc.fontSize(12).font('Helvetica-Bold').fillColor(CLASS_LIST_BRAND.navy)
+      .text('Class List', left, y, { width, align: 'center', lineBreak: false });
+    y += 15;
+    doc.fontSize(9.5).font('Helvetica').fillColor(CLASS_LIST_BRAND.muted)
+      .text(termLine, left, y, { width, align: 'center', lineBreak: false });
+    y += 14;
+
+    // ── Info bar: cream rounded box, total + date ──
+    const barH = 26;
+    doc.save();
+    doc.lineWidth(0.8);
+    doc.roundedRect(left, y, width, barH, 4).fillAndStroke(CLASS_LIST_BRAND.cream, CLASS_LIST_BRAND.creamBorder);
+    doc.moveTo(left + width / 2, y + 5).lineTo(left + width / 2, y + barH - 5).lineWidth(0.6).strokeColor(CLASS_LIST_BRAND.creamBorder).stroke();
+    doc.font('Helvetica-Bold').fontSize(9.5).fillColor(CLASS_LIST_BRAND.navy);
+    doc.text('Total Students:', left + 12, y + 8.5, { continued: false, lineBreak: false });
+    const totalW = doc.widthOfString('Total Students:');
+    doc.font('Helvetica-Bold').fillColor(CLASS_LIST_BRAND.ink)
+      .text(String(data.students.length), left + 12 + totalW + 4, y + 8.5, { lineBreak: false });
+    doc.font('Helvetica-Bold').fillColor(CLASS_LIST_BRAND.navy)
+      .text('Date:', left + width - 190, y + 8.5, { width: 86, align: 'right', lineBreak: false });
+    doc.font('Helvetica-Bold').fillColor(CLASS_LIST_BRAND.ink)
+      .text(dateLabel, left + width - 100, y + 8.5, { width: 88, align: 'right', lineBreak: false });
+    doc.restore();
+    y += barH + 12;
+
+    if (data.students.length === 0) {
+      y = drawTableHead(y);
+      doc.fontSize(9.5).font('Helvetica-Oblique').fillColor(CLASS_LIST_BRAND.muted)
+        .text('No active students in this class yet.', left, y + 10, { width, align: 'center' });
+    } else {
+      y = drawTableHead(y);
+      data.students.forEach((row, idx) => {
+        if (y + rowHeight > bottom - 8) {
+          doc.addPage();
+          doc.fontSize(9).font('Helvetica-Bold').fillColor(CLASS_LIST_BRAND.muted)
+            .text(`${data.className} — Class List (continued)`, left, 26, { lineBreak: false });
+          y = 44;
+          y = drawTableHead(y);
+        }
+        const ry = y;
+        if (idx % 2 === 1) {
+          doc.save();
+          doc.rect(left, ry, width, rowHeight).fill(CLASS_LIST_BRAND.zebra);
+          doc.restore();
+        }
+        doc.save();
+        doc.lineWidth(0.4);
+        doc.rect(left, ry, colNo, rowHeight).fillAndStroke('#ffffff', CLASS_LIST_BRAND.rule);
+        doc.rect(xName, ry, colName, rowHeight).fillAndStroke(idx % 2 === 1 ? CLASS_LIST_BRAND.zebra : '#ffffff', CLASS_LIST_BRAND.rule);
+        doc.rect(xId, ry, colId, rowHeight).fillAndStroke(idx % 2 === 1 ? CLASS_LIST_BRAND.zebra : '#ffffff', CLASS_LIST_BRAND.rule);
+        doc.rect(xGender, ry, colGender, rowHeight).fillAndStroke(idx % 2 === 1 ? CLASS_LIST_BRAND.zebra : '#ffffff', CLASS_LIST_BRAND.rule);
+        doc.restore();
+
+        doc.font('Helvetica').fontSize(9).fillColor('#3c4256');
+        doc.text(String(idx + 1), left, ry + 7.5, { width: colNo, align: 'center', lineBreak: false });
+        doc.font('Helvetica').fontSize(9.5).fillColor(CLASS_LIST_BRAND.ink);
+        doc.text(row.name, xName + 8, ry + 7.8, { width: colName - 16, lineBreak: false });
+        doc.font('Courier').fontSize(8.5).fillColor('#3c4256');
+        doc.text(row.studentId, xId + 8, ry + 8.2, { width: colId - 16, lineBreak: false });
+        doc.font('Helvetica').fontSize(9).fillColor('#3c4256');
+        doc.text(row.gender?.trim() ? row.gender : '—', xGender, ry + 7.5, { width: colGender, align: 'center', lineBreak: false });
+        y += rowHeight;
+      });
+    }
+
+    // ── Signature block (after the table, on the last page) ──
+    if (y > bottom - 130) doc.addPage();
+    let sy = Math.max(y + 52, doc.y + 40);
+    if (sy > bottom - 100) sy = bottom - 100;
+
+    const dotted = '........................................';
+    const sig = (label: string, yy: number) => {
+      doc.font('Helvetica').fontSize(9).fillColor('#3c4256');
+      doc.text(`${label}  ${dotted}`, left, yy, { width: 280, lineBreak: false });
+      doc.text(`Date:  ${dotted.slice(0, 14)}`, left + width - 190, yy, { width: 190, align: 'right', lineBreak: false });
+    };
+    sig("Class Teacher's Signature:", sy);
+    sig("Head's Signature:", sy + 34);
+
+    // Page-1 footer (see drawFooter NOTE 2).
+    drawFooter();
+
+    doc.end();
+  });
+}

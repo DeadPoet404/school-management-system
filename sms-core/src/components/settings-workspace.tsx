@@ -1,19 +1,21 @@
 "use client"
 
 import * as React from "react"
-import { Settings as SettingsIcon, Building2, Database, ScrollText } from "lucide-react"
+import { Settings as SettingsIcon, Building2, Database, ScrollText, ClipboardList } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import InstitutionPanel from "@/components/settings-institution-panel"
 import DataPanel from "@/components/settings-data-panel"
 import SystemPanel from "@/components/settings-system-panel"
+import ClassListPanel from "@/components/settings-class-list-panel"
 import { Badge } from "@/components/ui/badge"
 
 /**
  * Settings hub (admin-only).
  *
- * Three sections, GitHub-style:
+ * Four sections, GitHub-style:
  *  - Institution: school identity + currency (GHS by default)
  *  - Data: row counts, CSV export, guarded zone wipes (type-the-code to confirm)
+ *  - Class List: print-ready PDF roster of any class (official letterhead)
  *  - System: recent audit trail (incl. every wipe)
  */
 export default function SettingsWorkspace() {
@@ -42,7 +44,7 @@ export default function SettingsWorkspace() {
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <Tabs value={tab} onValueChange={setTab} className="mx-auto w-full max-w-5xl px-4 py-5 sm:px-6">
-          <TabsList className="w-full grid grid-cols-3 sm:w-auto">
+          <TabsList className="w-full grid grid-cols-4 sm:w-auto">
             <TabsTrigger value="institution" className="gap-1.5 sm:min-h-9">
               <Building2 className="h-4 w-4" />
               <span className="hidden sm:inline">Institution</span>
@@ -51,6 +53,11 @@ export default function SettingsWorkspace() {
             <TabsTrigger value="data" className="gap-1.5 sm:min-h-9">
               <Database className="h-4 w-4" />
               Data
+            </TabsTrigger>
+            <TabsTrigger value="classlist" className="gap-1.5 sm:min-h-9">
+              <ClipboardList className="h-4 w-4" />
+              <span className="hidden sm:inline">Class List</span>
+              <span className="sm:hidden">List</span>
             </TabsTrigger>
             <TabsTrigger value="system" className="gap-1.5 sm:min-h-9">
               <ScrollText className="h-4 w-4" />
@@ -63,6 +70,9 @@ export default function SettingsWorkspace() {
           </TabsContent>
           <TabsContent value="data" className="mt-4">
             <DataPanel />
+          </TabsContent>
+          <TabsContent value="classlist" className="mt-4">
+            <ClassListPanel />
           </TabsContent>
           <TabsContent value="system" className="mt-4">
             <SystemPanel />

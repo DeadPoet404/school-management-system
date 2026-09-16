@@ -23,4 +23,10 @@ export const studentUpdateSchema = z.object({
     emergencyPhone: z.string().nullable().optional(),
     emergencyRelation: z.string().nullable().optional(),
   }).optional(),
+  guardian: z.object({
+    name: z.string().min(1, "Guardian name cannot be empty"),
+    relationship: z.string().min(1, "Guardian relationship cannot be empty"),
+    phone: z.string().min(1, "Guardian phone cannot be empty"),
+    email: z.string().nullable().optional(),
+  }).optional(),
 });

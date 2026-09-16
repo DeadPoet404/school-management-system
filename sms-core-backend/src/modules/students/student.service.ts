@@ -1,6 +1,7 @@
 import { AppError } from '@/middleware/error.handler';
 import { prisma } from "@/lib/prisma";
-import type { TranscriptPdfData, TranscriptTermSection } from "@/lib/pdf";
+import type { ClassListPdfData, TranscriptPdfData, TranscriptTermSection } from "@/lib/pdf";
+import { titleCaseTerm } from "@/lib/pdf";
 import { Prisma, EntityStatus, DepartureType, TreasuryClearanceStatus } from "@prisma/client";
 import { IStudentRepository } from "@/types/repositories";
 import { StudentRepository } from "./student.repository";
@@ -169,6 +170,41 @@ export class StudentService {
       dateOfIssue: new Date(),
       terms,
       cumulativeGpa: records.length === 0 ? null : parseFloat(Number(student.currentGpa).toFixed(2)),
+    };
+  }
+
+  /**
+   * SMS-009: roster data for the printable class-list PDF.
+   * Active students only (departed students stay off the list), A–Z by name.
+   */
+  async getClassListForPdf(classId: string): Promise<ClassListPdfData> {
+    const cls = await prisma.class.findFirst({
+      where: { id: classId, deletedAt: null },
+      select: { name: true },
+    });
+    if (!cls) throw new AppError(404, 'Class not found.');
+
+    const students = await prisma.student.findMany({
+      where: { status: EntityStatus.ACTIVE, placement: { classId } },
+      include: { demographics: { select: { gender: true } } },
+      orderBy: { studentName: 'asc' },
+    });
+
+    const term = await prisma.term.findFirst({
+      where: { isActive: true, deletedAt: null },
+      select: { name: true, academicYear: true },
+    });
+
+    return {
+      className: cls.name,
+      termName: term ? titleCaseTerm(term.name) : 'First Term',
+      academicYear: term?.academicYear ?? '2026/2027',
+      dateOfIssue: new Date(),
+      students: students.map((s) => ({
+        name: s.studentName,
+        studentId: s.studentId,
+        gender: s.demographics?.gender?.trim() || null,
+      })),
     };
   }
 

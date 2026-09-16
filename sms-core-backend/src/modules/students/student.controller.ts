@@ -8,7 +8,8 @@ import {
   toStudentListDtoForRole,
 } from "@/lib/role-dtos";
 import { resolveSessionStudentId } from "@/middleware/self-access";
-import { renderTranscriptPdf } from "@/lib/pdf";
+import { AppError } from "@/middleware/error.handler";
+import { renderClassListPdf, renderTranscriptPdf } from "@/lib/pdf";
 
 type UploadedStudentImportFile = {
   buffer: Buffer;
@@ -85,6 +86,26 @@ export class StudentController {
       const pdfBuffer = await renderTranscriptPdf(data);
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `inline; filename="transcript-${data.studentCode}.pdf"`);
+      return res.send(pdfBuffer);
+    } catch (error) { next(error); }
+  };
+
+  /**
+   * SMS-009: GET /api/students/class-list.pdf?classId=... (ADMIN + STAFF).
+   * Streams a print-ready PDF roster of the class's active students.
+   */
+  public streamClassListPdf = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
+    try {
+      const classId = typeof req.query.classId === 'string' ? req.query.classId.trim() : '';
+      if (!classId) throw new AppError(400, 'classId query parameter is required.');
+      const data = await this.studentService.getClassListForPdf(classId);
+      const pdfBuffer = await renderClassListPdf(data);
+      res.setHeader('Content-Type', 'application/pdf');
+      const fileClass = data.className.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '');
+      res.setHeader(
+        'Content-Disposition',
+        `inline; filename="${fileClass}-Class-List-${data.academicYear.replace('/', '-')}.pdf"`,
+      );
       return res.send(pdfBuffer);
     } catch (error) { next(error); }
   };

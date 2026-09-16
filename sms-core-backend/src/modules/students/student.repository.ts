@@ -114,6 +114,32 @@ export class StudentRepository implements IStudentRepository {
     if (data.placement) updateData.placement = { update: data.placement };
     if (data.compliance) updateData.compliance = { update: data.compliance };
 
+    // Primary guardian: upsert the student's existing guardian record
+    // (the app maintains one primary guardian per student).
+    if (data.guardian) {
+      const guardian = data.guardian as Record<string, unknown>;
+      const email =
+        typeof guardian.email === 'string' && guardian.email.trim() !== ''
+          ? guardian.email.trim()
+          : null;
+      const values = {
+        name: String(guardian.name),
+        relationship: String(guardian.relationship),
+        phone: String(guardian.phone),
+        email,
+      };
+      const existingGuardian = await tx.guardian.findFirst({
+        where: { studentId: id },
+        select: { id: true },
+      });
+      if (existingGuardian) {
+        await tx.guardian.update({ where: { id: existingGuardian.id }, data: values });
+      } else {
+        await tx.guardian.create({ data: { ...values, studentId: id } });
+      }
+      delete data.guardian;
+    }
+
     return tx.student.update({
       where: { id },
       data: updateData,

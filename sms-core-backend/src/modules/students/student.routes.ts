@@ -78,6 +78,8 @@ router.get("/finance", requireRole(ROLES.STAFF, ROLES.ADMIN, ROLES.ACCOUNTANT), 
 router.get("/me", requireRole(ROLES.STUDENT), controller.getOwnProfile);
 router.get("/me/transcript.pdf", requireRole(ROLES.STUDENT), controller.streamOwnTranscriptPdf);
 router.get("/:id/transcript.pdf", requireRole(ROLES.ADMIN, ROLES.STAFF), controller.streamTranscriptPdf);
+// SMS-009: print-ready class roster PDF (must precede the "/:id" route).
+router.get("/class-list.pdf", requireRole(ROLES.ADMIN, ROLES.STAFF), controller.streamClassListPdf);
 
 // Private student photos are never returned in generic student DTOs.
 // The image endpoint issues a short-lived Storage redirect for authorized viewers.
