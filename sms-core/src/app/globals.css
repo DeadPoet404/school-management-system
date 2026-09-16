@@ -168,3 +168,87 @@
 .dark .custom-scrollbar:hover::-webkit-scrollbar-thumb {
   background-color: rgba(113, 113, 122, 0.3);
 }
+/* ─────────────────────────────────────────────────────────────
+   Motion system
+   Easing  — soft quint-out: fast start, long soft landing
+   Time    — 150ms micro · 220ms standard · 320ms page
+   Words   — fade + rise (pages/modules), shimmer (skeletons),
+             scale-in (badges/checks), stagger (lists, 40ms steps)
+   All decorative motion is disabled under prefers-reduced-motion.
+────────────────────────────────────────────────────────────── */
+@theme {
+  --ease-soft: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --animate-fade-in-soft: fade-in-soft 150ms var(--ease-soft) both;
+  --animate-rise-in: rise-in 220ms var(--ease-soft) both;
+  --animate-fade-rise: fade-rise 320ms var(--ease-soft) both;
+  --animate-scale-in: scale-in 220ms var(--ease-soft) both;
+  --animate-slide-in-right: slide-in-right 260ms var(--ease-soft) both;
+  --animate-error-in: error-in 420ms var(--ease-soft) both;
+  --animate-fade-out-soft: fade-out-soft 280ms var(--ease-soft) both;
+  --animate-shimmer: shimmer 1.8s var(--ease-soft) infinite;
+
+  @keyframes fade-in-soft {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes rise-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: none; }
+  }
+  @keyframes fade-rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: none; }
+  }
+  @keyframes scale-in {
+    from { opacity: 0; transform: scale(0.94); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  @keyframes slide-in-right {
+    from { opacity: 0; transform: translateX(12px); }
+    to   { opacity: 1; transform: none; }
+  }
+  @keyframes error-in {
+    0%   { opacity: 0; transform: translateY(-4px); }
+    35%  { opacity: 1; transform: translateX(-5px); }
+    60%  { transform: translateX(4px); }
+    80%  { transform: translateX(-2px); }
+    100% { opacity: 1; transform: none; }
+  }
+  @keyframes fade-out-soft {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+  }
+  @keyframes shimmer {
+    from { transform: translateX(-100%); }
+    to   { transform: translateX(100%); }
+  }
+}
+
+@layer utilities {
+  /* Staggered reveal for direct children: add .motion-stagger to a list. */
+  .motion-stagger > * {
+    animation: fade-rise 320ms var(--ease-soft) both;
+  }
+  .motion-stagger > *:nth-child(1) { animation-delay: 0ms; }
+  .motion-stagger > *:nth-child(2) { animation-delay: 40ms; }
+  .motion-stagger > *:nth-child(3) { animation-delay: 80ms; }
+  .motion-stagger > *:nth-child(4) { animation-delay: 120ms; }
+  .motion-stagger > *:nth-child(5) { animation-delay: 160ms; }
+  .motion-stagger > *:nth-child(6) { animation-delay: 200ms; }
+  .motion-stagger > *:nth-child(7) { animation-delay: 240ms; }
+  .motion-stagger > *:nth-child(8) { animation-delay: 280ms; }
+  .motion-stagger > *:nth-child(9) { animation-delay: 320ms; }
+  .motion-stagger > *:nth-child(n + 10) { animation-delay: 360ms; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

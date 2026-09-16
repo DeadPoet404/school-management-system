@@ -7,6 +7,8 @@ import { ApiClientError } from "@/lib/fetch-with-auth"
 import { landingPathForRole } from "@/lib/role-access"
 import { getSetupStatus } from "@/lib/api/setup"
 import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -16,6 +18,9 @@ export default function LoginPage() {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const [requiresSetup, setRequiresSetup] = useState<boolean | null>(null)
+  // After a successful login the page fades out briefly before navigating,
+  // so the dashboard entrance reads as its own moment.
+  const [leaving, setLeaving] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -45,17 +50,19 @@ export default function LoginPage() {
 
     try {
       const loggedInUser = await login(email, password)
+      const from = new URLSearchParams(window.location.search).get("from")
+      let target = landingPathForRole(loggedInUser.role, from)
       try {
         const status = await getSetupStatus()
         if (status.requiresSetup && loggedInUser.role === "ADMIN") {
-          router.push("/setup")
-          return
+          target = "/setup"
         }
       } catch {
         // fall through
       }
-      const from = new URLSearchParams(window.location.search).get("from")
-      router.push(landingPathForRole(loggedInUser.role, from))
+      // Let the fade-out finish before the route change.
+      setLeaving(true)
+      window.setTimeout(() => router.push(target), 280)
     } catch (err) {
       if (err instanceof ApiClientError || err instanceof Error) {
         setError(err.message)
@@ -68,10 +75,15 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <div className="w-full max-w-sm space-y-6">
+    <div
+      className={cn(
+        "flex min-h-screen items-center justify-center bg-background p-4",
+        leaving && "pointer-events-none animate-fade-out-soft"
+      )}
+    >
+      <div className="w-full max-w-sm space-y-6 animate-fade-rise">
         <div className="text-center space-y-2">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground text-xl font-bold">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground text-xl font-bold animate-scale-in">
             Ω
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
@@ -81,7 +93,7 @@ export default function LoginPage() {
         </div>
 
         {requiresSetup && (
-          <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
+          <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm animate-rise-in">
             First-start setup is not finished.{" "}
             <Link href="/setup" className="font-medium text-primary underline-offset-4 hover:underline">
               Continue setup
@@ -91,7 +103,7 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive animate-error-in">
               {error}
             </div>
           )}
@@ -126,13 +138,9 @@ export default function LoginPage() {
             />
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex h-10 w-full items-center justify-center rounded-md bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          >
-            {loading ? "Signing in..." : "Sign in"}
-          </button>
+          <Button type="submit" loading={loading} className="h-10 w-full">
+            Sign in
+          </Button>
         </form>
       </div>
     </div>
