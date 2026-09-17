@@ -11,12 +11,21 @@ import { fetchWithAuth } from "@/lib/fetch-with-auth"
  * The iframe is off-screen (not display:none) so the document keeps a real
  * viewport and the A4 print layout renders exactly.
  */
-export async function printClassListInPage(classId: string): Promise<void> {
+/**
+ * @param classId the class to print
+ * @param columns optional selectable columns (e.g. "dob", "feesOwed");
+ *   student name is always printed. Unknown keys and anything over the
+ *   server's cap are dropped server-side.
+ */
+export async function printClassListInPage(
+  classId: string,
+  columns: string[] = [],
+): Promise<void> {
   if (typeof window === "undefined") return
 
-  const response = await fetchWithAuth(
-    `/students/class-list.print?classId=${encodeURIComponent(classId)}`,
-  )
+  const params = new URLSearchParams({ classId })
+  if (columns.length > 0) params.set("columns", columns.join(","))
+  const response = await fetchWithAuth(`/students/class-list.print?${params.toString()}`)
   if (!response.ok) {
     throw new Error("Could not load the class list for printing.")
   }
