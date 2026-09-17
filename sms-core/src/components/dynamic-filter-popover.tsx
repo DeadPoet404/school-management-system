@@ -21,9 +21,10 @@ import {
   Combobox,
   ComboboxContent,
   ComboboxEmpty,
-  ComboboxInput,
   ComboboxItem,
   ComboboxList,
+  ComboboxTrigger,
+  ComboboxValue,
 } from "@/components/ui/combobox"
 
 // --- TYPE DEF MATRIX SCHEMAS ---
@@ -185,8 +186,25 @@ export function DynamicFilterPopover({
                           items={field.options.map(optionValue)}
                           value={currentValue || ""} 
                           onValueChange={(val) => handleUpdateValue(field.id, val || "")}
+                          itemToStringLabel={(val) =>
+                            optionLabel((field.options ?? []).find((candidate) => optionValue(candidate) === val) ?? String(val ?? ""))
+                          }
                         >
-                          <ComboboxInput id={field.id} placeholder={field.placeholder || "Select option..."} className="h-8 text-xs rounded-md" />
+                          {/* 2026-09: select-style trigger + value. The old
+                              searchable input briefly rendered the raw value
+                              (the class UUID) before the label resolved. The
+                              trigger only ever shows the selected item's label
+                              (or the placeholder), so no internal id can
+                              flash in the UI. */}
+                          <ComboboxTrigger
+                            id={field.id}
+                            className={cn(
+                              "h-8 w-full min-w-0 justify-between gap-2 overflow-hidden rounded-md border border-input bg-transparent px-2.5 text-xs",
+                              !currentValue && "text-muted-foreground"
+                            )}
+                          >
+                            <ComboboxValue placeholder={field.placeholder || "Select option..."} />
+                          </ComboboxTrigger>
                           <ComboboxContent>
                             <ComboboxEmpty className="text-xs py-2 text-center text-muted-foreground">No matches located.</ComboboxEmpty>
                             <ComboboxList>
