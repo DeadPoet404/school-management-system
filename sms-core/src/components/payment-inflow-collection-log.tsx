@@ -224,30 +224,6 @@ export function PaymentInflowCollectionLog({
     }))
   }, [])
 
-  const handleOpenReceiptPdf = useCallback(async (paymentId: string) => {
-    setError(null)
-
-    // Open synchronously so mobile browsers do not block the receipt tab after the request resolves.
-    const receiptWindow = window.open("", "_blank")
-    if (!receiptWindow) {
-      setError("Your browser blocked the PDF receipt window. Please allow pop-ups and try again.")
-      return
-    }
-    receiptWindow.opener = null
-
-    try {
-      const response = await fetchWithAuth(`/finance/payments/${paymentId}/receipt.pdf`)
-      if (!response.ok) throw new Error("Receipt PDF request failed")
-
-      const pdfUrl = URL.createObjectURL(await response.blob())
-      receiptWindow.location.href = pdfUrl
-      window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 60_000)
-    } catch {
-      receiptWindow.close()
-      setError("Unable to open the PDF receipt. Please try again.")
-    }
-  }, [])
-
   const handleProcessCollection = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!formState.studentName || !formState.amountPaid || submitting) return
@@ -258,7 +234,6 @@ export function PaymentInflowCollectionLog({
     setSuccessMessage(null)
     setSubmitting(true)
 
-    // SMS-007: pre-open the receipt tab synchronously — popup blockers deny window.open after an await.
     try {
       // ✅ FIXED: removed the outer fetch() wrapper — fetchWithAuth IS the fetch
       const response = await fetchWithAuth("/finance/collections", {
@@ -575,16 +550,6 @@ export function PaymentInflowCollectionLog({
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="h-9 gap-1.5 border-stone-200 px-3 text-xs text-stone-600 hover:bg-stone-100 hover:text-stone-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-50 sm:h-8 sm:px-2"
-                          title="View PDF receipt"
-                          onClick={() => handleOpenReceiptPdf(rcpt.id)}
-                        >
-                          <FileText className="h-3.5 w-3.5" />
-                          <span>PDF</span>
-                        </Button>
                         <Button
                           type="button"
                           variant="outline"
