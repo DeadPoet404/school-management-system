@@ -180,7 +180,7 @@ export class SetupService {
         await tx.staff.create({
           data: {
             staffId: staffBusinessId,
-            staffName: input.admin.fullName,
+            staffName: input.admin.fullName.toUpperCase(), // 2026-09 no-small-letters rule
             appointmentDate: new Date(),
             status: EntityStatus.ACTIVE,
             account: {
@@ -193,23 +193,23 @@ export class SetupService {
             placement: {
               create: {
                 departmentId: 'ADMINISTRATION',
-                jobTitle: 'System Administrator',
-                employmentType: 'Full-Time',
-                shiftSchedule: 'Standard Day',
+                jobTitle: 'SYSTEM ADMINISTRATOR',
+                employmentType: 'FULL-TIME',
+                shiftSchedule: 'STANDARD DAY',
               },
             },
             demographics: {
               create: {
                 dateOfBirth: new Date('1990-01-01'),
                 gender: 'UNSPECIFIED',
-                residentialAddress: input.school.address?.trim() || 'Not provided',
+                residentialAddress: (input.school.address?.trim() || 'Not provided').toUpperCase(),
                 phone: input.school.phone?.trim() || 'N/A',
               },
             },
             compliance: { create: {} },
             payroll: {
               create: {
-                clearanceTier: 'Level 3: Executive',
+                clearanceTier: 'LEVEL 3: EXECUTIVE',
                 baseSalary: 0,
                 deductions: 0,
                 netPay: 0,

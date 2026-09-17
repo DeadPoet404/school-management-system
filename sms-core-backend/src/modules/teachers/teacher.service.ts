@@ -1,6 +1,7 @@
 import { AppError } from '@/middleware/error.handler';
 import crypto from 'crypto';
 import { prisma } from "@/lib/prisma";
+import { capStringFields } from "@/lib/capitalize";
 import { EntityStatus, ClearanceStatus, PersonnelDepartureType, Prisma } from "@prisma/client";
 import { ITeacherRepository } from "@/types/repositories";
 import { TeacherRepository } from "./teacher.repository";
@@ -139,11 +140,13 @@ export class TeacherService {
     }
 
     if (filters.employmentType?.trim()) {
-      where.employmentType = filters.employmentType.trim();
+      // 2026-09: values are stored in capitals ("no small letters" rule) —
+      // keep the filter tolerant of whatever case the UI sends.
+      where.employmentType = { equals: filters.employmentType.trim(), mode: 'insensitive' };
     }
 
     if (filters.gender?.trim()) {
-      where.demographics = { gender: filters.gender.trim() };
+      where.demographics = { gender: { equals: filters.gender.trim(), mode: 'insensitive' } };
     }
 
     return where;
@@ -194,6 +197,17 @@ export class TeacherService {
   }) {
     const { account, placement, demographics, compliance, payroll } = payload;
 
+    // 2026-09 "no small letters" rule: entered text is stored in capitals.
+    // Emails are excluded — they are matched case-sensitively for logins.
+    capStringFields(account, ['fullName']);
+    capStringFields(demographics, ['gender', 'residentialAddress', 'bloodType', 'religion', 'formerSchool']);
+    if (placement) capStringFields(placement, ['jobTitle', 'employmentType']);
+    if (compliance) {
+      capStringFields(compliance, ['nationalId', 'ssnitNumber']);
+      if (compliance.emergencyContact) capStringFields(compliance.emergencyContact, ['name']);
+    }
+    if (payroll) capStringFields(payroll, ['clearanceTier', 'paymentRoute', 'bankName', 'bankAccount']);
+
     // ── P0-2 fix: refuse to fabricate PII ──
     // All demographic fields must be provided by the caller.
     // The validation schema should enforce this at the route level
@@ -232,7 +246,7 @@ export class TeacherService {
       departmentRecord: placement?.departmentId
         ? { connect: { id: placement.departmentId } }
         : undefined,
-      employmentType: placement?.employmentType || "Full-Time",
+      employmentType: placement?.employmentType || "FULL-TIME",
       employmentDate: account.employmentDate ? new Date(account.employmentDate) : null,
       status: EntityStatus.ACTIVE,
       yearsOfExperience: 0,
@@ -478,6 +492,13 @@ export class TeacherService {
       const ded = typeof pay.deductions === "number" ? pay.deductions : 0;
       pay.netPay = Math.max(0, base - ded);
     }
+
+    // 2026-09 "no small letters" rule (see createTeacher).
+    // NOTE: data.department / data.subject are foreign keys — never caps.
+    capStringFields(data, ['teacherName', 'employmentType']);
+    if (demo) capStringFields(demo, ['gender', 'residentialAddress', 'bloodType', 'religion', 'formerSchool']);
+    if (data.compliance) capStringFields(data.compliance as Record<string, unknown>, ['nationalId', 'ssnitNumber', 'emergencyName']);
+    if (data.payroll) capStringFields(data.payroll as Record<string, unknown>, ['clearanceTier', 'paymentRoute', 'bankName', 'bankAccount']);
 
     return this.repo.update(id, data);
   }

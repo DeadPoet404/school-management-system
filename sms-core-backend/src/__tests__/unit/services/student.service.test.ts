@@ -232,7 +232,7 @@ describe('StudentService', () => {
 
       await service.update('stu-uuid-1', { studentName: 'Updated Name' });
 
-      expect(repo.update).toHaveBeenCalledWith('stu-uuid-1', { studentName: 'Updated Name' });
+      expect(repo.update).toHaveBeenCalledWith('stu-uuid-1', { studentName: 'UPDATED NAME' });
     });
   });
 
@@ -387,8 +387,8 @@ describe('StudentService', () => {
       const createData = (repo.createNestedStudent as any).mock.calls[0][0];
       expect(Array.isArray(createData.guardians.create)).toBe(true);
       expect(createData.guardians.create).toHaveLength(2);
-      expect(createData.guardians.create[0].name).toBe('Parent Doe');
-      expect(createData.guardians.create[1].name).toBe('Comfort Mensah');
+      expect(createData.guardians.create[0].name).toBe('PARENT DOE');
+      expect(createData.guardians.create[1].name).toBe('COMFORT MENSAH');
     });
 
     it('should create a single guardian when guardian2 is omitted', async () => {
@@ -399,7 +399,7 @@ describe('StudentService', () => {
 
       const createData = (repo.createNestedStudent as any).mock.calls[0][0];
       expect(createData.guardians.create).toHaveLength(1);
-      expect(createData.guardians.create[0].name).toBe('Parent Doe');
+      expect(createData.guardians.create[0].name).toBe('PARENT DOE');
     });
 
     it('should throw 400 when guardian2 is provided but incomplete', async () => {

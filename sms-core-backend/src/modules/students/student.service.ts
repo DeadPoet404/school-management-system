@@ -1,5 +1,6 @@
 import { AppError } from '@/middleware/error.handler';
 import { prisma } from "@/lib/prisma";
+import { capStringFields } from "@/lib/capitalize";
 import type { ClassListPdfData, TranscriptPdfData, TranscriptTermSection } from "@/lib/pdf";
 import { titleCaseTerm } from "@/lib/pdf";
 import { Prisma, EntityStatus, DepartureType, TreasuryClearanceStatus } from "@prisma/client";
@@ -466,6 +467,20 @@ export class StudentService {
       throw new AppError(400, "Missing essential guardian contact relationships from structural payload.");
     }
 
+    // 2026-09 "no small letters" rule: entered text is stored in capitals.
+    // Emails are excluded everywhere — they are matched case-sensitively
+    // for logins and the fees portal.
+    capStringFields(account, ['fullName']);
+    capStringFields(demographics, ['residentialAddress', 'medicalNotes', 'bloodType', 'religion', 'formerSchool', 'gender']);
+    capStringFields(placement, ['academicTrack', 'boardingStatus']);
+    capStringFields(payload, ['legacyStudentId']);
+    capStringFields(resolvedGuardian, ['name', 'relationship']);
+    if (guardian2) capStringFields(guardian2, ['name', 'relationship']);
+    if (compliance) {
+      capStringFields(compliance, ['nationalId']);
+      if (compliance.emergencyContact) capStringFields(compliance.emergencyContact, ['name', 'relationship']);
+    }
+
     // Portal email must never collide with a staff/teacher account (a
     // collision makes the staff/teacher unable to log in, because account
     // lookup prefers the student row) or with another student's portal.
@@ -915,6 +930,13 @@ export class StudentService {
     if (demo?.dateOfBirth && typeof demo.dateOfBirth === 'string') {
       demo.dateOfBirth = new Date(demo.dateOfBirth);
     }
+
+    // 2026-09 "no small letters" rule (see createStudent). Emails excluded.
+    capStringFields(data, ['studentName']);
+    if (demo) capStringFields(demo, ['residentialAddress', 'medicalNotes', 'bloodType', 'religion', 'formerSchool', 'gender']);
+    if (data.placement) capStringFields(data.placement as Record<string, unknown>, ['academicTrack', 'boardingStatus']);
+    if (data.compliance) capStringFields(data.compliance as Record<string, unknown>, ['nationalId', 'emergencyName', 'emergencyRelation']);
+    if (data.guardian) capStringFields(data.guardian as Record<string, unknown>, ['name', 'relationship']);
 
     return this.repo.update(id, data);
   }

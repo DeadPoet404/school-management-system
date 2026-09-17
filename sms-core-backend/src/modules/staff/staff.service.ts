@@ -1,5 +1,6 @@
 import { AppError } from '@/middleware/error.handler';
 import { prisma } from "@/lib/prisma";
+import { capStringFields } from "@/lib/capitalize";
 import { PersonnelDepartureType, EntityStatus, ClearanceStatus, Prisma } from "@prisma/client";
 import { IStaffRepository } from "@/types/repositories";
 import { StaffRepository } from "./staff.repository";
@@ -32,7 +33,7 @@ export class StaffService {
       placement: {
         departmentId: staff.placement?.departmentId ?? "OPERATIONS",
         jobTitle: staff.placement?.jobTitle ?? "General Staff Line",
-        employmentType: staff.placement?.employmentType ?? "Full-Time",
+        employmentType: staff.placement?.employmentType ?? "FULL-TIME",
         shiftSchedule: staff.placement?.shiftSchedule ?? "Standard Shift",
       },
       demographics: {
@@ -132,14 +133,16 @@ export class StaffService {
       placementFilter.jobTitle = { contains: filters.jobTitle.trim(), mode: 'insensitive' };
     }
     if (filters.employmentType?.trim()) {
-      placementFilter.employmentType = filters.employmentType.trim();
+      // 2026-09: values are stored in capitals ("no small letters" rule) —
+      // keep the filter tolerant of whatever case the UI sends.
+      placementFilter.employmentType = { equals: filters.employmentType.trim(), mode: 'insensitive' };
     }
     if (Object.keys(placementFilter).length > 0) {
       where.placement = placementFilter;
     }
 
     if (filters.gender?.trim()) {
-      where.demographics = { gender: filters.gender.trim() };
+      where.demographics = { gender: { equals: filters.gender.trim(), mode: 'insensitive' } };
     }
 
     return where;
@@ -162,7 +165,7 @@ export class StaffService {
       role: member.account?.role || "STAFF",
       departmentId: member.placement?.departmentId || "UNASSIGNED",
       jobTitle: member.placement?.jobTitle || "General Staff",
-      employmentType: member.placement?.employmentType || "Full-Time",
+      employmentType: member.placement?.employmentType || "FULL-TIME",
       shiftSchedule: member.placement?.shiftSchedule || "Standard Day",
       status: member.status,
     }));
@@ -246,7 +249,7 @@ export class StaffService {
         role: member.account?.role ?? "STAFF",
         departmentId: member.placement?.departmentId ?? "UNASSIGNED",
         jobTitle: member.placement?.jobTitle ?? "General Staff",
-        employmentType: member.placement?.employmentType ?? "Full-Time",
+        employmentType: member.placement?.employmentType ?? "FULL-TIME",
         shiftSchedule: member.placement?.shiftSchedule ?? "Standard Day",
         status: member.status,
         tenureDays,
@@ -303,6 +306,17 @@ export class StaffService {
     };
   }) {
     const { account, demographics, placement, compliance, payroll } = payload;
+
+    // 2026-09 "no small letters" rule: entered text is stored in capitals.
+    // Emails are excluded — they are matched case-sensitively for logins.
+    capStringFields(account, ['fullName']);
+    capStringFields(demographics, ['gender', 'residentialAddress', 'bloodType', 'religion', 'formerSchool']);
+    capStringFields(placement, ['jobTitle', 'employmentType', 'shiftSchedule']);
+    if (compliance) {
+      capStringFields(compliance, ['nationalId', 'ssnitNumber']);
+      if (compliance.emergencyContact) capStringFields(compliance.emergencyContact, ['name']);
+    }
+    capStringFields(payroll, ['clearanceTier', 'bankName', 'bankAccount']);
 
     const deptPrefix = placement.departmentId ? placement.departmentId.replace("dept-", "").toUpperCase() : "STF";
     const generatedStaffId = formatInstitutionalId('STF', deptPrefix);
@@ -528,6 +542,13 @@ export class StaffService {
       const ded = typeof pay.deductions === "number" ? pay.deductions : 0;
       pay.netPay = Math.max(0, base - ded);
     }
+
+    // 2026-09 "no small letters" rule (see createStaff).
+    capStringFields(data, ['staffName']);
+    if (data.demographics) capStringFields(data.demographics as Record<string, unknown>, ['gender', 'residentialAddress', 'bloodType', 'religion', 'formerSchool']);
+    if (data.placement) capStringFields(data.placement as Record<string, unknown>, ['jobTitle', 'employmentType', 'shiftSchedule']);
+    if (data.compliance) capStringFields(data.compliance as Record<string, unknown>, ['nationalId', 'ssnitNumber', 'emergencyName']);
+    if (data.payroll) capStringFields(data.payroll as Record<string, unknown>, ['clearanceTier', 'paymentRoute', 'bankName', 'bankAccount']);
 
     return this.repo.update(id, data);
   }
