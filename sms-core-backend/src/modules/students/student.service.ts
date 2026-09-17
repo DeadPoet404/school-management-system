@@ -185,9 +185,17 @@ export class StudentService {
     });
     if (!cls) throw new AppError(404, 'Class not found.');
 
+    // 2026-09: selectable print columns need date of birth, the primary
+    // guardian, and the current fee balance. A class roster is small, so
+    // fetching the extras unconditionally is cheaper than conditional
+    // queries and keeps the print payload complete for any column mix.
     const students = await prisma.student.findMany({
       where: { status: EntityStatus.ACTIVE, placement: { classId } },
-      include: { demographics: { select: { gender: true } } },
+      include: {
+        demographics: { select: { gender: true, dateOfBirth: true } },
+        guardians: { select: { name: true, phone: true } },
+        billing: { select: { currentBalance: true } },
+      },
       orderBy: { studentName: 'asc' },
     });
 
@@ -205,6 +213,10 @@ export class StudentService {
         name: s.studentName,
         studentId: s.studentId,
         gender: s.demographics?.gender?.trim() || null,
+        dob: s.demographics?.dateOfBirth ? s.demographics.dateOfBirth.toISOString() : null,
+        guardian: s.guardians[0]?.name?.trim() || null,
+        guardianPhone: s.guardians[0]?.phone?.trim() || null,
+        feesOwed: s.billing ? Number(s.billing.currentBalance) : null,
       })),
     };
   }

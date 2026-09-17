@@ -9,7 +9,105 @@
  * Printing is A4 via @page; the table head repeats on every page and rows
  * never split mid-row.
  */
-import type { ClassListPdfData } from './pdf';
+import type { ClassListPdfData, ClassListStudentRow } from './pdf';
+
+// ── 2026-09: selectable print columns ─────────────────────────────────
+// Student NAME (and the NO. counter) are always printed. The columns below
+// are opt-in from the UI, in a fixed canonical order, capped so the A4
+// table never gets crammed.
+export type ClassListColumnKey =
+  | 'studentId'
+  | 'gender'
+  | 'dob'
+  | 'guardian'
+  | 'guardianPhone'
+  | 'feesOwed';
+
+export const CLASS_LIST_OPTIONAL_COLUMNS: ReadonlyArray<{
+  key: ClassListColumnKey;
+  label: string;
+}> = [
+  { key: 'studentId', label: 'Student ID' },
+  { key: 'gender', label: 'Gender' },
+  { key: 'dob', label: 'Date of Birth' },
+  { key: 'guardian', label: 'Guardian' },
+  { key: 'guardianPhone', label: 'Guardian Phone' },
+  { key: 'feesOwed', label: 'Fees Owed' },
+];
+
+/** Upper bound for selectable columns — keeps the printed table legible. */
+export const CLASS_LIST_MAX_OPTIONAL_COLUMNS = 5;
+
+const COLUMN_KEY_SET = new Set<string>(
+  CLASS_LIST_OPTIONAL_COLUMNS.map((c) => c.key),
+);
+
+/**
+ * Parse + validate a requested column list (query string or array).
+ * Unknown keys are dropped, duplicates removed, the result is returned in
+ * canonical catalog order, and truncated to the max column count
+ * (deterministic: if too many are requested, the LAST catalog entries drop).
+ */
+export function normalizeClassListColumns(
+  input: string | string[] | null | undefined,
+): ClassListColumnKey[] {
+  const raw: string[] = Array.isArray(input)
+    ? input
+    : input
+      ? String(input).split(',')
+      : [];
+  const accepted = new Set<string>();
+  for (const part of raw) {
+    const key = part.trim();
+    if (COLUMN_KEY_SET.has(key)) accepted.add(key);
+  }
+  return CLASS_LIST_OPTIONAL_COLUMNS.filter((c) =>
+    accepted.has(c.key),
+  )
+    .slice(0, CLASS_LIST_MAX_OPTIONAL_COLUMNS)
+    .map((c) => c.key);
+}
+
+function formatMoney(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return '—';
+  return `GHS ${value.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+}
+
+const COLUMN_DEFS: Record<
+  ClassListColumnKey,
+  { label: string; th: string; cell: (s: ClassListStudentRow) => string }
+> = {
+  studentId: {
+    label: 'STUDENT ID',
+    th: 'c-id',
+    cell: (s) => `<span class="mono">${escapeHtml(s.studentId)}</span>`,
+  },
+  gender: {
+    label: 'GENDER',
+    th: 'c-gender',
+    cell: (s) => escapeHtml(s.gender?.trim() || '—'),
+  },
+  dob: {
+    label: 'DATE OF BIRTH',
+    th: 'c-dob',
+    cell: (s) => escapeHtml(s.dob ? dateLabel(s.dob) : '—'),
+  },
+  guardian: {
+    label: 'GUARDIAN',
+    th: 'c-guardian',
+    cell: (s) => escapeHtml(s.guardian?.trim() || '—'),
+  },
+  guardianPhone: {
+    label: 'GUARDIAN PHONE',
+    th: 'c-phone',
+    cell: (s) => escapeHtml(s.guardianPhone?.trim() || '—'),
+  },
+  feesOwed: {
+    label: 'FEES OWED',
+    th: 'c-fees',
+    cell: (s) => escapeHtml(formatMoney(s.feesOwed)),
+  },
+};
 
 function escapeHtml(value: string | number | null | undefined): string {
   return String(value ?? '')
@@ -39,7 +137,10 @@ function titleCaseTerm(raw: string): string {
     .join(' ');
 }
 
-export function renderClassListPrintHtml(data: ClassListPdfData): string {
+export function renderClassListPrintHtml(
+  data: ClassListPdfData,
+  columns: ClassListColumnKey[] = ['studentId', 'gender'],
+): string {
   const className = escapeHtml(data.className);
   const termLine = escapeHtml(
     `${data.academicYear} Academic Year — ${titleCaseTerm(data.termName)}`,
@@ -47,21 +148,32 @@ export function renderClassListPrintHtml(data: ClassListPdfData): string {
   const generatedLabel = escapeHtml(`Generated ${dateLabel(data.dateOfIssue)}`);
   const issuedLabel = escapeHtml(dateLabel(data.dateOfIssue));
 
+  // Defense in depth: the controller validates the query param too, but the
+  // renderer is the single choke point, so it never renders an unvalidated
+  // list (unknown keys dropped, canonical order, capped).
+  const safeColumns = normalizeClassListColumns(columns);
+
+  // NO. + STUDENT NAME are fixed; the rest follow the validated selection.
+  const headers = [
+    '<th class="c-no">NO.</th>',
+    '<th class="c-name">STUDENT NAME</th>',
+    ...safeColumns.map((k) => `<th class="${COLUMN_DEFS[k].th}">${COLUMN_DEFS[k].label}</th>`),
+  ].join('');
+
   const rows = data.students
     .map(
       (s, i) => `
       <tr>
         <td class="c-no">${i + 1}</td>
         <td class="c-name">${escapeHtml(s.name)}</td>
-        <td class="c-id mono">${escapeHtml(s.studentId)}</td>
-        <td class="c-gender">${escapeHtml(s.gender?.trim() || '—')}</td>
+        ${safeColumns.map((k) => `<td class="${COLUMN_DEFS[k].th}">${COLUMN_DEFS[k].cell(s)}</td>`).join('')}
       </tr>`,
     )
     .join('');
 
   const body =
     data.students.length === 0
-      ? `<tr><td colspan="4" class="empty">No active students in this class yet.</td></tr>`
+      ? `<tr><td colspan="${safeColumns.length + 2}" class="empty">No active students in this class yet.</td></tr>`
       : rows;
 
   return `<!DOCTYPE html>
@@ -167,8 +279,13 @@ export function renderClassListPrintHtml(data: ClassListPdfData): string {
       padding: 1.8mm 2.5mm;
       border-bottom: 2.2pt solid #e4b43c;
     }
-    th.c-no, td.c-no { width: 11%; text-align: center; }
-    th.c-gender, td.c-gender { width: 14%; text-align: center; }
+    th.c-no, td.c-no { width: 7%; text-align: center; }
+    th.c-id, td.c-id { width: 15%; }
+    th.c-gender, td.c-gender { width: 10%; text-align: center; }
+    th.c-dob, td.c-dob { width: 14%; text-align: center; }
+    th.c-guardian, td.c-guardian { width: 20%; }
+    th.c-phone, td.c-phone { width: 15%; }
+    th.c-fees, td.c-fees { width: 14%; text-align: right; white-space: nowrap; }
     td {
       border: 0.4pt solid #d9dde6;
       padding: 1.7mm 2.5mm;
@@ -244,12 +361,7 @@ export function renderClassListPrintHtml(data: ClassListPdfData): string {
 
   <table>
     <thead>
-      <tr>
-        <th class="c-no">NO.</th>
-        <th>STUDENT NAME</th>
-        <th>STUDENT ID</th>
-        <th class="c-gender">GENDER</th>
-      </tr>
+      <tr>${headers}</tr>
     </thead>
     <tbody>${body}
     </tbody>

@@ -10,7 +10,7 @@ import {
 import { resolveSessionStudentId } from "@/middleware/self-access";
 import { AppError } from "@/middleware/error.handler";
 import { renderClassListPdf, renderTranscriptPdf } from "@/lib/pdf";
-import { renderClassListPrintHtml } from "@/lib/class-list-print";
+import { renderClassListPrintHtml, normalizeClassListColumns } from "@/lib/class-list-print";
 
 type UploadedStudentImportFile = {
   buffer: Buffer;
@@ -120,10 +120,19 @@ export class StudentController {
     try {
       const classId = typeof req.query.classId === 'string' ? req.query.classId.trim() : '';
       if (!classId) throw new AppError(400, 'classId query parameter is required.');
+      // 2026-09: optional comma-separated column list (e.g.
+      // columns=studentId,dob,feesOwed). Unknown keys are dropped and the
+      // result is capped server-side; name/NO. are always printed.
+      const rawColumns = Array.isArray(req.query.columns)
+        ? req.query.columns.join(',')
+        : typeof req.query.columns === 'string'
+          ? req.query.columns
+          : undefined;
+      const columns = normalizeClassListColumns(rawColumns);
       const data = await this.studentService.getClassListForPdf(classId);
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader('Cache-Control', 'no-store');
-      return res.send(renderClassListPrintHtml(data));
+      return res.send(renderClassListPrintHtml(data, columns));
     } catch (error) { next(error); }
   };
 

@@ -763,6 +763,11 @@ export interface ClassListStudentRow {
   name: string;
   studentId: string;
   gender: string | null;
+  /** Optional print columns (2026-09 selectable class-list columns). */
+  dob?: string | null;
+  guardian?: string | null;
+  guardianPhone?: string | null;
+  feesOwed?: number | null;
 }
 
 export interface ClassListPdfData {
