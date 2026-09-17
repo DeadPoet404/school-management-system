@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { classDisplayName } from "@/lib/class-display"
 import {
   DynamicFilterPopover,
   type FilterField,
@@ -57,9 +58,7 @@ export function StudentRegistryFilter({
         type: "combobox",
         placeholder: "Select a school class...",
         options: classes.map((item) => ({
-          label: item.section
-            ? `${item.name} — ${item.section}`
-            : item.name,
+          label: classDisplayName(item.name, item.section),
           value: item.id,
         })),
       },

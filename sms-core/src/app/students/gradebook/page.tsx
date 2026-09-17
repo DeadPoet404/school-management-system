@@ -14,6 +14,7 @@ import {
   type GradebookScoreField,
 } from "@/components/mobile/gradebook-score-cards"
 import { useClasses, useSubjects, useTerms } from "@/lib/api/reference"
+import { classDisplayName } from "@/lib/class-display"
 
 // --- INTERNAL GRADING LOGIC ENGINE ---
 function getGradeMetrics(classStr: string, examStr: string) {
@@ -267,7 +268,7 @@ export default function GradeBookDashboard() {
         .filter((item) => item.isActive !== false)
         .map((item) => ({
           id: item.id,
-          label: item.section ? `${item.name} (${item.section})` : item.name,
+          label: classDisplayName(item.name, item.section),
           meta: item.id,
         })),
     [classes]
