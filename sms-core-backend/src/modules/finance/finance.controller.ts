@@ -5,6 +5,28 @@ import { parsePaginationQuery, buildPaginationResponse } from '@/utils/paginatio
 import { toCSV, respondCSV } from '@/utils/export';
 import { renderReceiptPdf } from '@/lib/pdf';
 import { renderReceiptPrintHtml } from '@/lib/receipt-print';
+import { renderCollectionsPrintHtml } from '@/lib/collections-print';
+import { AppError } from '@/middleware/error.handler';
+
+function utcDateRange(dateValue: string): { startDate: Date; endDate: Date } {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+    throw new AppError(400, 'date query parameter must use YYYY-MM-DD format.');
+  }
+
+  const [year, month, day] = dateValue.split('-').map(Number);
+  const startDate = new Date(Date.UTC(year!, month! - 1, day!));
+  if (
+    startDate.getUTCFullYear() !== year
+    || startDate.getUTCMonth() !== month! - 1
+    || startDate.getUTCDate() !== day
+  ) {
+    throw new AppError(400, 'date query parameter is not a valid calendar date.');
+  }
+
+  const endDate = new Date(startDate);
+  endDate.setUTCDate(endDate.getUTCDate() + 1);
+  return { startDate, endDate };
+}
 
 export class FinanceController {
   constructor(private financeService: FinanceService) {}
@@ -105,6 +127,20 @@ export class FinanceController {
       }
 
       return res.status(200).json(buildPaginationResponse(data, total, page, limit));
+    } catch (error) { next(error); }
+  };
+
+  // Daily payment-register print view. The date is interpreted as a UTC
+  // calendar day because the school operates in Ghana (UTC+0).
+  getCollectionsPrint = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const date = typeof req.query.date === 'string' ? req.query.date.trim() : '';
+      if (!date) throw new AppError(400, 'date query parameter is required.');
+      const { startDate, endDate } = utcDateRange(date);
+      const data = await this.financeService.getCollectionsForPrint(date, startDate, endDate);
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-store');
+      return res.send(renderCollectionsPrintHtml(data));
     } catch (error) { next(error); }
   };
 

@@ -149,6 +149,7 @@ export interface IFinanceRepository {
   countCollectionsBySection(sectionId: string, tx?: TransactionClient): Promise<any>;
   countCollections(tx?: TransactionClient): Promise<any>;
   findAllCollections(skip?: number, take?: number, tx?: TransactionClient): Promise<any>;
+  findCollectionsForDateRange(startDate: Date, endDate: Date, tx?: TransactionClient): Promise<any>;
   countAllCollections(tx?: TransactionClient): Promise<number>;
   createCollection(data: CollectionCreateData, tx?: TransactionClient): Promise<any>;
   // SMS-007: receipt rendering reads

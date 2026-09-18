@@ -228,6 +228,23 @@ export class FinanceRepository implements IFinanceRepository {
     });
   }
 
+  async findCollectionsForDateRange(startDate: Date, endDate: Date, tx: TransactionClient = prisma) {
+    return tx.paymentCollection.findMany({
+      where: {
+        deletedAt: null,
+        dateProcessed: { gte: startDate, lt: endDate },
+      },
+      include: {
+        class: { select: { name: true, section: true } },
+        student: { select: { studentId: true } },
+      },
+      orderBy: [
+        { dateProcessed: 'asc' },
+        { receiptNumber: 'asc' },
+      ],
+    });
+  }
+
   async countAllCollections(tx: TransactionClient = prisma) {
     return tx.paymentCollection.count({ where: { deletedAt: null } });
   }

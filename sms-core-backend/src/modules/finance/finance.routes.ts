@@ -19,6 +19,7 @@ router.get('/fee-structures', financeAccess, controller.getGlobalFeeMatrix);
 router.post('/fee-structures', financeAccess, validate(saveFeeMatrixSchema), controller.saveFeeMatrix);
 
 router.get('/collections', financeAccess, controller.getCollections);
+router.get('/collections.print', financeAccess, controller.getCollectionsPrint);
 router.get('/collections/:sectionId', financeAccess, controller.getSectionLedger);
 router.post('/collections', financeAccess, validate(commitInflowSchema), controller.commitInflow);
 

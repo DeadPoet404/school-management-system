@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useState, useMemo, useCallback } from "react"
+import { Printer } from "lucide-react"
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { UniversalSearch } from "@/components/universal-search"
@@ -14,6 +15,7 @@ import {
 } from "@/components/dynamic-filter-popover"
 import { Toaster } from "@/components/ui/sonner"
 import { fetchWithAuth } from "@/lib/fetch-with-auth"
+import { printPaymentsInPage } from "@/lib/print-collections"
 import { FinanceActionSheet, type LedgerActionToken } from "@/components/finance/finance-action-sheet"
 
 // --- DOMAIN DATA-TABLE MODULES ---
@@ -131,6 +133,8 @@ export default function FinancialLedgerConsole() {
   const [ledgerPage, setLedgerPage] = useState(1)
   const [actionTab, setActionTab] = useState<LedgerActionToken | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [paymentPrintDate, setPaymentPrintDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [printingPayments, setPrintingPayments] = useState(false)
 
   const currentTabContext = useMemo<LedgerConfigProperties>(() => {
     return ENTITY_LEDGER_CONFIG[activeTab]
@@ -189,6 +193,27 @@ export default function FinancialLedgerConsole() {
     // Any ledger data may have changed while the action sheet was open.
     void queryClient.invalidateQueries({ queryKey: ["finance"] })
   }, [queryClient])
+
+  const handlePrintPayments = useCallback(async () => {
+    if (!paymentPrintDate || printingPayments) return
+
+    setPrintingPayments(true)
+    try {
+      await printPaymentsInPage(paymentPrintDate)
+      toast.success("Payment register ready", {
+        description: "The print dialog is opening for the selected date.",
+      })
+    } catch (error) {
+      toast.error("Print Failed", {
+        description:
+          error instanceof Error
+            ? error.message
+            : "Could not load the selected payments for printing.",
+      })
+    } finally {
+      setPrintingPayments(false)
+    }
+  }, [paymentPrintDate, printingPayments])
 
   const handleExportCsv = useCallback(async () => {
     const { path, filename } = CSV_EXPORT_RESOURCE[activeTab]
@@ -275,7 +300,35 @@ export default function FinancialLedgerConsole() {
             </div>
 
             {/* Ledger Utility Controls */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {activeTab === "collections" ? (
+                <div className="flex items-center gap-2">
+                  <label htmlFor="payment-print-date" className="sr-only">
+                    Payment date to print
+                  </label>
+                  <input
+                    id="payment-print-date"
+                    type="date"
+                    value={paymentPrintDate}
+                    onChange={(event) => setPaymentPrintDate(event.target.value)}
+                    className="h-11 rounded-md border border-stone-200 bg-[#fafafa] px-2.5 text-xs text-stone-700 outline-none focus:border-stone-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:focus:border-zinc-600 lg:h-9"
+                    title="Choose the payment date to print"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    type="button"
+                    onClick={() => void handlePrintPayments()}
+                    disabled={!paymentPrintDate || printingPayments}
+                    className="h-11 gap-1.5 rounded-md border-stone-200 px-3 text-xs shadow-none dark:border-zinc-800 lg:h-9"
+                    aria-label="Print payments for selected date"
+                    title="Print payments for selected date"
+                  >
+                    <Printer className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Print Payments</span>
+                  </Button>
+                </div>
+              ) : null}
               <Button
                 variant="ghost"
                 size="icon"

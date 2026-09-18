@@ -6,6 +6,7 @@ import { IFinanceRepository, TransactionClient } from "@/types/repositories";
 import { FinanceRepository } from "./finance.repository";
 import type { ReceiptPdfData } from "@/lib/pdf";
 import type { ReceiptPrintData } from "@/lib/receipt-print";
+import type { CollectionsPrintData } from "@/lib/collections-print";
 import {
   createStudentPhotoStorage,
   StudentPhotoStorageConfigurationError,
@@ -23,6 +24,12 @@ interface FeeMatrixSection {
 }
 
 type InvoiceRow = Prisma.InvoiceGetPayload<{ include: { student: { select: { studentId: true; studentName: true } } } }>;
+type CollectionsForPrintRow = Prisma.PaymentCollectionGetPayload<{
+  include: {
+    class: { select: { name: true; section: true } };
+    student: { select: { studentId: true } };
+  };
+}>;
 
 interface MatrixSectionData {
   components: Array<{ name?: string; amount?: string | number; frequency?: string; isMandatory?: boolean }>;
@@ -645,6 +652,33 @@ export class FinanceService {
 
   async getAllCollections() {
     return this.repo.findAllCollections();
+  }
+
+  async getCollectionsForPrint(
+    date: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<CollectionsPrintData> {
+    const records = await this.repo.findCollectionsForDateRange(startDate, endDate) as CollectionsForPrintRow[];
+    const payments = records.map((record) => ({
+      receiptNumber: record.receiptNumber,
+      studentName: record.studentName,
+      studentCode: record.student?.studentId ?? null,
+      className: record.class
+        ? `${record.class.name}${record.class.section ? ` — Section ${record.class.section}` : ''}`
+        : '—',
+      amountPaid: parseDecimal(record.amountPaid),
+      paymentMethod: record.paymentMethod,
+      referenceNo: record.referenceNo,
+      allocationTarget: record.allocationTarget,
+      dateProcessed: record.dateProcessed,
+    }));
+
+    return {
+      date,
+      payments,
+      totalAmount: payments.reduce((total, payment) => total + payment.amountPaid, 0),
+    };
   }
 
   async getPaginatedInvoices(skip: number, take: number) {
