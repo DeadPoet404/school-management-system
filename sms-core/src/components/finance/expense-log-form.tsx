@@ -90,7 +90,7 @@ export function ExpenseLogForm({ onSaved }: { onSaved?: () => void }) {
       }
 
       toast.success("Expense Logged", {
-        description: `${paymentMethod} · GH₵${Number(amount).toLocaleString()} — awaiting approval.`,
+        description: `${paymentMethod} · ₵${Number(amount).toLocaleString()} — awaiting approval.`,
       })
 
       await queryClient.invalidateQueries({ queryKey: ["finance", "expenses"] })
@@ -186,7 +186,7 @@ export function ExpenseLogForm({ onSaved }: { onSaved?: () => void }) {
               htmlFor="expense-amount"
               className="text-xs font-medium text-zinc-600 dark:text-zinc-400"
             >
-              Amount (GH₵)
+              Amount (₵)
             </label>
             <Input
               id="expense-amount"

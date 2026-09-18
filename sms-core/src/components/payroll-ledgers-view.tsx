@@ -298,15 +298,15 @@ export function PayrollLedgersView({
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-stone-50 dark:bg-zinc-900/30 p-4 rounded-xl border border-stone-200/50 dark:border-zinc-800/50">
                   <span className="text-[10px] font-bold text-stone-400 dark:text-zinc-500 uppercase tracking-wider block">Total Liability Allocation</span>
-                  <span className="text-xl font-semibold text-stone-900 dark:text-zinc-100 block mt-1">GH₵{payrollTotals.totalNet.toLocaleString()}.00</span>
+                  <span className="text-xl font-semibold text-stone-900 dark:text-zinc-100 block mt-1">₵{payrollTotals.totalNet.toLocaleString()}.00</span>
                 </div>
                 <div className="bg-emerald-50/50 dark:bg-emerald-950/10 p-4 rounded-xl border border-emerald-200/30 dark:border-emerald-900/20">
                   <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider block">Disbursed Outflows</span>
-                  <span className="text-xl font-semibold text-emerald-800 dark:text-emerald-400 block mt-1">GH₵{payrollTotals.disbursed.toLocaleString()}.00</span>
+                  <span className="text-xl font-semibold text-emerald-800 dark:text-emerald-400 block mt-1">₵{payrollTotals.disbursed.toLocaleString()}.00</span>
                 </div>
                 <div className="bg-amber-50/40 dark:bg-amber-950/10 p-4 rounded-xl border border-amber-200/20 dark:border-amber-900/20">
                   <span className="text-[10px] font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider block">Pending Liquidation</span>
-                  <span className="text-xl font-semibold text-amber-800 dark:text-amber-400 block mt-1">GH₵{payrollTotals.pending.toLocaleString()}.00</span>
+                  <span className="text-xl font-semibold text-amber-800 dark:text-amber-400 block mt-1">₵{payrollTotals.pending.toLocaleString()}.00</span>
                 </div>
               </div>
 
@@ -340,10 +340,10 @@ export function PayrollLedgersView({
                               <div className="font-semibold text-stone-900 dark:text-zinc-100">{emp.name}</div>
                               <div className="text-[10px] text-stone-400 dark:text-zinc-500 mt-0.5">{emp.role}</div>
                             </td>
-                            <td className="py-3.5 px-3 font-medium text-stone-900 dark:text-zinc-100">GH₵{emp.baseSalary.toLocaleString()}.00</td>
-                            <td className="py-3.5 px-3 text-emerald-600 dark:text-emerald-500">+GH₵{emp.allowances.toLocaleString()}.00</td>
-                            <td className="py-3.5 px-3 text-red-500 dark:text-red-400">-GH₵{emp.deductions.toLocaleString()}.00</td>
-                            <td className="py-3.5 px-3 font-bold text-stone-900 dark:text-zinc-50">GH₵{netPayable.toLocaleString()}.00</td>
+                            <td className="py-3.5 px-3 font-medium text-stone-900 dark:text-zinc-100">₵{emp.baseSalary.toLocaleString()}.00</td>
+                            <td className="py-3.5 px-3 text-emerald-600 dark:text-emerald-500">+₵{emp.allowances.toLocaleString()}.00</td>
+                            <td className="py-3.5 px-3 text-red-500 dark:text-red-400">-₵{emp.deductions.toLocaleString()}.00</td>
+                            <td className="py-3.5 px-3 font-bold text-stone-900 dark:text-zinc-50">₵{netPayable.toLocaleString()}.00</td>
                             <td className="py-3.5 px-4 text-right">
                               {emp.status === "Disbursed" ? (
                                 <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 rounded">
@@ -390,7 +390,7 @@ export function PayrollLedgersView({
                     <div>
                       <span className="text-[10px] font-bold text-stone-400 dark:text-zinc-500 uppercase tracking-wider block">Trial Equilibrium Verification</span>
                       <span className="text-xs font-semibold text-stone-700 dark:text-zinc-300 mt-0.5 block">
-                        Debits: <strong className="text-stone-950 dark:text-zinc-50 font-bold">GH₵{ledgerTotals.totalDebit.toLocaleString()}</strong> | Credits: <strong className="text-stone-950 dark:text-zinc-50 font-bold">GH₵{ledgerTotals.totalCredit.toLocaleString()}</strong>
+                        Debits: <strong className="text-stone-950 dark:text-zinc-50 font-bold">₵{ledgerTotals.totalDebit.toLocaleString()}</strong> | Credits: <strong className="text-stone-950 dark:text-zinc-50 font-bold">₵{ledgerTotals.totalCredit.toLocaleString()}</strong>
                       </span>
                     </div>
                   </div>
@@ -437,14 +437,14 @@ export function PayrollLedgersView({
                             <td className="py-3 px-3 text-right font-medium text-stone-900 dark:text-zinc-100">
                               {Number(ledger.debit) > 0 ? (
                                 <span className="inline-flex items-center gap-0.5">
-                                  <ArrowUpRight className="h-3 w-3 text-emerald-500 shrink-0" /> GH₵{Number(ledger.debit).toLocaleString()}.00
+                                  <ArrowUpRight className="h-3 w-3 text-emerald-500 shrink-0" /> ₵{Number(ledger.debit).toLocaleString()}.00
                                 </span>
                               ) : "—"}
                             </td>
                             <td className="py-3 px-3 text-right font-medium text-stone-900 dark:text-zinc-100">
                               {Number(ledger.credit) > 0 ? (
                                 <span className="inline-flex items-center gap-0.5">
-                                  <ArrowDownRight className="h-3 w-3 text-amber-500 shrink-0" /> GH₵{Number(ledger.credit).toLocaleString()}.00
+                                  <ArrowDownRight className="h-3 w-3 text-amber-500 shrink-0" /> ₵{Number(ledger.credit).toLocaleString()}.00
                                 </span>
                               ) : "—"}
                             </td>

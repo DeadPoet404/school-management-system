@@ -174,7 +174,7 @@ function EditStudentForm() {
         // Show the tier's name + price, never the raw UUID.
         setFeeTierLabel(
           billing.feeTier?.name
-            ? `${billing.feeTier.name} — GH₵ ${Number(billing.feeTier.amount).toLocaleString("en-GH", { maximumFractionDigits: 0 })}`
+            ? `${billing.feeTier.name} — ₵ ${Number(billing.feeTier.amount).toLocaleString("en-GH", { maximumFractionDigits: 0 })}`
             : ""
         )
         setBillingBalance(

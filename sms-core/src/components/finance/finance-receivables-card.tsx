@@ -26,7 +26,7 @@ interface FinanceReceivablesCardProps {
 }
 
 function ghs(value: number) {
-  return `GH₵${Math.round(value || 0).toLocaleString()}`
+  return `₵${Math.round(value || 0).toLocaleString()}`
 }
 
 function formatDate(value: string) {

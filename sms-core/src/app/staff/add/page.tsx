@@ -939,7 +939,7 @@ function ComprehensiveStaffEnrollmentWizard() {
                   htmlFor="salary"
                   className="text-sm font-semibold sm:text-xs text-foreground"
                 >
-                  Base Salary Compensation Package (GH₵ / Month){" "}
+                  Base Salary Compensation Package (₵ / Month){" "}
                   <span className="text-red-500">*</span>
                 </Label>
                 <Input

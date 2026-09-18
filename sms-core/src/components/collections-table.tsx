@@ -29,7 +29,7 @@ const amberBadge = "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-5
 const zincBadge = "bg-zinc-50 text-zinc-700 border-zinc-200 hover:bg-zinc-50 dark:bg-zinc-900 text-zinc-300 dark:border-zinc-800"
 
 const currencyFormatter = (amount: number) => {
-  return "GH₵" + amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return "₵" + amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 const columns: DataTableColumn<Collection>[] = [

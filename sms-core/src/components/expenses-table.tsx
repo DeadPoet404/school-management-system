@@ -26,7 +26,7 @@ const amberBadge = "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-5
 const redBadge = "bg-red-50 text-red-700 border-red-200 hover:bg-red-50 dark:bg-red-950/40 dark:text-red-400 dark:border-red-900/60"
 
 const currencyFormatter = (amount: number) => {
-  return "GH₵" + amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return "₵" + amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function displayStatus(status: Expense["status"]) {

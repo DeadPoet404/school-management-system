@@ -131,7 +131,7 @@ export function DashboardTreasuryCard({
         </div>
 
         <CardTitle className="mt-3 text-[2.45rem] font-semibold leading-none tracking-[-0.05em]">
-          GH₵{totalRevenue.toLocaleString()}
+          ₵{totalRevenue.toLocaleString()}
         </CardTitle>
 
         <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
@@ -140,7 +140,7 @@ export function DashboardTreasuryCard({
         </div>
 
         <p className="mt-1 text-[11px] text-muted-foreground">
-          GH₵{totalInvoiced.toLocaleString()} invoiced this term
+          ₵{totalInvoiced.toLocaleString()} invoiced this term
         </p>
 
         <div className="flex gap-2 pt-4">
@@ -227,7 +227,7 @@ export function DashboardTreasuryCard({
                       </span>
 
                       <span className="text-[11px] font-semibold tabular-nums">
-                        GH₵{method.amount.toLocaleString()}
+                        ₵{method.amount.toLocaleString()}
                       </span>
                     </div>
                   </div>
@@ -259,7 +259,7 @@ export function DashboardTreasuryCard({
                   </div>
 
                   <span className="ml-3 shrink-0 text-[11px] font-semibold">
-                    GH₵{payment.amount.toLocaleString()}
+                    ₵{payment.amount.toLocaleString()}
                   </span>
                 </div>
               ))}
@@ -277,7 +277,7 @@ export function DashboardTreasuryCard({
             </p>
 
             <p className="mt-0.5 text-[10px] text-muted-foreground">
-              GH₵{spentBudget.toLocaleString()} spent
+              ₵{spentBudget.toLocaleString()} spent
             </p>
           </div>
 
@@ -296,7 +296,7 @@ export function DashboardTreasuryCard({
         <div className="mt-1.5 flex justify-between text-[9px] text-muted-foreground">
           <span>Spent</span>
           <span>
-            GH₵{totalBudget.toLocaleString()} budget
+            ₵{totalBudget.toLocaleString()} budget
           </span>
         </div>
       </CardContent>

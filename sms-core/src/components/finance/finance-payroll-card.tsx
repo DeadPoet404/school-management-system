@@ -69,7 +69,7 @@ export function FinancePayrollCard({
           <div>
             <div className="flex items-baseline gap-1">
               <span className="text-[11px] font-medium text-muted-foreground">
-                GH₵
+                ₵
               </span>
 
               <span className="text-[2.7rem] font-semibold leading-none tracking-[-0.06em] tabular-nums">

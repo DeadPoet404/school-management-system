@@ -74,7 +74,7 @@ export function StudentFinancialTable({ data: rawStudents }: StudentFinancialTab
         : "—"
 
       const rawAmountPaid = lastTx && lastTx.type !== "Invoice" ? lastTx.amount : 0
-      const formattedAmountPaid = rawAmountPaid > 0 ? `GH₵ ${rawAmountPaid.toFixed(2)}` : "—"
+      const formattedAmountPaid = rawAmountPaid > 0 ? `₵ ${rawAmountPaid.toFixed(2)}` : "—"
 
       return {
         id: fallbackId,
@@ -93,7 +93,7 @@ export function StudentFinancialTable({ data: rawStudents }: StudentFinancialTab
               ? "text-red-600 dark:text-red-400" 
               : "text-emerald-600 dark:text-emerald-400"
           }`}>
-            {rollingOutstandingBalance <= 0 ? "Settled" : `GH₵ ${rollingOutstandingBalance.toFixed(2)}`}
+            {rollingOutstandingBalance <= 0 ? "Settled" : `₵ ${rollingOutstandingBalance.toFixed(2)}`}
           </span>
         ),
         status: (

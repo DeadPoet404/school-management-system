@@ -43,9 +43,9 @@ export function FacultyPayrollTable({ data: rawTeachers }: FacultyPayrollTablePr
             {item.account?.fullName || item.teacherName || "Unknown Faculty"}
           </span>
         ),
-        baseSalary: base > 0 ? `GH₵ ${base.toFixed(2)}` : "—",
-        deductions: deduct > 0 ? `GH₵ ${deduct.toFixed(2)}` : "—",
-        netPay: net > 0 ? `GH₵ ${net.toFixed(2)}` : "—",
+        baseSalary: base > 0 ? `₵ ${base.toFixed(2)}` : "—",
+        deductions: deduct > 0 ? `₵ ${deduct.toFixed(2)}` : "—",
+        netPay: net > 0 ? `₵ ${net.toFixed(2)}` : "—",
         accountRouting: (
           <div className="flex flex-col text-left whitespace-nowrap">
             <span className="text-xs font-medium text-zinc-800 dark:text-zinc-200">{bankLabel}</span>

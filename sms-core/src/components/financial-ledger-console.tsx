@@ -64,7 +64,7 @@ const LEDGER_FILTER_SCHEMAS: Record<LedgerTabToken, FilterField[]> = {
     },
     {
       id: "minBalance",
-      label: "Minimum Outstanding Balance (GH₵)",
+      label: "Minimum Outstanding Balance (₵)",
       type: "number",
       min: 0,
       placeholder: "Show invoices with balances above…",
@@ -87,7 +87,7 @@ const LEDGER_FILTER_SCHEMAS: Record<LedgerTabToken, FilterField[]> = {
     },
     {
       id: "minNetPay",
-      label: "Minimum Net Pay (GH₵)",
+      label: "Minimum Net Pay (₵)",
       type: "number",
       min: 0,
       placeholder: "Show payslips above…",
@@ -108,7 +108,7 @@ const LEDGER_FILTER_SCHEMAS: Record<LedgerTabToken, FilterField[]> = {
     },
     {
       id: "minThreshold",
-      label: "Minimum Amount (GH₵)",
+      label: "Minimum Amount (₵)",
       type: "number",
       min: 0,
       placeholder: "Show payments greater than…",

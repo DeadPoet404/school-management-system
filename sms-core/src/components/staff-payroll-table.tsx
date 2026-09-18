@@ -41,7 +41,7 @@ export function StaffPayrollTable({ data: rawStaff }: StaffPayrollTableProps) {
           </span>
         ),
         clearanceTier: item.payroll?.clearanceTier || "TIER-1",
-        baseSalary: salaryAmount > 0 ? `GH₵ ${salaryAmount.toFixed(2)}` : "—",
+        baseSalary: salaryAmount > 0 ? `₵ ${salaryAmount.toFixed(2)}` : "—",
         bankRouting: (
           <div className="flex flex-col text-left max-w-[240px]">
             <span className="text-xs font-medium text-zinc-800 dark:text-zinc-200 truncate">{bankLabel}</span>

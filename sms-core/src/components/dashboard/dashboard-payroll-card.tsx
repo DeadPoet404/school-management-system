@@ -132,7 +132,7 @@ export function DashboardPayrollCard({
             <div className="flex items-baseline gap-1">
 
               <span className="text-[11px] font-medium text-muted-foreground">
-                GH₵
+                ₵
               </span>
 
               <span className="text-[2.7rem] font-semibold leading-none tracking-[-0.06em] tabular-nums">
@@ -198,7 +198,7 @@ export function DashboardPayrollCard({
             >
 
               <span className="truncate text-[10px] font-semibold text-white">
-                GH₵{payroll.paid.toLocaleString()} paid
+                ₵{payroll.paid.toLocaleString()} paid
               </span>
 
             </div>
@@ -214,7 +214,7 @@ export function DashboardPayrollCard({
             >
 
               <span className="truncate text-[10px] font-semibold text-foreground">
-                GH₵{payroll.pending.toLocaleString()}
+                ₵{payroll.pending.toLocaleString()}
               </span>
 
             </div>
@@ -264,7 +264,7 @@ export function DashboardPayrollCard({
             </div>
 
             <p className="mt-2 text-lg font-semibold tracking-tight tabular-nums">
-              GH₵{payroll.paid.toLocaleString()}
+              ₵{payroll.paid.toLocaleString()}
             </p>
 
             <p className="mt-1 text-[9px] text-muted-foreground">
@@ -286,7 +286,7 @@ export function DashboardPayrollCard({
             </div>
 
             <p className="mt-2 text-lg font-semibold tracking-tight tabular-nums">
-              GH₵{payroll.pending.toLocaleString()}
+              ₵{payroll.pending.toLocaleString()}
             </p>
 
             <p className="mt-1 text-[9px] text-muted-foreground">

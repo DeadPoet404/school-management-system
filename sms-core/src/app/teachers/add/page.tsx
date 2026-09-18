@@ -643,7 +643,7 @@ function ComprehensiveTeacherEnrollmentWizard() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-1.5 md:col-span-1">
                   <Label htmlFor="salary" className="text-sm font-semibold sm:text-xs text-foreground">
-                    Base Salary (GH₵) <span className="text-red-500">*</span>
+                    Base Salary (₵) <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     id="salary"

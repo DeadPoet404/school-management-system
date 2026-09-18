@@ -10,7 +10,7 @@ import type { Expense } from "@/components/expenses-table"
 import type { PayrollRecord } from "@/components/payroll-table"
 
 const GH = (n: number) =>
-  `GH₵ ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  `₵ ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 const fmtDate = (d: string) =>
   d ? new Date(d).toLocaleDateString() : "—"

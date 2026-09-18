@@ -377,7 +377,7 @@ export function FeeStructureInvoiceConfig({
                     
                     <div className="flex-1 flex items-center gap-1.5">
                       <div className="relative w-full">
-                        <span className="absolute left-2 top-2.5 text-[11px] font-bold leading-none text-stone-400 dark:text-zinc-500">GH₵</span>
+                        <span className="absolute left-2 top-2.5 text-[11px] font-bold leading-none text-stone-400 dark:text-zinc-500">₵</span>
                         <Input
                           type="number"
                           min="0"
@@ -539,7 +539,7 @@ export function FeeStructureInvoiceConfig({
                   
                   <div className="text-right">
                     <span className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block">Aggregate Bill Amount</span>
-                    <span className="text-2xl tracking-tight font-semibold text-white">GH₵{totalAccumulatedInvoiceAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span className="text-2xl tracking-tight font-semibold text-white">₵{totalAccumulatedInvoiceAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                 </div>
 

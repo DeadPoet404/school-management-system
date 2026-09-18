@@ -624,7 +624,7 @@ function EditTeacherForm() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="salary" className="text-xs font-semibold text-foreground">Base Salary (GH₵)</Label>
+                  <Label htmlFor="salary" className="text-xs font-semibold text-foreground">Base Salary (₵)</Label>
                   <Input
                     id="salary"
                     type="number"
@@ -636,7 +636,7 @@ function EditTeacherForm() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="deductions" className="text-xs font-semibold text-foreground">Deductions (GH₵)</Label>
+                  <Label htmlFor="deductions" className="text-xs font-semibold text-foreground">Deductions (₵)</Label>
                   <Input
                     id="deductions"
                     type="number"
@@ -648,7 +648,7 @@ function EditTeacherForm() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="net-pay" className="text-xs font-semibold text-foreground">Net Pay (GH₵)</Label>
+                  <Label htmlFor="net-pay" className="text-xs font-semibold text-foreground">Net Pay (₵)</Label>
                   <Input
                     id="net-pay"
                     className="h-9 text-xs rounded-md bg-stone-100 dark:bg-stone-900 border-stone-200 dark:border-stone-800 text-stone-500"

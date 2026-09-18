@@ -172,7 +172,7 @@ export function DashboardReceivablesCard({
         </div>
 
         <CardTitle className="mt-3 text-[2.45rem] font-semibold leading-none tracking-[-0.05em]">
-          GH₵{(agingData?.totalOutstanding ?? 0).toLocaleString()}
+          ₵{(agingData?.totalOutstanding ?? 0).toLocaleString()}
         </CardTitle>
 
         <p className="mt-2 text-[11px] text-muted-foreground">
@@ -233,7 +233,7 @@ export function DashboardReceivablesCard({
               </div>
 
               <p className="mt-1 text-sm font-semibold">
-                GH₵{Math.round(item.amount / 1000)}k
+                ₵{Math.round(item.amount / 1000)}k
               </p>
 
               <p className="mt-0.5 text-[9px] text-muted-foreground">
@@ -280,7 +280,7 @@ export function DashboardReceivablesCard({
                 </div>
 
                 <span className="shrink-0 text-[11px] font-semibold tabular-nums">
-                  GH₵{debtor.balance.toLocaleString()}
+                  ₵{debtor.balance.toLocaleString()}
                 </span>
               </div>
             ))}

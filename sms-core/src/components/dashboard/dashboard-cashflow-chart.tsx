@@ -114,7 +114,7 @@ export function ChartBarStacked({
               Fee Collections
             </span>
             <span className="text-lg leading-none font-bold sm:text-2xl tracking-tight text-foreground">
-              GH₵{totalCollections.toLocaleString()}
+              ₵{totalCollections.toLocaleString()}
             </span>
           </div>
           <div className="relative z-30 flex flex-1 min-w-[140px] sm:min-w-[170px] flex-col justify-center gap-1 border-t border-l px-6 py-4 text-left sm:border-t-0 sm:px-8 sm:py-6">
@@ -123,7 +123,7 @@ export function ChartBarStacked({
               Operating Spend
             </span>
             <span className="text-lg leading-none font-bold sm:text-2xl tracking-tight text-foreground">
-              GH₵{totalExpenses.toLocaleString()}
+              ₵{totalExpenses.toLocaleString()}
             </span>
           </div>
         </div>
@@ -157,7 +157,7 @@ export function ChartBarStacked({
                 <ChartTooltipContent
                   indicator="dashed"
                   formatter={(val, name) => [
-                    `GH₵${Number(val).toLocaleString()}`,
+                    `₵${Number(val).toLocaleString()}`,
                     name === "collections" ? "Fee Collections" : "Operating Spend",
                   ]}
                 />

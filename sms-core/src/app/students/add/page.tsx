@@ -1160,22 +1160,22 @@
                         <div className="grid grid-cols-3 gap-2 text-center">
                           <div>
                             <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Admission</p>
-                            <p className="font-mono text-xs font-medium">GH₵ {selectedFeeBand.admission.toLocaleString("en-GH")}</p>
+                            <p className="font-mono text-xs font-medium">₵ {selectedFeeBand.admission.toLocaleString("en-GH")}</p>
                           </div>
                           <div>
                             <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Uniform</p>
-                            <p className="font-mono text-xs font-medium">GH₵ {selectedFeeBand.uniform.toLocaleString("en-GH")}</p>
+                            <p className="font-mono text-xs font-medium">₵ {selectedFeeBand.uniform.toLocaleString("en-GH")}</p>
                           </div>
                           <div>
                             <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Term fees</p>
-                            <p className="font-mono text-xs font-medium">GH₵ {selectedFeeBand.tuition.toLocaleString("en-GH")}</p>
+                            <p className="font-mono text-xs font-medium">₵ {selectedFeeBand.tuition.toLocaleString("en-GH")}</p>
                           </div>
                         </div>
                         <div className="border-t border-zinc-200 pt-1.5 dark:border-zinc-800">
                           <p className="text-xs">
                             <span className="text-zinc-500 dark:text-zinc-400">Total due — FIRST TERM 2026/27: </span>
                             <span className="font-mono font-semibold text-foreground">
-                              GH₵ {(selectedFeeBand.admission + selectedFeeBand.uniform + selectedFeeBand.tuition).toLocaleString("en-GH")}
+                              ₵ {(selectedFeeBand.admission + selectedFeeBand.uniform + selectedFeeBand.tuition).toLocaleString("en-GH")}
                             </span>
                           </p>
                         </div>
@@ -1194,7 +1194,7 @@
 
                 <div className="space-y-1.5">
                   <Label htmlFor="deposit" className="text-sm font-semibold sm:text-xs text-foreground">
-                    Initial Deposit (GH₵){" "}
+                    Initial Deposit (₵){" "}
                     <span className="text-zinc-400 dark:text-zinc-500 text-[10px] font-normal">
                       (Optional)
                     </span>
