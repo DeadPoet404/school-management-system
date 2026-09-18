@@ -20,7 +20,7 @@ const blueBadge = "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50 dar
 const amberBadge = "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/60"
 
 const currencyFormatter = (amount: number) => {
-  return "GH\u20a5" + amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return "GH₵" + amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function displayStatus(status: PayrollRecord["status"]) {

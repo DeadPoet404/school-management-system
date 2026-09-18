@@ -6,7 +6,7 @@ import { fetchWithAuth } from "@/lib/fetch-with-auth"
 import { useClasses } from "@/lib/api/reference"
 import { ClassTabStrip } from "@/components/class-tab-strip"
 import { 
-  DollarSign, 
+  Banknote, 
   Plus, 
   Trash2, 
   Calendar, 
@@ -377,7 +377,7 @@ export function FeeStructureInvoiceConfig({
                     
                     <div className="flex-1 flex items-center gap-1.5">
                       <div className="relative w-full">
-                        <DollarSign className="absolute left-2 top-2.5 h-3 w-3 text-stone-400 dark:text-zinc-500" />
+                        <span className="absolute left-2 top-2.5 text-[11px] font-bold leading-none text-stone-400 dark:text-zinc-500">GH₵</span>
                         <Input
                           type="number"
                           min="0"

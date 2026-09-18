@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useMemo, useState, useCallback, useEffect } from "react"
 import {
-  DollarSign,
+  Banknote,
   User,
   CreditCard,
   FileText,
@@ -367,7 +367,7 @@ export function PaymentInflowCollectionLog({
                   {selectedStudentData && (
                     <div className="flex w-full items-center gap-1.5 rounded-md bg-stone-100 px-2 py-1.5 text-xs font-medium text-stone-600 dark:bg-zinc-900 dark:text-zinc-400 sm:w-fit sm:text-[10px] sm:py-1">
                       <Wallet className="h-3 w-3" />
-                      Outstanding Balance: <span className="font-bold text-stone-900 dark:text-zinc-100">${parseFloat(selectedStudentData.billing.currentBalance).toFixed(2)}</span>
+                      Outstanding Balance: <span className="font-bold text-stone-900 dark:text-zinc-100">GH₵{parseFloat(selectedStudentData.billing.currentBalance).toFixed(2)}</span>
                     </div>
                   )}
                 </div>
@@ -375,10 +375,10 @@ export function PaymentInflowCollectionLog({
                 {/* Amount Paid Field */}
                 <div className="space-y-1.5">
                   <Label htmlFor="amount-paid" className="text-xs font-semibold text-stone-700 dark:text-zinc-300 flex items-center gap-1">
-                    <DollarSign className="h-3 w-3 text-stone-400 dark:text-zinc-500" /> Amount paid <span className="text-red-500">*</span>
+                    <span className="text-[11px] font-bold text-stone-400 dark:text-zinc-500">GH₵</span> Amount paid <span className="text-red-500">*</span>
                   </Label>
                   <div className="relative w-full">
-                    <DollarSign className="absolute left-3 top-3.5 h-4 w-4 text-stone-400 dark:text-zinc-500 sm:left-2.5 sm:top-3 sm:h-3 sm:w-3" />
+                    <span className="absolute left-3 top-3.5 text-[13px] font-bold leading-none text-stone-400 dark:text-zinc-500 sm:left-2.5 sm:top-3 sm:text-[11px]">GH₵</span>
                     <Input
                       id="amount-paid"
                       type="number"
@@ -542,7 +542,7 @@ export function PaymentInflowCollectionLog({
                     <div className="mt-3 flex items-center justify-between gap-3 border-t border-stone-200/70 pt-3 dark:border-zinc-800/70 sm:mt-2 sm:gap-4 sm:border-0 sm:pt-0">
                       <div>
                         <span className="block text-sm font-bold text-stone-900 dark:text-zinc-50 sm:text-xs">
-                          ${parseFloat(rcpt.amountPaid).toFixed(2)}
+                          GH₵{parseFloat(rcpt.amountPaid).toFixed(2)}
                         </span>
                         <span className="block text-[11px] font-medium tracking-tight text-stone-400 dark:text-zinc-500 sm:text-[10px]">
                           {new Date(rcpt.dateProcessed).toISOString().split('T')[0]}
