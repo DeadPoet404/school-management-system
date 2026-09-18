@@ -26,8 +26,8 @@ export async function printPaymentsInPage(date: string): Promise<void> {
   iframe.style.position = "fixed";
   iframe.style.left = "-10000px";
   iframe.style.top = "0";
-  iframe.style.width = "297mm";
-  iframe.style.height = "210mm";
+  iframe.style.width = "210mm";
+  iframe.style.height = "297mm";
   iframe.style.border = "0";
   document.body.appendChild(iframe);
 

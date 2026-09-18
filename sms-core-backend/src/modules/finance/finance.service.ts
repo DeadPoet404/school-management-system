@@ -664,9 +664,7 @@ export class FinanceService {
       receiptNumber: record.receiptNumber,
       studentName: record.studentName,
       studentCode: record.student?.studentId ?? null,
-      className: record.class
-        ? `${record.class.name}${record.class.section ? ` — Section ${record.class.section}` : ''}`
-        : '—',
+      className: record.class?.name ?? '—',
       amountPaid: parseDecimal(record.amountPaid),
       paymentMethod: record.paymentMethod,
       referenceNo: record.referenceNo,

@@ -84,7 +84,6 @@ export function renderCollectionsPrintHtml(data: CollectionsPrintData): string {
       (payment, index) => `
       <tr>
         <td class="c-no">${index + 1}</td>
-        <td class="c-receipt mono">${escapeHtml(payment.receiptNumber)}</td>
         <td class="c-student-code mono">${escapeHtml(payment.studentCode || '—')}</td>
         <td class="c-student">${escapeHtml(payment.studentName)}</td>
         <td class="c-class">${escapeHtml(payment.className)}</td>
@@ -99,7 +98,7 @@ export function renderCollectionsPrintHtml(data: CollectionsPrintData): string {
 
   const body =
     data.payments.length === 0
-      ? '<tr><td colspan="10" class="empty">No payments were recorded on this date.</td></tr>'
+      ? '<tr><td colspan="9" class="empty">No payments were recorded on this date.</td></tr>'
       : rows;
 
   return `<!DOCTYPE html>
@@ -109,7 +108,7 @@ export function renderCollectionsPrintHtml(data: CollectionsPrintData): string {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Payment Register — ${printedDate}</title>
   <style>
-    @page { size: A4 landscape; margin: 7mm 12mm 10mm; }
+    @page { size: A4 portrait; margin: 7mm 12mm 10mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { background: #ffffff; }
     body {
@@ -195,6 +194,7 @@ export function renderCollectionsPrintHtml(data: CollectionsPrintData): string {
       margin-top: 3mm;
       border-collapse: collapse;
       table-layout: fixed;
+      border-bottom: 1.2pt solid #082a70;
     }
     thead { display: table-header-group; }
     thead th {
@@ -207,14 +207,13 @@ export function renderCollectionsPrintHtml(data: CollectionsPrintData): string {
       border-bottom: 2.2pt solid #e4b43c;
     }
     th.c-no, td.c-no { width: 4%; text-align: center; }
-    th.c-receipt, td.c-receipt { width: 10%; }
-    th.c-student-code, td.c-student-code { width: 9%; }
-    th.c-student, td.c-student { width: 15%; }
+    th.c-student-code, td.c-student-code { width: 12%; }
+    th.c-student, td.c-student { width: 18%; }
     th.c-class, td.c-class { width: 12%; }
     th.c-amount, td.c-amount { width: 10%; text-align: right; white-space: nowrap; }
-    th.c-method, td.c-method { width: 9%; }
-    th.c-allocation, td.c-allocation { width: 14%; }
-    th.c-reference, td.c-reference { width: 10%; }
+    th.c-method, td.c-method { width: 10%; }
+    th.c-allocation, td.c-allocation { width: 16%; }
+    th.c-reference, td.c-reference { width: 11%; }
     th.c-time, td.c-time { width: 7%; text-align: center; }
     td {
       border: 0.4pt solid #d9dde6;
@@ -224,6 +223,7 @@ export function renderCollectionsPrintHtml(data: CollectionsPrintData): string {
       overflow-wrap: anywhere;
     }
     tr:nth-child(even) td { background: #f6f7f9; }
+    tbody tr:last-child td { border-bottom: 1.2pt solid #082a70; }
     tr { page-break-inside: avoid; break-inside: avoid; }
     .mono { font-family: 'Courier New', Courier, monospace; font-size: 7.3pt; color: #3c4256; }
     td.c-no { font-size: 8pt; color: #3c4256; }
@@ -295,7 +295,6 @@ export function renderCollectionsPrintHtml(data: CollectionsPrintData): string {
     <thead>
       <tr>
         <th class="c-no">NO.</th>
-        <th class="c-receipt">RECEIPT NO.</th>
         <th class="c-student-code">STUDENT ID</th>
         <th class="c-student">STUDENT NAME</th>
         <th class="c-class">CLASS</th>
