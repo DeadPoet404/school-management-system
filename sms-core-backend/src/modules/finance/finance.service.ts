@@ -309,6 +309,13 @@ export class FinanceService {
           },
         }, tx);
       }
+    }, {
+      // The matrix contains one delete/create pair per class. The default
+      // Prisma interactive-transaction timeout is 5 seconds, which is too
+      // short for the full class matrix on the Supabase pooler and produces
+      // P2028 ("Transaction not found") while the loop is still running.
+      maxWait: 10_000,
+      timeout: 30_000,
     });
   }
 
