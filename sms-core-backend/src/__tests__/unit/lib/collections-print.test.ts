@@ -28,7 +28,7 @@ describe('renderCollectionsPrintHtml', () => {
     expect(html).toContain('₵2,450.50');
     expect(html).toContain('10:15');
     expect(html).toContain('Ama &lt;A&gt;');
-    expect(html).toContain('A4 landscape');
+    expect(html).toContain('A4 portrait');
   });
 
   it('renders a useful empty-state register', () => {
