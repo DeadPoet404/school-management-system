@@ -27,7 +27,27 @@ export function StudentFinancialTable({ data: rawStudents }: StudentFinancialTab
       "Pending Review": "text-amber-600 dark:text-amber-400 bg-amber-50/50 dark:bg-amber-950/20 px-2 py-0.5 rounded text-xs w-fit font-medium",
     }
 
-    return rawStudents.map((item, index) => {
+    // Show the students with the most recent valid payment first. Students
+    // without a payment are kept at the bottom, with a stable name tie-breaker.
+    const latestPaymentTime = (item: any) => {
+      const payments = Array.isArray(item.payments) ? item.payments : []
+      return payments.reduce((latest: number, payment: any) => {
+        if (payment.deletedAt) return latest
+        const timestamp = new Date(payment.createdAt).getTime()
+        return Number.isFinite(timestamp) ? Math.max(latest, timestamp) : latest
+      }, Number.NEGATIVE_INFINITY)
+    }
+
+    const orderedStudents = [...rawStudents].sort((a, b) => {
+      const paymentOrder = latestPaymentTime(b) - latestPaymentTime(a)
+      if (paymentOrder !== 0) return paymentOrder
+
+      const nameA = String(a.studentName || a.account?.fullName || a.name || "")
+      const nameB = String(b.studentName || b.account?.fullName || b.name || "")
+      return nameA.localeCompare(nameB)
+    })
+
+    return orderedStudents.map((item, index) => {
       const currentStatus = item.status || "Active"
       const rawName = item.studentName || item.account?.fullName || item.name || "Unknown Student"
       const fallbackId = item.studentId || item.id || `STD-${index}`
