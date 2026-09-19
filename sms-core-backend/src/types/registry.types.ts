@@ -69,6 +69,10 @@ account: baseAccountSchema.extend({
     })
     .nullable()
     .optional(),
+  // A match is advisory until the enrolling staff member makes an explicit
+  // decision. The service re-checks these ids and contacts server-side.
+  familyMatchConfirmed: z.boolean().optional().default(false),
+  familyMatchStudentIds: z.array(z.string().uuid()).max(50).optional().default([]),
   billing: z.object({
     // Optional: the enrollment UI derives the band tier from the selected
     // class (admission + uniform + termly tuition). Explicit ids remain for

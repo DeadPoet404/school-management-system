@@ -156,9 +156,37 @@ export class StudentController {
     }
   };
 
+  /**
+   * Advisory family lookup for the enrollment wizard. The response is never
+   * a discount decision; staff must confirm the selected students before the
+   * enrollment service attaches the new ward to a family group.
+   */
+  public getFamilyMatches = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
+    try {
+      const phone = typeof req.query.phone === 'string' ? req.query.phone : undefined;
+      const email = typeof req.query.email === 'string' ? req.query.email : undefined;
+      const matches = await this.studentService.getFamilyMatches(phone, email);
+      return res.status(200).json({ success: true, data: matches });
+    } catch (error) {
+      next(error);
+    }
+  };
+
   public enrollStudent = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
-      const { account, demographics, placement, compliance, billing, payroll, guardian, parent } = req.body;
+      const {
+        account,
+        demographics,
+        placement,
+        compliance,
+        billing,
+        payroll,
+        guardian,
+        parent,
+        guardian2,
+        familyMatchConfirmed,
+        familyMatchStudentIds,
+      } = req.body;
 
       if (!account?.fullName || !account?.email) {
         return res.status(400).json({ success: false, message: "Missing core identity payloads (fullName and email are required)."});
@@ -173,6 +201,9 @@ export class StudentController {
         // `guardian` and falls back to `parent`.
         guardian,
         parent,
+        guardian2,
+        familyMatchConfirmed,
+        familyMatchStudentIds,
         billing: billing || payroll,
       });
 
@@ -186,6 +217,7 @@ export class StudentController {
           // Set only when an initial deposit was recorded during enrollment
           // (band path); the enrollment UI shows the receipt + print button.
           ...(newStudent.depositReceipt ? { depositReceipt: newStudent.depositReceipt } : {}),
+          familyEnrollment: newStudent.familyEnrollment,
         },
       });
     } catch (error) {

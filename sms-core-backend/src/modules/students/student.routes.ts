@@ -73,6 +73,13 @@ router.post(
 
 router.get("/finance", requireRole(ROLES.STAFF, ROLES.ADMIN, ROLES.ACCOUNTANT), controller.getFinancialMatrix);
 
+// Must precede /:id so "family-matches" is not treated as a student id.
+router.get(
+  "/family-matches",
+  requireRole(ROLES.STAFF, ROLES.ADMIN),
+  controller.getFamilyMatches,
+);
+
 // SMS-005: portal self-view. MUST stay BEFORE /:id -- otherwise Express
 // binds the literal "me" to the :id parameter and this route is shadowed.
 router.get("/me", requireRole(ROLES.STUDENT), controller.getOwnProfile);

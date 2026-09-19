@@ -24,6 +24,27 @@
 
   // ── TYPE DEFINITIONS ──
   type FormState = "idle" | "submitting" | "success" | "error"
+  type FamilyMatchDecision = "pending" | "same" | "different"
+
+  type FamilyMatchResponse = {
+    familyGroupId: string | null
+    currentWardCount: number
+    projectedWardCount: number
+    matches: Array<{
+      id: string
+      studentId: string
+      studentName: string
+      className: string | null
+      familyGroupId: string | null
+      matchReason: string
+    }>
+  }
+
+  type FamilyEnrollmentResult = {
+    familyGroupId: string | null
+    currentWardCount: number
+    projectedWardCount: number
+  }
 
   // D-08: the MOCK_CLASSES / MOCK_FEE_TIERS arrays used invented IDs
   // (cls-1, tier-std) that do not exist in the database, so every
@@ -137,6 +158,11 @@
     const [secondGuardianPhone, setSecondGuardianPhone] = React.useState("")
     const [secondGuardianEmail, setSecondGuardianEmail] = React.useState("")
 
+    // ── FAMILY MATCHING (ADVISORY UNTIL STAFF CONFIRMS) ──
+    const [familyMatch, setFamilyMatch] = React.useState<FamilyMatchResponse | null>(null)
+    const [familyMatchDecision, setFamilyMatchDecision] = React.useState<FamilyMatchDecision>("pending")
+    const [familyLookupState, setFamilyLookupState] = React.useState<"idle" | "loading" | "ready" | "error">("idle")
+
     // ── STEP 6: FEES (AUTO FROM CLASS) & INITIAL DEPOSIT ──
     const [initialDeposit, setInitialDeposit] = React.useState("")
 
@@ -146,6 +172,7 @@
     // Set only when an initial deposit was recorded during enrollment — the
     // server returns the collection's receipt so it can be printed in place.
     const [depositReceipt, setDepositReceipt] = React.useState<{ receiptNumber: string; collectionId: string } | null>(null)
+    const [familyEnrollment, setFamilyEnrollment] = React.useState<FamilyEnrollmentResult | null>(null)
 
     // ── REFERENCE DATA (live, from /api/reference) ──
     const { data: classes = [], isLoading: classesLoading } = useClasses()
@@ -159,6 +186,50 @@
           : null,
       [selectedClass]
     )
+
+    React.useEffect(() => {
+      const phone = guardianPhone.trim()
+      const email = guardianEmail.trim()
+      const hasUsablePhone = phone.replace(/\D/g, "").length >= 7
+      const hasUsableEmail = email.includes("@")
+
+      let cancelled = false
+      const timer = window.setTimeout(async () => {
+        setFamilyMatch(null)
+        setFamilyMatchDecision("pending")
+        setFamilyLookupState(hasUsablePhone || hasUsableEmail ? "loading" : "idle")
+        if (!hasUsablePhone && !hasUsableEmail) return
+
+        try {
+          const params = new URLSearchParams()
+          if (phone) params.set("phone", phone)
+          if (email) params.set("email", email)
+          const response = await fetchWithAuth(`/students/family-matches?${params.toString()}`)
+          const json = await response.json().catch(() => null)
+          if (!response.ok || !json?.success) {
+            throw new Error(json?.message || "Family match lookup failed.")
+          }
+          if (!cancelled) {
+            setFamilyMatch(json.data as FamilyMatchResponse)
+            setFamilyLookupState("ready")
+          }
+        } catch {
+          if (!cancelled) setFamilyLookupState("error")
+        }
+      }, 450)
+
+      return () => {
+        cancelled = true
+        window.clearTimeout(timer)
+      }
+    }, [guardianPhone, guardianEmail])
+
+    const familyDiscountPreview = React.useMemo(() => {
+      const projectedWardCount = familyMatch?.projectedWardCount ?? 0
+      if (projectedWardCount >= 4) return 700
+      if (projectedWardCount === 3) return 300
+      return 0
+    }, [familyMatch])
 
     const isSubmitting = formState === "submitting"
 
@@ -234,6 +305,12 @@
         if (!secondGuardianPhone.trim()) missingFields.push("Second Guardian Phone")
       }
 
+      if (familyLookupState === "loading") {
+        missingFields.push("Wait for the family match lookup to finish")
+      } else if (familyMatch && familyMatch.matches.length > 0 && familyMatchDecision === "pending") {
+        missingFields.push("Staff family-match decision")
+      }
+
       // ── FAIL FAST ON FRONTEND ──
       if (missingFields.length > 0) {
         // Mark all select fields as touched so their red borders appear
@@ -289,6 +366,11 @@
         billing: {
           initialDeposit: initialDeposit ? parseFloat(initialDeposit) : 0,
         },
+        // Family matching is never an automatic discount trigger. Only the
+        // explicit “Same family” action sends the selected existing ward ids.
+        familyMatchConfirmed: familyMatchDecision === "same",
+        familyMatchStudentIds:
+          familyMatchDecision === "same" ? familyMatch?.matches.map((match) => match.id) ?? [] : [],
       }
 
       // ═══════════════════════════════════════════════════════════
@@ -318,6 +400,7 @@
         setCreatedStudentId(savedStudent.studentId || savedStudent.id)
         setCreatedStudentName(savedStudent.studentName)
         setDepositReceipt(savedStudent.depositReceipt ?? null)
+        setFamilyEnrollment(savedStudent.familyEnrollment ?? null)
         setFormState("success")
         // Fresh credentials for any next enrollment — the generated token
         // must never be reused across two different students.
@@ -377,6 +460,16 @@
               </span>
               .
             </p>
+            {familyEnrollment?.familyGroupId && (
+              <div className="mt-3 rounded-md border border-sky-200 bg-sky-50/60 px-4 py-3 text-center dark:border-sky-900/40 dark:bg-sky-950/20">
+                <p className="text-xs font-medium text-sky-900 dark:text-sky-200">
+                  Staff-confirmed family link saved — {familyEnrollment.projectedWardCount} active wards after this enrollment.
+                </p>
+                <p className="mt-1 text-[11px] text-sky-800/80 dark:text-sky-300/80">
+                  No discount was applied automatically. Discount invoice-period policy remains pending confirmation.
+                </p>
+              </div>
+            )}
             {depositReceipt && (
               <div className="mt-3 flex flex-col items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50/60 px-4 py-3 dark:border-emerald-900/40 dark:bg-emerald-950/20">
                 <p className="text-xs text-emerald-800 dark:text-emerald-300">
@@ -1134,6 +1227,93 @@
                       </div>
                     </div>
                   </div>
+                )}
+
+                {familyLookupState === "loading" && (
+                  <div className="rounded-md border border-dashed border-zinc-300 bg-zinc-50/60 px-4 py-3 text-xs text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900/30 dark:text-zinc-400">
+                    Checking guardian phone and email against existing wards…
+                  </div>
+                )}
+
+                {familyMatch && familyMatch.matches.length > 0 && (
+                  <div className="space-y-3 rounded-md border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-900/50 dark:bg-amber-950/20">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                      <div>
+                        <p className="text-xs font-semibold text-amber-950 dark:text-amber-200">Possible existing family</p>
+                        <p className="mt-1 text-[11px] leading-relaxed text-amber-900/80 dark:text-amber-300/80">
+                          Review the matches and make an explicit staff decision. A match never applies a discount by itself.
+                        </p>
+                      </div>
+                      <div className="shrink-0 rounded border border-amber-300/70 bg-white/60 px-2.5 py-1.5 text-right dark:border-amber-800/70 dark:bg-zinc-950/30">
+                        <p className="text-[10px] uppercase tracking-wide text-amber-800/70 dark:text-amber-300/70">Current wards</p>
+                        <p className="font-mono text-sm font-semibold text-amber-950 dark:text-amber-100">{familyMatch.currentWardCount}</p>
+                      </div>
+                    </div>
+
+                    <ul className="divide-y divide-amber-200/70 rounded border border-amber-200/70 bg-white/50 dark:divide-amber-900/50 dark:border-amber-900/50 dark:bg-zinc-950/20">
+                      {familyMatch.matches.map((match) => (
+                        <li key={match.id} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+                          <span className="font-medium text-amber-950 dark:text-amber-100">{match.studentName}</span>
+                          <span className="text-right text-[10px] text-amber-900/70 dark:text-amber-300/70">
+                            {match.studentId}{match.className ? ` · ${match.className}` : ""} · matched by {match.matchReason}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    <div className="flex flex-col gap-1 border-t border-amber-200/70 pt-2 text-[11px] text-amber-900/80 dark:border-amber-900/50 dark:text-amber-300/80">
+                      <span>Projected wards after this enrollment: <strong>{familyMatch.projectedWardCount}</strong></span>
+                      {familyDiscountPreview > 0 ? (
+                        <span>Discount tier preview: <strong>GH₵{familyDiscountPreview.toLocaleString("en-GH")}</strong> for {familyMatch.projectedWardCount >= 4 ? "4+" : "3"} wards.</span>
+                      ) : (
+                        <span>No family tier is reached at {familyMatch.projectedWardCount} ward{familyMatch.projectedWardCount === 1 ? "" : "s"}.</span>
+                      )}
+                    </div>
+
+                    {familyMatchDecision === "pending" ? (
+                      <div className="flex flex-col gap-2 pt-1 sm:flex-row">
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-9 bg-amber-900 text-xs text-white hover:bg-amber-800 dark:bg-amber-200 dark:text-amber-950 dark:hover:bg-amber-100"
+                          disabled={isSubmitting}
+                          onClick={() => setFamilyMatchDecision("same")}
+                        >
+                          Confirm same family
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-9 border-amber-300 text-xs text-amber-900 hover:bg-amber-100/60 dark:border-amber-800 dark:text-amber-200 dark:hover:bg-amber-900/30"
+                          disabled={isSubmitting}
+                          onClick={() => setFamilyMatchDecision("different")}
+                        >
+                          Not the same family
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between gap-3 border-t border-amber-200/70 pt-2 dark:border-amber-900/50">
+                        <p className="text-[11px] font-medium text-amber-950 dark:text-amber-100">
+                          {familyMatchDecision === "same" ? "Staff confirmed: same family." : "Staff marked this as a different family."}
+                        </p>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-[10px] text-amber-900 hover:bg-amber-100/70 dark:text-amber-200 dark:hover:bg-amber-900/30"
+                          disabled={isSubmitting}
+                          onClick={() => setFamilyMatchDecision("pending")}
+                        >
+                          Change decision
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {familyLookupState === "ready" && familyMatch && familyMatch.matches.length === 0 && (
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400">No existing ward matched this guardian contact.</p>
                 )}
               </div>
             </div>

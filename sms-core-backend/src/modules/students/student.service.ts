@@ -12,6 +12,7 @@ import { hashPassword } from "@/utils/hash";
 import { parseStudentImportFile, type StudentImportError, type StudentImportUploadedFile } from "./student.import";
 import { FinanceService } from "@/modules/finance/finance.service";
 import { ENROLLMENT_UMBRELLA } from "@/lib/fee-allocation";
+import { normalizeGuardianEmail, normalizeGuardianPhone } from "@/lib/guardian-contact";
 
 type StudentFinancialRow = Prisma.StudentGetPayload<{
   include: { account: true; invoices: true; payments: true; };
@@ -50,6 +51,68 @@ interface PaymentType {
   amount: Prisma.Decimal;
   paymentType: string;
   createdAt: Date;
+}
+
+type GuardianContactInput = {
+  phone?: string | null;
+  email?: string | null;
+};
+
+type FamilyMatchStudent = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  className: string | null;
+  familyGroupId: string | null;
+  matchReason: string;
+};
+
+function phoneSearchValues(value: string): string[] {
+  const trimmed = value.trim();
+  const digits = value.replace(/\D/g, '');
+  const canonical = normalizeGuardianPhone(value);
+  const values = new Set<string>();
+  for (const candidate of [trimmed, digits, canonical]) {
+    if (candidate) values.add(candidate);
+  }
+  if (canonical.startsWith('233')) {
+    values.add(`0${canonical.slice(3)}`);
+    values.add(`+${canonical}`);
+  }
+  return [...values];
+}
+
+function guardianMatchWhere(input: GuardianContactInput): Prisma.GuardianWhereInput | null {
+  const or: Prisma.GuardianWhereInput[] = [];
+  const phoneValues = input.phone ? phoneSearchValues(input.phone) : [];
+  const phoneNormalized = normalizeGuardianPhone(input.phone);
+  if (phoneValues.length > 0) {
+    or.push({
+      OR: [
+        { phoneNormalized },
+        { phone: { in: phoneValues } },
+      ],
+    });
+  }
+
+  const email = normalizeGuardianEmail(input.email);
+  if (email) {
+    or.push({
+      OR: [
+        { emailNormalized: email },
+        { email: { equals: email, mode: 'insensitive' } },
+      ],
+    });
+  }
+
+  return or.length > 0 ? { OR: or } : null;
+}
+
+function familyMatchKey(input: GuardianContactInput): string {
+  const phone = input.phone ? normalizeGuardianPhone(input.phone) : '';
+  if (phone) return `phone:${phone}`;
+  const email = input.email?.trim().toLowerCase() || '';
+  return `email:${email}`;
 }
 
 interface StudentFilters {
@@ -223,6 +286,69 @@ export class StudentService {
 
   async getAll() {
     return (await this.repo.findAll()).map((s: any) => this.normalizeMoney(s));
+  }
+
+  /**
+   * Find possible existing wards using the primary guardian contact.
+   * Matching is deliberately advisory: this method never creates a family,
+   * changes a student, or applies a discount. Staff must confirm the result
+   * during enrollment before the new student is attached to a family group.
+   */
+  async getFamilyMatches(phone?: string, email?: string) {
+    const contact = { phone: phone?.trim() || null, email: email?.trim() || null };
+    const where = guardianMatchWhere(contact);
+    if (!where) {
+      throw new AppError(400, 'A guardian phone number or email address is required for family matching.');
+    }
+
+    const students = await prisma.student.findMany({
+      where: {
+        status: { not: EntityStatus.DEPARTED },
+        guardians: { some: where },
+      },
+      select: {
+        id: true,
+        studentId: true,
+        studentName: true,
+        familyGroupId: true,
+        guardians: { where, select: { phone: true, phoneNormalized: true, email: true, emailNormalized: true } },
+        placement: { select: { class: { select: { name: true } } } },
+      },
+      orderBy: { studentName: 'asc' },
+    });
+
+    const familyGroupIds = [...new Set(students.map((student) => student.familyGroupId).filter((id): id is string => Boolean(id)))];
+    let currentWardCount = students.length;
+    let familyGroupId: string | null = familyGroupIds.length === 1 ? familyGroupIds[0]! : null;
+
+    if (familyGroupId) {
+      currentWardCount = await prisma.student.count({
+        where: { familyGroupId, status: { not: EntityStatus.DEPARTED } },
+      });
+    }
+
+    return {
+      familyGroupId,
+      currentWardCount,
+      projectedWardCount: currentWardCount + 1,
+      matches: students.map<FamilyMatchStudent>((student) => ({
+        id: student.id,
+        studentId: student.studentId,
+        studentName: student.studentName,
+        className: student.placement?.class?.name ?? null,
+        familyGroupId: student.familyGroupId,
+        matchReason: [
+          ...(contact.phone && student.guardians.some((guardian) =>
+            guardian.phoneNormalized === normalizeGuardianPhone(contact.phone) ||
+            phoneSearchValues(contact.phone!).includes(guardian.phone.trim())
+          ) ? ['phone'] : []),
+          ...(contact.email && student.guardians.some((guardian) =>
+            guardian.emailNormalized === normalizeGuardianEmail(contact.email) ||
+            guardian.email?.trim().toLowerCase() === contact.email?.trim().toLowerCase()
+          ) ? ['email'] : []),
+        ].join(' + ') || 'contact',
+      })),
+    };
   }
 
   async getPaginated(skip: number, take: number) {
@@ -462,6 +588,103 @@ export class StudentService {
     });
   }
 
+  private async resolveConfirmedFamily(input: {
+    guardian: GuardianContactInput & { name: string };
+    confirmed: boolean;
+    matchedStudentIds: string[];
+  }): Promise<{
+    familyGroupId: string | null;
+    matchedStudentIds: string[];
+    currentWardCount: number;
+    projectedWardCount: number;
+  }> {
+    const uniqueStudentIds = [...new Set(input.matchedStudentIds.filter(Boolean))];
+
+    if (!input.confirmed) {
+      if (uniqueStudentIds.length > 0) {
+        throw new AppError(409, 'Possible family matches require an explicit staff decision before enrollment can continue.');
+      }
+      return {
+        familyGroupId: null,
+        matchedStudentIds: [],
+        currentWardCount: 0,
+        projectedWardCount: 1,
+      };
+    }
+
+    if (uniqueStudentIds.length === 0) {
+      throw new AppError(400, 'Staff family confirmation requires at least one matched existing student.');
+    }
+
+    const where = guardianMatchWhere(input.guardian);
+    if (!where) {
+      throw new AppError(400, 'Family confirmation requires a guardian phone number or email address.');
+    }
+
+    // Re-check both the selected ids and the contact match server-side. The
+    // browser result is only a prompt and must not be trusted as confirmation.
+    const matchedStudents = await prisma.student.findMany({
+      where: {
+        id: { in: uniqueStudentIds },
+        status: { not: EntityStatus.DEPARTED },
+        guardians: { some: where },
+      },
+      select: { id: true, familyGroupId: true },
+    });
+
+    if (matchedStudents.length !== uniqueStudentIds.length) {
+      throw new AppError(409, 'One or more selected family matches changed or no longer match the guardian contact. Search again before confirming.');
+    }
+
+    const existingGroupIds = [...new Set(matchedStudents.map((student) => student.familyGroupId).filter((id): id is string => Boolean(id)))];
+    if (existingGroupIds.length > 1) {
+      throw new AppError(409, 'The selected students belong to different family groups. Resolve the existing family records before enrolling this ward.');
+    }
+
+    const matchKey = familyMatchKey(input.guardian);
+    const familyGroup = existingGroupIds.length === 1
+      ? await prisma.familyGroup.update({
+          where: { id: existingGroupIds[0]! },
+          data: {
+            familyName: input.guardian.name.trim() || null,
+            primaryPhone: input.guardian.phone?.trim() || null,
+            primaryEmail: input.guardian.email?.trim().toLowerCase() || null,
+          },
+        })
+      : await prisma.familyGroup.upsert({
+          where: { matchKey },
+          update: {
+            familyName: input.guardian.name.trim() || null,
+            primaryPhone: input.guardian.phone?.trim() || null,
+            primaryEmail: input.guardian.email?.trim().toLowerCase() || null,
+          },
+          create: {
+            matchKey,
+            familyName: input.guardian.name.trim() || null,
+            primaryPhone: input.guardian.phone?.trim() || null,
+            primaryEmail: input.guardian.email?.trim().toLowerCase() || null,
+          },
+        });
+
+    // Do not attach any other possible match implicitly. Only the student ids
+    // explicitly confirmed by staff are added to this group.
+    await prisma.student.updateMany({
+      where: { id: { in: uniqueStudentIds } },
+      data: { familyGroupId: familyGroup.id },
+    });
+
+    const currentWardCount = await prisma.student.count({
+      where: { familyGroupId: familyGroup.id, status: { not: EntityStatus.DEPARTED } },
+    });
+
+    return {
+      familyGroupId: familyGroup.id,
+      matchedStudentIds: uniqueStudentIds,
+      currentWardCount,
+      projectedWardCount: currentWardCount + 1,
+    };
+  }
+
   async createStudent(payload: {
     account: { fullName: string; email: string; password: string; enrollmentDate: string };
     demographics: { dateOfBirth: string; gender: string; residentialAddress: string; medicalNotes?: string | null; bloodType?: string | null; religion?: string | null; formerSchool?: string | null };
@@ -472,8 +695,21 @@ export class StudentService {
     billing: { feeTierId?: string; initialDeposit: number };
     compliance?: { nationalId?: string | null; emergencyContact?: { name?: string | null; phone?: string | null; relationship?: string | null } | null };
     legacyStudentId?: string | null;
+    familyMatchConfirmed?: boolean;
+    familyMatchStudentIds?: string[];
   }) {
-    const { account, demographics, placement, guardian, parent, guardian2, billing, compliance } = payload;
+    const {
+      account,
+      demographics,
+      placement,
+      guardian,
+      parent,
+      guardian2,
+      billing,
+      compliance,
+      familyMatchConfirmed = false,
+      familyMatchStudentIds = [],
+    } = payload;
     const resolvedGuardian = guardian || parent;
 
     if (!resolvedGuardian) {
@@ -602,6 +838,12 @@ export class StudentService {
     // rejects interactive transactions (P2028), which surfaces as HTTP 500 on import.
     const hashedPassword = await hashPassword(account.password);
 
+    const familyEnrollment = await this.resolveConfirmedFamily({
+      guardian: resolvedGuardian,
+      confirmed: familyMatchConfirmed,
+      matchedStudentIds: familyMatchStudentIds,
+    });
+
     const dbPayload = {
       studentId: uniqueStudentId,
       cohortYear: resolvedCohortYear,
@@ -611,6 +853,9 @@ export class StudentService {
       status: "ACTIVE" as const,
       currentGpa: 0.0,
       attendanceRate: 100.0,
+      ...(familyEnrollment.familyGroupId
+        ? { familyGroup: { connect: { id: familyEnrollment.familyGroupId } } }
+        : {}),
       account: { create: { portalEmail: account.email, passwordHash: hashedPassword } },
       demographics: {
         create: {
@@ -626,9 +871,23 @@ export class StudentService {
       placement: { create: { classId: placement.classId, academicTrack: placement.academicTrack, boardingStatus: placement.boardingStatus } },
       guardians: {
         create: [
-          { name: resolvedGuardian.name, relationship: resolvedGuardian.relationship, phone: resolvedGuardian.phone, email: resolvedGuardian.email ?? null },
+          {
+            name: resolvedGuardian.name,
+            relationship: resolvedGuardian.relationship,
+            phone: resolvedGuardian.phone,
+            phoneNormalized: normalizeGuardianPhone(resolvedGuardian.phone),
+            email: resolvedGuardian.email ?? null,
+            emailNormalized: normalizeGuardianEmail(resolvedGuardian.email),
+          },
           ...(resolvedGuardian2
-            ? [{ name: resolvedGuardian2.name, relationship: resolvedGuardian2.relationship, phone: resolvedGuardian2.phone, email: resolvedGuardian2.email ?? null }]
+            ? [{
+                name: resolvedGuardian2.name,
+                relationship: resolvedGuardian2.relationship,
+                phone: resolvedGuardian2.phone,
+                phoneNormalized: normalizeGuardianPhone(resolvedGuardian2.phone),
+                email: resolvedGuardian2.email ?? null,
+                emailNormalized: normalizeGuardianEmail(resolvedGuardian2.email),
+              }]
             : []),
         ],
       },
@@ -709,7 +968,7 @@ export class StudentService {
       }
     }
 
-    return { ...created, depositReceipt };
+    return { ...created, depositReceipt, familyEnrollment };
   }
 
   /**

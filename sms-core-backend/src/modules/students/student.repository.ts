@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma, EntityStatus } from "@prisma/client";
 import { IStudentRepository } from "@/types/repositories";
+import { normalizeGuardianEmail, normalizeGuardianPhone } from "@/lib/guardian-contact";
 
 export class StudentRepository implements IStudentRepository {
   async findAll(skip?: number, take?: number, tx = prisma) {
@@ -126,7 +127,9 @@ export class StudentRepository implements IStudentRepository {
         name: String(guardian.name),
         relationship: String(guardian.relationship),
         phone: String(guardian.phone),
+        phoneNormalized: normalizeGuardianPhone(String(guardian.phone)),
         email,
+        emailNormalized: normalizeGuardianEmail(email),
       };
       const existingGuardian = await tx.guardian.findFirst({
         where: { studentId: id },

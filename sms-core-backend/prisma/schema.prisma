@@ -178,6 +178,7 @@ model Student {
   photoKey       String?      @db.Text
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+  familyGroupId String?
 
   account      StudentAccount?
   demographics Demographics?
@@ -186,6 +187,7 @@ model Student {
   guardians    Guardian[]
   billing      BillingLedger?
   departures   StudentDeparture[]
+  familyGroup  FamilyGroup? @relation(fields: [familyGroupId], references: [id], onDelete: SetNull)
 
   invoices          Invoice[]
   payments          Payment[]
@@ -193,6 +195,23 @@ model Student {
   paymentLogs       PaymentCollection[]
   attendanceRecords AttendanceRecord[]
   grades            GradeRecord[]
+
+  @@index([familyGroupId])
+}
+
+model FamilyGroup {
+  id           String   @id @default(uuid())
+  matchKey     String   @unique
+  familyName   String?
+  primaryPhone String?
+  primaryEmail String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  students Student[]
+
+  @@index([primaryPhone])
+  @@index([primaryEmail])
 }
 
 model StudentAccount {
@@ -245,10 +264,14 @@ model Guardian {
   student      Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
   name         String
   relationship String
-  phone        String
-  email        String?
+  phone           String
+  phoneNormalized String?
+  email           String?
+  emailNormalized String?
 
   @@index([studentId])
+  @@index([phoneNormalized])
+  @@index([emailNormalized])
 }
 
 model BillingLedger {
