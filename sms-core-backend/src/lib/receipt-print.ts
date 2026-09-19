@@ -110,6 +110,7 @@ export function renderReceiptPrintHtml(data: ReceiptPrintData): string {
     data.outstandingBalance === null
       ? 'Not linked'
       : `${currency} ${formatMoney(data.outstandingBalance)}`;
+  const creditBalance = Math.max(data.creditBalance ?? 0, 0);
 
   const studentPhotoMarkup = studentPhotoUrl
     ? `<img
@@ -740,6 +741,10 @@ export function renderReceiptPrintHtml(data: ReceiptPrintData): string {
           <span>Outstanding balance</span>
           <strong>${escapeHtml(outstandingBalance)}</strong>
         </div>
+        ${creditBalance > 0 ? `<div class="total-line">
+          <span>Available credit</span>
+          <strong>${escapeHtml(currency)} ${escapeHtml(formatMoney(creditBalance))}</strong>
+        </div>` : ''}
         <div class="total-line received">
           <span>Amount received</span>
           <strong>${escapeHtml(currency)} ${escapeHtml(formatMoney(data.amountPaid))}</strong>

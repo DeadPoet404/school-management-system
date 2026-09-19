@@ -366,7 +366,7 @@ export class FinanceService {
 
       if (data.studentInternalId) {
         const numericAmount = parseDecimal(data.amountPaid);
-        await this.repo.decrementBillingLedger(data.studentInternalId, numericAmount, tx);
+        await this.repo.allocatePayment(data.studentInternalId, numericAmount, tx);
 
         const paymentCount = await this.repo.countStudentPayments(tx);
         const paymentReceiptNo = generateSerial(`PAY-${new Date().getFullYear()}`, paymentCount);
@@ -380,17 +380,6 @@ export class FinanceService {
           ...(options.paymentIntentId ? { paymentIntentId: options.paymentIntentId } : {}),
         }, tx);
 
-        // Apply payment across oldest-outstanding invoices until amount is exhausted.
-        let remaining = numericAmount;
-        while (remaining > 0) {
-          const unpaidInvoice = await this.repo.findOldestUnpaidInvoice(data.studentInternalId, tx);
-          if (!unpaidInvoice) break;
-
-          const result = await this.repo.applyPaymentToInvoice(unpaidInvoice.id, remaining, tx);
-          if (!result || !result.invoice) break;
-
-          remaining = result.overage;
-        }
       }
 
       return collectionRecord;
@@ -441,6 +430,7 @@ export class FinanceService {
         referenceNo: record.referenceNo,
         allocationTarget: record.allocationTarget,
         outstandingBalance: record.student?.billing ? parseDecimal(record.student.billing.currentBalance) : null,
+        creditBalance: record.student?.billing ? parseDecimal(record.student.billing.creditBalance) : 0,
         institution,
       },
       studentPhotoKey:
@@ -527,6 +517,7 @@ export class FinanceService {
         }, tx);
 
         await this.repo.upsertBillingLedger(student.id, null, totalFeeAmount, tx);
+        await this.repo.applyAvailableCredit(student.id, tx);
         generatedCount++;
       }
 

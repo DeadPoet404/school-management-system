@@ -60,6 +60,7 @@ interface DbStudent {
   studentName: string
   billing: {
     currentBalance: string
+    creditBalance: string
   }
 }
 
@@ -365,9 +366,16 @@ export function PaymentInflowCollectionLog({
                   </Combobox>
                   {/* LIVE BALANCE INDICATOR */}
                   {selectedStudentData && (
-                    <div className="flex w-full items-center gap-1.5 rounded-md bg-stone-100 px-2 py-1.5 text-xs font-medium text-stone-600 dark:bg-zinc-900 dark:text-zinc-400 sm:w-fit sm:text-[10px] sm:py-1">
-                      <Wallet className="h-3 w-3" />
-                      Outstanding Balance: <span className="font-bold text-stone-900 dark:text-zinc-100">₵{parseFloat(selectedStudentData.billing.currentBalance).toFixed(2)}</span>
+                    <div className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-md bg-stone-100 px-2 py-1.5 text-xs font-medium text-stone-600 dark:bg-zinc-900 dark:text-zinc-400 sm:w-fit sm:text-[10px] sm:py-1">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Wallet className="h-3 w-3" />
+                        Outstanding: <span className="font-bold text-stone-900 dark:text-zinc-100">₵{parseFloat(selectedStudentData.billing.currentBalance).toFixed(2)}</span>
+                      </span>
+                      {parseFloat(selectedStudentData.billing.creditBalance) > 0 && (
+                        <span className="font-semibold text-sky-700 dark:text-sky-400">
+                          Credit: ₵{parseFloat(selectedStudentData.billing.creditBalance).toFixed(2)}
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>

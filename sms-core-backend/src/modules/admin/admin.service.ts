@@ -267,7 +267,7 @@ export class AdminService {
     counts.billingLedgersZeroed = (
       await tx.billingLedger.updateMany({
         where: {},
-        data: { currentBalance: 0, initialDeposit: 0 },
+        data: { currentBalance: 0, initialDeposit: 0, creditBalance: 0 },
       })
     ).count;
   }

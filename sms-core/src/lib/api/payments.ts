@@ -36,6 +36,7 @@ export interface PendingIntent {
 export interface SelfFeesSummary {
   student: { id: string; studentId: string; studentName: string };
   balance: number;
+  credit: number;
   invoices: FeeInvoice[];
   payments: FeePayment[];
   pendingIntent: PendingIntent | null;

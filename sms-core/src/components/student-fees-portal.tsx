@@ -58,6 +58,7 @@ export default function StudentFeesPortal() {
   const [notice, setNotice] = React.useState<string | null>(null)
 
   const balance = fees.data?.balance ?? 0
+  const credit = fees.data?.credit ?? 0
   const pending = fees.data?.pendingIntent ?? null
   const effectiveAmount = amount === "" && balance > 0 ? balance.toFixed(2) : amount
 
@@ -73,10 +74,6 @@ export default function StudentFeesPortal() {
       const amt = Number(effectiveAmount)
       if (!Number.isFinite(amt) || amt <= 0) {
         setError("Enter a valid amount greater than zero.")
-        return
-      }
-      if (amt > balance) {
-        setError("Payment amount cannot exceed the outstanding balance.")
         return
       }
     }
@@ -163,13 +160,21 @@ export default function StudentFeesPortal() {
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Outstanding Balance</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-semibold text-emerald-700 dark:text-emerald-400">{currency.format(balance)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Available Credit</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-semibold text-sky-700 dark:text-sky-400">{currency.format(credit)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -200,7 +205,7 @@ export default function StudentFeesPortal() {
           <CardDescription>
             {pending
               ? "A payment is already in progress for this account."
-              : "Pay any amount up to your outstanding balance. You will choose the method on the Paystack checkout."}
+              : "Pay any amount. Any excess is saved as credit and applied automatically to a future invoice."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

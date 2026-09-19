@@ -75,6 +75,7 @@ export function StudentFinancialTable({ data: rawStudents }: StudentFinancialTab
 
       const rawAmountPaid = lastTx && lastTx.type !== "Invoice" ? lastTx.amount : 0
       const formattedAmountPaid = rawAmountPaid > 0 ? `₵ ${rawAmountPaid.toFixed(2)}` : "—"
+      const availableCredit = Number(item.billing?.creditBalance) || 0
 
       return {
         id: fallbackId,
@@ -89,11 +90,17 @@ export function StudentFinancialTable({ data: rawStudents }: StudentFinancialTab
         amountPaid: formattedAmountPaid,
         balanceRemaining: (
           <span className={`font-mono font-semibold text-xs ${
-            rollingOutstandingBalance > 0 
-              ? "text-red-600 dark:text-red-400" 
-              : "text-emerald-600 dark:text-emerald-400"
+            availableCredit > 0
+              ? "text-sky-700 dark:text-sky-400"
+              : rollingOutstandingBalance > 0
+                ? "text-red-600 dark:text-red-400"
+                : "text-emerald-600 dark:text-emerald-400"
           }`}>
-            {rollingOutstandingBalance <= 0 ? "Settled" : `₵ ${rollingOutstandingBalance.toFixed(2)}`}
+            {availableCredit > 0
+              ? `Credit ₵ ${availableCredit.toFixed(2)}`
+              : rollingOutstandingBalance <= 0
+                ? "Settled"
+                : `₵ ${rollingOutstandingBalance.toFixed(2)}`}
           </span>
         ),
         status: (
@@ -165,7 +172,7 @@ export function StudentFinancialTable({ data: rawStudents }: StudentFinancialTab
   },
   {
     key: "balanceRemaining",
-    header: "Balance Owed",
+    header: "Balance / Credit",
     className: "w-[85px]",
     cellClassName:
       "font-mono text-xs text-right whitespace-nowrap",

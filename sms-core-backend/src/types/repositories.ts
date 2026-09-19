@@ -174,6 +174,8 @@ export interface IFinanceRepository {
   findOldestUnpaidInvoice(studentId: string, tx?: TransactionClient): Promise<any>;
   markInvoicePaid(invoiceId: string, tx?: TransactionClient): Promise<any>;
   applyPaymentToInvoice(invoiceId: string, amount: number, tx?: TransactionClient): Promise<any>;
+  allocatePayment(studentId: string, amount: number, tx?: TransactionClient): Promise<any>;
+  applyAvailableCredit(studentId: string, tx?: TransactionClient): Promise<any>;
   findAllInvoices(skip?: number, take?: number, tx?: TransactionClient): Promise<any>;
   countAllInvoices(tx?: TransactionClient): Promise<number>;
   decrementBillingLedger(studentId: string, amount: number, tx?: TransactionClient): Promise<any>;

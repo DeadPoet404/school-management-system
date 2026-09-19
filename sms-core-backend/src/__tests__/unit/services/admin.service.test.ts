@@ -155,7 +155,7 @@ describe('AdminService', () => {
 
       expect(txModels.billingLedger.updateMany).toHaveBeenCalledWith({
         where: {},
-        data: { currentBalance: 0, initialDeposit: 0 },
+        data: { currentBalance: 0, initialDeposit: 0, creditBalance: 0 },
       });
       expect(txModels.billingLedger.deleteMany).not.toHaveBeenCalled();
       expect(txModels.expense.deleteMany).toHaveBeenCalled();

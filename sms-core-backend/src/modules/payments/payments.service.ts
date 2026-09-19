@@ -16,7 +16,7 @@ type PayableStudent = {
   id: string;
   status: string;
   placement?: { classId: string | null } | null;
-  billing?: { currentBalance?: unknown } | null;
+  billing?: { currentBalance?: unknown; creditBalance?: unknown } | null;
 };
 
 const ACTIVE_INTENT_STATUSES: PaymentIntentStatus[] = [
@@ -43,7 +43,7 @@ export class PaymentsService {
       include: { placement: true, billing: true },
     });
     this.assertStudentEligible(student);
-    this.assertAmountWithinBalance(student, amount);
+    this.assertAmountIsPositive(amount);
 
     const pending = await prisma.paymentIntent.findFirst({
       where: {
@@ -250,6 +250,7 @@ export class PaymentsService {
     return {
       student,
       balance: billing ? Number(billing.currentBalance.toString()) : 0,
+      credit: billing ? Number(billing.creditBalance.toString()) : 0,
       invoices: invoices.map((i) => ({
         id: i.id,
         invoiceNo: i.invoiceNo,
@@ -320,13 +321,9 @@ export class PaymentsService {
     }
   }
 
-  private assertAmountWithinBalance(student: PayableStudent, amount: number) {
-    const currentBalance = Number(student.billing?.currentBalance?.toString() ?? '0');
-    if (currentBalance <= 0) {
-      throw new AppError(400, 'This student has no outstanding fee balance.');
-    }
-    if (amount > currentBalance + 0.000001) {
-      throw new AppError(400, 'Payment amount cannot exceed the current outstanding balance.');
+  private assertAmountIsPositive(amount: number) {
+    if (amount <= 0) {
+      throw new AppError(400, 'Payment amount must be greater than zero.');
     }
   }
 

@@ -86,6 +86,8 @@ export function createMockFinanceRepo(overrides?: Partial<IFinanceRepository>): 
     findOldestUnpaidInvoice: vi.fn(),
     markInvoicePaid: vi.fn(),
     applyPaymentToInvoice: vi.fn(),
+    allocatePayment: vi.fn(),
+    applyAvailableCredit: vi.fn(),
     findAllInvoices: vi.fn(),
     countAllInvoices: vi.fn(),
     decrementBillingLedger: vi.fn(),

@@ -259,6 +259,8 @@ model BillingLedger {
   feeTier        FeeTier? @relation(fields: [feeTierId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   initialDeposit Decimal @default(0.0) @db.Decimal(10, 2)
   currentBalance Decimal @db.Decimal(10, 2)
+  /// Money received above the student's outstanding invoices, reserved for future invoices.
+  creditBalance  Decimal @default(0.0) @db.Decimal(10, 2)
 }
 
 model Invoice {

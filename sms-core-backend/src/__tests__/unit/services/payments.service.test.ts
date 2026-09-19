@@ -48,7 +48,7 @@ function student(overrides: Record<string, any> = {}) {
     id: 'stu-1',
     status: 'ACTIVE',
     placement: { classId: 'class-1' },
-    billing: { currentBalance: 5000 },
+    billing: { currentBalance: 5000, creditBalance: 0 },
     ...overrides,
   };
 }
@@ -143,19 +143,31 @@ describe('createSelfPaystackIntent', () => {
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  it('throws 400 if there is no outstanding balance', async () => {
+  it('allows a payment when the student has no current balance so it can become credit', async () => {
     (prismaMock.student.findUnique as any).mockResolvedValue(
-      student({ billing: { currentBalance: 0 } }),
+      student({ billing: { currentBalance: 0, creditBalance: 0 } }),
     );
-    await expect(
-      service.createSelfPaystackIntent('stu-1', { payerEmail: 'p@x.com', amount: 100 }, 'a'),
-    ).rejects.toMatchObject({ statusCode: 400, message: expect.stringContaining('no outstanding') });
+    const result = await service.createSelfPaystackIntent(
+      'stu-1',
+      { payerEmail: 'p@x.com', amount: 100 },
+      'a',
+    );
+    expect(result.authorizationUrl).toBe('https://paystack.co/u');
   });
 
-  it('throws 400 if the amount exceeds the balance', async () => {
+  it('allows a payment above the outstanding balance for future credit', async () => {
+    const result = await service.createSelfPaystackIntent(
+      'stu-1',
+      { payerEmail: 'p@x.com', amount: 6000 },
+      'a',
+    );
+    expect(result.authorizationUrl).toBe('https://paystack.co/u');
+  });
+
+  it('rejects a zero or negative payment amount', async () => {
     await expect(
-      service.createSelfPaystackIntent('stu-1', { payerEmail: 'p@x.com', amount: 6000 }, 'a'),
-    ).rejects.toMatchObject({ statusCode: 400, message: expect.stringContaining('cannot exceed') });
+      service.createSelfPaystackIntent('stu-1', { payerEmail: 'p@x.com', amount: 0 }, 'a'),
+    ).rejects.toMatchObject({ statusCode: 400, message: expect.stringContaining('greater than zero') });
   });
 
   it('resumes the existing checkout when same amount is pending', async () => {
@@ -254,7 +266,7 @@ describe('getSelfFeesSummary', () => {
   const otherStudent = { ...studentUser, entityInternalId: 'stu-OTHER' };
 
   beforeEach(() => {
-    (prismaMock.billingLedger.findUnique as any).mockResolvedValue({ currentBalance: 4000 });
+    (prismaMock.billingLedger.findUnique as any).mockResolvedValue({ currentBalance: 4000, creditBalance: 0 });
     (prismaMock.student.findUnique as any).mockResolvedValue({
       id: 'stu-1', studentId: 'S001', studentName: 'Ama',
     });
@@ -277,6 +289,7 @@ describe('getSelfFeesSummary', () => {
     const result = await service.getSelfFeesSummary('stu-1', studentUserSelf);
     expect(result.student.studentName).toBe('Ama');
     expect(result.balance).toBe(4000);
+    expect(result.credit).toBe(0);
     expect(result.invoices).toHaveLength(1);
     expect(result.payments).toHaveLength(1);
     expect(result.pendingIntent).toBeNull();

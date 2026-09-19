@@ -272,6 +272,7 @@ export class StudentService {
         ? {
             ...student.billing,
             currentBalance: Number(student.billing.currentBalance),
+            creditBalance: Number(student.billing.creditBalance),
             initialDeposit: Number(student.billing.initialDeposit),
           }
         : student.billing,

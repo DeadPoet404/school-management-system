@@ -40,6 +40,7 @@ export interface ReceiptPdfData {
   referenceNo: string;
   allocationTarget: string;
   outstandingBalance: number | null;
+  creditBalance?: number;
   institution?: ReceiptInstitution | null;
 }
 
@@ -448,7 +449,22 @@ export function renderReceiptPdf(
       false,
     );
 
-    const summaryBottom = summaryY + 8 + layout.summaryRowHeight * 2 + 5;
+    const receiptCredit = Math.max(data.creditBalance ?? 0, 0);
+    const summaryRowCount = receiptCredit > 0 ? 3 : 2;
+    if (receiptCredit > 0) {
+      drawSummaryRow(
+        doc,
+        summaryX,
+        summaryY + 8 + layout.summaryRowHeight * 2,
+        summaryWidth,
+        'AVAILABLE CREDIT',
+        `GHS ${formatMoney(receiptCredit)}`,
+        layout.bodySize,
+        false,
+      );
+    }
+
+    const summaryBottom = summaryY + 8 + layout.summaryRowHeight * summaryRowCount + 5;
     drawRule(doc, summaryX, summaryBottom, summaryWidth, 0.7);
 
     let footerY = Math.max(

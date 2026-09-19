@@ -57,7 +57,7 @@ export class FinanceRepository implements IFinanceRepository {
       where: { id: collectionId },
       include: {
         class: { select: { id: true, name: true, section: true } },
-        student: { select: { studentId: true, photoKey: true, billing: { select: { currentBalance: true } } } },
+        student: { select: { studentId: true, photoKey: true, billing: { select: { currentBalance: true, creditBalance: true } } } },
       },
     });
   }
@@ -82,7 +82,7 @@ export class FinanceRepository implements IFinanceRepository {
   async findStudentsBySection(sectionId: string, tx: TransactionClient = prisma) {
     return tx.student.findMany({
       where: { placement: { classId: sectionId }, status: { not: 'DEPARTED' } },
-      select: { id: true, studentId: true, studentName: true, billing: { select: { currentBalance: true } } },
+      select: { id: true, studentId: true, studentName: true, billing: { select: { currentBalance: true, creditBalance: true } } },
       orderBy: { studentName: 'asc' },
     });
   }
@@ -143,6 +143,95 @@ export class FinanceRepository implements IFinanceRepository {
       data: { paidAmount: newPaid, status },
     });
     return { applied, overage, invoice: updated };
+  }
+
+  /**
+   * Applies a payment to the oldest open invoices first. Any amount that
+   * cannot be applied to an invoice is carried into BillingLedger.creditBalance.
+   * If no invoice exists yet, the amount first reduces the legacy ledger
+   * balance and only the remainder becomes credit.
+   */
+  async allocatePayment(studentId: string, amount: number, tx: TransactionClient = prisma) {
+    let remaining = Math.max(amount, 0);
+    let appliedToInvoices = 0;
+    let foundInvoice = false;
+
+    while (remaining > 0.000001) {
+      const unpaidInvoice = await this.findOldestUnpaidInvoice(studentId, tx);
+      if (!unpaidInvoice) break;
+      foundInvoice = true;
+
+      const result = await this.applyPaymentToInvoice(unpaidInvoice.id, remaining, tx);
+      if (!result || result.applied <= 0) break;
+
+      appliedToInvoices += result.applied;
+      remaining = result.overage;
+    }
+
+    const ledger = await tx.billingLedger.findUnique({ where: { studentId } });
+    if (!ledger) {
+      if (remaining > 0.000001) {
+        await tx.billingLedger.create({
+          data: {
+            studentId,
+            initialDeposit: 0,
+            currentBalance: 0,
+            creditBalance: remaining,
+          },
+        });
+      }
+      return { appliedToInvoices, appliedToLedger: 0, credited: remaining };
+    }
+
+    const currentBalance = Math.max(parseFloat(ledger.currentBalance.toString()), 0);
+    const appliedToLedger = foundInvoice
+      ? 0
+      : Math.min(remaining, currentBalance);
+    const credited = Math.max(remaining - appliedToLedger, 0);
+
+    await tx.billingLedger.update({
+      where: { studentId },
+      data: {
+        currentBalance: Math.max(currentBalance - appliedToInvoices - appliedToLedger, 0),
+        creditBalance: { increment: credited },
+      },
+    });
+
+    return { appliedToInvoices, appliedToLedger, credited };
+  }
+
+  /**
+   * Automatically spends a student's stored credit against the oldest open
+   * invoices. This is called immediately after a new invoice is generated.
+   */
+  async applyAvailableCredit(studentId: string, tx: TransactionClient = prisma) {
+    const ledger = await tx.billingLedger.findUnique({ where: { studentId } });
+    if (!ledger) return { applied: 0, remainingCredit: 0 };
+
+    let remainingCredit = Math.max(parseFloat(ledger.creditBalance.toString()), 0);
+    let applied = 0;
+
+    while (remainingCredit > 0.000001) {
+      const unpaidInvoice = await this.findOldestUnpaidInvoice(studentId, tx);
+      if (!unpaidInvoice) break;
+
+      const result = await this.applyPaymentToInvoice(unpaidInvoice.id, remainingCredit, tx);
+      if (!result || result.applied <= 0) break;
+
+      applied += result.applied;
+      remainingCredit = result.overage;
+    }
+
+    const currentBalance = Math.max(parseFloat(ledger.currentBalance.toString()), 0);
+    await tx.billingLedger.update({
+      where: { studentId },
+      data: {
+        currentBalance: Math.max(currentBalance - applied, 0),
+        creditBalance: remainingCredit,
+      },
+    });
+
+    return { applied, remainingCredit };
   }
 
   async findAllInvoices(skip?: number, take?: number, tx: TransactionClient = prisma) {
