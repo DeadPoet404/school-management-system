@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { capStringFields } from "@/lib/capitalize";
 import type { ClassListPdfData, TranscriptPdfData, TranscriptTermSection } from "@/lib/pdf";
 import { titleCaseTerm } from "@/lib/pdf";
-import { Prisma, EntityStatus, DepartureType, TreasuryClearanceStatus } from "@prisma/client";
+import { Prisma, EntityStatus, DepartureType, TreasuryClearanceStatus, FamilyDiscountRule } from "@prisma/client";
 import { IStudentRepository } from "@/types/repositories";
 import { StudentRepository } from "./student.repository";
 import { formatInstitutionalId } from "@/utils";
@@ -65,6 +65,14 @@ type FamilyMatchStudent = {
   className: string | null;
   familyGroupId: string | null;
   matchReason: string;
+};
+
+type ResolvedFamilyDiscount = {
+  amount: number;
+  rule: FamilyDiscountRule;
+  academicYear: number;
+  approvedBy: string | null;
+  reason: string;
 };
 
 function phoneSearchValues(value: string): string[] {
@@ -591,6 +599,7 @@ export class StudentService {
   private async resolveConfirmedFamily(input: {
     guardian: GuardianContactInput & { name: string };
     confirmed: boolean;
+    startNewFamily: boolean;
     matchedStudentIds: string[];
   }): Promise<{
     familyGroupId: string | null;
@@ -600,7 +609,11 @@ export class StudentService {
   }> {
     const uniqueStudentIds = [...new Set(input.matchedStudentIds.filter(Boolean))];
 
-    if (!input.confirmed) {
+    if (input.confirmed && input.startNewFamily) {
+      throw new AppError(400, 'Choose either the confirmed existing family or the new family-group action, not both.');
+    }
+
+    if (!input.confirmed && !input.startNewFamily) {
       if (uniqueStudentIds.length > 0) {
         throw new AppError(409, 'Possible family matches require an explicit staff decision before enrollment can continue.');
       }
@@ -612,13 +625,54 @@ export class StudentService {
       };
     }
 
-    if (uniqueStudentIds.length === 0) {
-      throw new AppError(400, 'Staff family confirmation requires at least one matched existing student.');
+    if (input.startNewFamily && uniqueStudentIds.length > 0) {
+      throw new AppError(409, 'Starting a new family group cannot include existing matched students. Confirm the existing family instead.');
     }
 
     const where = guardianMatchWhere(input.guardian);
     if (!where) {
       throw new AppError(400, 'Family confirmation requires a guardian phone number or email address.');
+    }
+
+    if (input.startNewFamily) {
+      const possibleExistingMatches = await prisma.student.count({
+        where: {
+          status: { not: EntityStatus.DEPARTED },
+          guardians: { some: where },
+        },
+      });
+      if (possibleExistingMatches > 0) {
+        throw new AppError(409, 'Existing students match this guardian contact. Confirm the existing family instead of starting a new group.');
+      }
+
+      const matchKey = familyMatchKey(input.guardian);
+      const familyGroup = await prisma.familyGroup.upsert({
+        where: { matchKey },
+        update: {
+          familyName: input.guardian.name.trim() || null,
+          primaryPhone: input.guardian.phone?.trim() || null,
+          primaryEmail: normalizeGuardianEmail(input.guardian.email),
+        },
+        create: {
+          matchKey,
+          familyName: input.guardian.name.trim() || null,
+          primaryPhone: input.guardian.phone?.trim() || null,
+          primaryEmail: normalizeGuardianEmail(input.guardian.email),
+        },
+      });
+      const currentWardCount = await prisma.student.count({
+        where: { familyGroupId: familyGroup.id, status: { not: EntityStatus.DEPARTED } },
+      });
+      return {
+        familyGroupId: familyGroup.id,
+        matchedStudentIds: [],
+        currentWardCount,
+        projectedWardCount: currentWardCount + 1,
+      };
+    }
+
+    if (uniqueStudentIds.length === 0) {
+      throw new AppError(400, 'Staff family confirmation requires at least one matched existing student.');
     }
 
     // Re-check both the selected ids and the contact match server-side. The
@@ -648,7 +702,7 @@ export class StudentService {
           data: {
             familyName: input.guardian.name.trim() || null,
             primaryPhone: input.guardian.phone?.trim() || null,
-            primaryEmail: input.guardian.email?.trim().toLowerCase() || null,
+            primaryEmail: normalizeGuardianEmail(input.guardian.email),
           },
         })
       : await prisma.familyGroup.upsert({
@@ -656,13 +710,13 @@ export class StudentService {
           update: {
             familyName: input.guardian.name.trim() || null,
             primaryPhone: input.guardian.phone?.trim() || null,
-            primaryEmail: input.guardian.email?.trim().toLowerCase() || null,
+            primaryEmail: normalizeGuardianEmail(input.guardian.email),
           },
           create: {
             matchKey,
             familyName: input.guardian.name.trim() || null,
             primaryPhone: input.guardian.phone?.trim() || null,
-            primaryEmail: input.guardian.email?.trim().toLowerCase() || null,
+            primaryEmail: normalizeGuardianEmail(input.guardian.email),
           },
         });
 
@@ -685,6 +739,59 @@ export class StudentService {
     };
   }
 
+  private async resolveFamilyDiscount(input: {
+    requested: boolean;
+    familyGroupId: string | null;
+    projectedWardCount: number;
+    academicYear: number;
+    approvedBy?: string | null;
+    reason?: string | null;
+  }): Promise<ResolvedFamilyDiscount | null> {
+    if (!input.requested) return null;
+
+    if (!input.familyGroupId) {
+      throw new AppError(400, 'A confirmed family group is required before a family discount can be applied.');
+    }
+
+    const reason = input.reason?.trim() || '';
+    if (!reason) {
+      throw new AppError(400, 'A staff reason is required when applying a family discount.');
+    }
+
+    let rule: FamilyDiscountRule;
+    let amount: number;
+    if (input.projectedWardCount === 3) {
+      rule = FamilyDiscountRule.THREE_WARDS;
+      amount = 300;
+    } else if (input.projectedWardCount >= 4) {
+      rule = FamilyDiscountRule.FOUR_PLUS_WARDS;
+      amount = 700;
+    } else {
+      throw new AppError(400, 'The family discount is available only for a third or fourth-plus active ward.');
+    }
+
+    const existing = await prisma.familyDiscountApplication.findUnique({
+      where: {
+        familyGroupId_academicYear: {
+          familyGroupId: input.familyGroupId,
+          academicYear: input.academicYear,
+        },
+      },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new AppError(409, `A family discount has already been applied to this family for academic year ${input.academicYear}.`);
+    }
+
+    return {
+      amount,
+      rule,
+      academicYear: input.academicYear,
+      approvedBy: input.approvedBy ?? null,
+      reason,
+    };
+  }
+
   async createStudent(payload: {
     account: { fullName: string; email: string; password: string; enrollmentDate: string };
     demographics: { dateOfBirth: string; gender: string; residentialAddress: string; medicalNotes?: string | null; bloodType?: string | null; religion?: string | null; formerSchool?: string | null };
@@ -697,6 +804,10 @@ export class StudentService {
     legacyStudentId?: string | null;
     familyMatchConfirmed?: boolean;
     familyMatchStudentIds?: string[];
+    familyGroupStartConfirmed?: boolean;
+    applyFamilyDiscount?: boolean;
+    familyDiscountReason?: string | null;
+    approvedBy?: string | null;
   }) {
     const {
       account,
@@ -709,6 +820,10 @@ export class StudentService {
       compliance,
       familyMatchConfirmed = false,
       familyMatchStudentIds = [],
+      familyGroupStartConfirmed = false,
+      applyFamilyDiscount = false,
+      familyDiscountReason = null,
+      approvedBy = null,
     } = payload;
     const resolvedGuardian = guardian || parent;
 
@@ -819,13 +934,6 @@ export class StudentService {
     }
 
     const resolvedTierId = feeTier.id;
-    // Legacy/import path (explicit feeTierId): the tier amount IS the full
-    // charge and the deposit is netted straight off the ledger, exactly as
-    // before (no invoice is issued on that path).
-    // Band path (enrollment UI): the ledger opens at the FULL charge and
-    // the deposit is processed below as a real collection, so the same
-    // cash can never be counted twice.
-    const computedBalance = feeBreakdown ? totalCharge : Math.max(0, totalCharge - initialDeposit);
 
     // Cohort id: JCS-<2-digit JHS3 completion year>-<3-digit sequence>.
     // Derived from the class being enrolled into, so peers share a code and
@@ -841,8 +949,29 @@ export class StudentService {
     const familyEnrollment = await this.resolveConfirmedFamily({
       guardian: resolvedGuardian,
       confirmed: familyMatchConfirmed,
+      startNewFamily: familyGroupStartConfirmed,
       matchedStudentIds: familyMatchStudentIds,
     });
+
+    if (applyFamilyDiscount && !feeBreakdown) {
+      throw new AppError(400, 'Family discounts can only be applied to a new enrollment invoice.');
+    }
+
+    const familyDiscount = await this.resolveFamilyDiscount({
+      requested: applyFamilyDiscount,
+      familyGroupId: familyEnrollment.familyGroupId,
+      projectedWardCount: familyEnrollment.projectedWardCount,
+      academicYear: academicYearOf(new Date(account.enrollmentDate)),
+      approvedBy,
+      reason: familyDiscountReason,
+    });
+    const invoiceAmount = feeBreakdown
+      ? Math.max(0, totalCharge - (familyDiscount?.amount ?? 0))
+      : totalCharge;
+    // Band path (enrollment UI): the ledger opens at the invoice amount and
+    // the deposit is processed below as a real collection, so the same cash
+    // can never be counted twice. Legacy imports retain their old behavior.
+    const computedBalance = feeBreakdown ? invoiceAmount : Math.max(0, totalCharge - initialDeposit);
 
     const dbPayload = {
       studentId: uniqueStudentId,
@@ -912,20 +1041,26 @@ export class StudentService {
         select: { dueDate: true },
       });
       const invoiceNo = `INV-${created.studentId}-FT2627`;
+      let invoice: { id: string };
       try {
         // The invoice opens at zero paid: every payment applied to it
         // (including the initial deposit below) flows through the standard
         // collection pipeline exactly once.
-        await prisma.invoice.create({
+        invoice = await prisma.invoice.create({
           data: {
             invoiceNo,
             studentId: created.id,
-            description: `FIRST TERM 2026/27 invoice | ${feeBreakdown}`,
-            amount: totalCharge,
+            description: `FIRST TERM 2026/27 invoice | ${feeBreakdown}${familyDiscount ? ` | Family discount ${familyDiscount.amount}` : ''}`,
+            amount: invoiceAmount,
+            discountAmount: familyDiscount?.amount ?? 0,
+            discountDescription: familyDiscount
+              ? `Family discount: ${familyDiscount.rule === FamilyDiscountRule.THREE_WARDS ? '3 wards' : '4+ wards'}`
+              : null,
             paidAmount: 0,
             status: 'UNPAID',
             dueDate: termStructure?.dueDate ?? new Date('2026-11-30'),
           },
+          select: { id: true },
         });
       } catch (err) {
         const detail = err instanceof Error ? err.message : 'unknown error';
@@ -933,6 +1068,29 @@ export class StudentService {
           500,
           `Student ${created.studentId} was enrolled but the first term invoice could not be issued (${detail}). Reconcile manually.`,
         );
+      }
+
+      if (familyDiscount) {
+        try {
+          await prisma.familyDiscountApplication.create({
+            data: {
+              familyGroupId: familyEnrollment.familyGroupId!,
+              studentId: created.id,
+              invoiceId: invoice.id,
+              academicYear: familyDiscount.academicYear,
+              amount: familyDiscount.amount,
+              rule: familyDiscount.rule,
+              approvedBy: familyDiscount.approvedBy,
+              reason: familyDiscount.reason,
+            },
+          });
+        } catch (err) {
+          const detail = err instanceof Error ? err.message : 'unknown error';
+          throw new AppError(
+            500,
+            `Student ${created.studentId} was enrolled and invoiced, but the family discount audit record could not be saved (${detail}). Reconcile manually.`,
+          );
+        }
       }
 
       // An initial deposit is real cash on hand: process it through the
@@ -948,7 +1106,7 @@ export class StudentService {
           const collection = await this.financeService.processInflowCollection({
             sectionId: placement.classId,
             studentName: created.studentName,
-            amountPaid: Math.min(initialDeposit, totalCharge),
+            amountPaid: Math.min(initialDeposit, invoiceAmount),
             paymentMethod: 'CASH',
             referenceNo: invoiceNo,
             // The umbrella label marks this as a first-term enrollment
@@ -968,7 +1126,20 @@ export class StudentService {
       }
     }
 
-    return { ...created, depositReceipt, familyEnrollment };
+    return {
+      ...created,
+      depositReceipt,
+      familyEnrollment: {
+        ...familyEnrollment,
+        discount: familyDiscount
+          ? {
+              amount: familyDiscount.amount,
+              rule: familyDiscount.rule,
+              academicYear: familyDiscount.academicYear,
+            }
+          : null,
+      },
+    };
   }
 
   /**

@@ -24,7 +24,7 @@
 
   // ── TYPE DEFINITIONS ──
   type FormState = "idle" | "submitting" | "success" | "error"
-  type FamilyMatchDecision = "pending" | "same" | "different"
+  type FamilyMatchDecision = "pending" | "same" | "different" | "start"
 
   type FamilyMatchResponse = {
     familyGroupId: string | null
@@ -44,6 +44,11 @@
     familyGroupId: string | null
     currentWardCount: number
     projectedWardCount: number
+    discount: {
+      amount: number
+      rule: string
+      academicYear: number
+    } | null
   }
 
   // D-08: the MOCK_CLASSES / MOCK_FEE_TIERS arrays used invented IDs
@@ -162,6 +167,8 @@
     const [familyMatch, setFamilyMatch] = React.useState<FamilyMatchResponse | null>(null)
     const [familyMatchDecision, setFamilyMatchDecision] = React.useState<FamilyMatchDecision>("pending")
     const [familyLookupState, setFamilyLookupState] = React.useState<"idle" | "loading" | "ready" | "error">("idle")
+    const [familyDiscountRequested, setFamilyDiscountRequested] = React.useState(false)
+    const [familyDiscountReason, setFamilyDiscountReason] = React.useState("")
 
     // ── STEP 6: FEES (AUTO FROM CLASS) & INITIAL DEPOSIT ──
     const [initialDeposit, setInitialDeposit] = React.useState("")
@@ -197,6 +204,8 @@
       const timer = window.setTimeout(async () => {
         setFamilyMatch(null)
         setFamilyMatchDecision("pending")
+        setFamilyDiscountRequested(false)
+        setFamilyDiscountReason("")
         setFamilyLookupState(hasUsablePhone || hasUsableEmail ? "loading" : "idle")
         if (!hasUsablePhone && !hasUsableEmail) return
 
@@ -310,6 +319,12 @@
       } else if (familyMatch && familyMatch.matches.length > 0 && familyMatchDecision === "pending") {
         missingFields.push("Staff family-match decision")
       }
+      if (familyDiscountRequested) {
+        if (familyMatchDecision !== "same" && familyMatchDecision !== "start") {
+          missingFields.push("Confirm a family before applying the discount")
+        }
+        if (!familyDiscountReason.trim()) missingFields.push("Family discount reason")
+      }
 
       // ── FAIL FAST ON FRONTEND ──
       if (missingFields.length > 0) {
@@ -371,6 +386,9 @@
         familyMatchConfirmed: familyMatchDecision === "same",
         familyMatchStudentIds:
           familyMatchDecision === "same" ? familyMatch?.matches.map((match) => match.id) ?? [] : [],
+        familyGroupStartConfirmed: familyMatchDecision === "start",
+        applyFamilyDiscount: familyDiscountRequested,
+        familyDiscountReason: familyDiscountRequested ? familyDiscountReason.trim() : null,
       }
 
       // ═══════════════════════════════════════════════════════════
@@ -465,9 +483,15 @@
                 <p className="text-xs font-medium text-sky-900 dark:text-sky-200">
                   Staff-confirmed family link saved — {familyEnrollment.projectedWardCount} active wards after this enrollment.
                 </p>
-                <p className="mt-1 text-[11px] text-sky-800/80 dark:text-sky-300/80">
-                  No discount was applied automatically. Discount invoice-period policy remains pending confirmation.
-                </p>
+                {familyEnrollment.discount ? (
+                  <p className="mt-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                    Family discount applied to this enrollment invoice: GH₵{familyEnrollment.discount.amount.toLocaleString("en-GH")}.
+                  </p>
+                ) : (
+                  <p className="mt-1 text-[11px] text-sky-800/80 dark:text-sky-300/80">
+                    No family discount was requested for this enrollment.
+                  </p>
+                )}
               </div>
             )}
             {depositReceipt && (
@@ -1270,6 +1294,38 @@
                       )}
                     </div>
 
+                    {(familyMatchDecision === "same" || familyMatchDecision === "start") && familyDiscountPreview > 0 && (
+                      <div className="space-y-2 rounded-md border border-emerald-200 bg-emerald-50/60 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+                        <label className="flex items-start gap-2 text-xs font-semibold text-emerald-950 dark:text-emerald-100">
+                          <input
+                            type="checkbox"
+                            className="mt-0.5 h-4 w-4 accent-emerald-700"
+                            checked={familyDiscountRequested}
+                            disabled={isSubmitting}
+                            onChange={(event) => {
+                              setFamilyDiscountRequested(event.target.checked)
+                              if (!event.target.checked) setFamilyDiscountReason("")
+                            }}
+                          />
+                          <span>Apply GH₵{familyDiscountPreview.toLocaleString("en-GH")} family discount to this enrollment invoice</span>
+                        </label>
+                        <p className="text-[10px] leading-relaxed text-emerald-900/80 dark:text-emerald-300/80">
+                          One family discount is allowed per academic year. Existing invoices and payment history will not be changed.
+                        </p>
+                        {familyDiscountRequested && (
+                          <Input
+                            value={familyDiscountReason}
+                            onChange={(event) => setFamilyDiscountReason(event.target.value)}
+                            placeholder="Staff reason, e.g. sibling household confirmed"
+                            maxLength={500}
+                            className="h-9 bg-background text-xs"
+                            disabled={isSubmitting}
+                            required
+                          />
+                        )}
+                      </div>
+                    )}
+
                     {familyMatchDecision === "pending" ? (
                       <div className="flex flex-col gap-2 pt-1 sm:flex-row">
                         <Button
@@ -1277,7 +1333,11 @@
                           size="sm"
                           className="h-9 bg-amber-900 text-xs text-white hover:bg-amber-800 dark:bg-amber-200 dark:text-amber-950 dark:hover:bg-amber-100"
                           disabled={isSubmitting}
-                          onClick={() => setFamilyMatchDecision("same")}
+                          onClick={() => {
+                            setFamilyMatchDecision("same")
+                            setFamilyDiscountRequested(false)
+                            setFamilyDiscountReason("")
+                          }}
                         >
                           Confirm same family
                         </Button>
@@ -1287,7 +1347,11 @@
                           variant="outline"
                           className="h-9 border-amber-300 text-xs text-amber-900 hover:bg-amber-100/60 dark:border-amber-800 dark:text-amber-200 dark:hover:bg-amber-900/30"
                           disabled={isSubmitting}
-                          onClick={() => setFamilyMatchDecision("different")}
+                          onClick={() => {
+                            setFamilyMatchDecision("different")
+                            setFamilyDiscountRequested(false)
+                            setFamilyDiscountReason("")
+                          }}
                         >
                           Not the same family
                         </Button>
@@ -1295,7 +1359,11 @@
                     ) : (
                       <div className="flex items-center justify-between gap-3 border-t border-amber-200/70 pt-2 dark:border-amber-900/50">
                         <p className="text-[11px] font-medium text-amber-950 dark:text-amber-100">
-                          {familyMatchDecision === "same" ? "Staff confirmed: same family." : "Staff marked this as a different family."}
+                          {familyMatchDecision === "same"
+                            ? "Staff confirmed: same family."
+                            : familyMatchDecision === "start"
+                              ? "Staff started a new family group."
+                              : "Staff marked this as a different family."}
                         </p>
                         <Button
                           type="button"
@@ -1303,7 +1371,11 @@
                           size="sm"
                           className="h-7 px-2 text-[10px] text-amber-900 hover:bg-amber-100/70 dark:text-amber-200 dark:hover:bg-amber-900/30"
                           disabled={isSubmitting}
-                          onClick={() => setFamilyMatchDecision("pending")}
+                          onClick={() => {
+                            setFamilyMatchDecision("pending")
+                            setFamilyDiscountRequested(false)
+                            setFamilyDiscountReason("")
+                          }}
                         >
                           Change decision
                         </Button>
@@ -1313,7 +1385,38 @@
                 )}
 
                 {familyLookupState === "ready" && familyMatch && familyMatch.matches.length === 0 && (
-                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400">No existing ward matched this guardian contact.</p>
+                  <div className="space-y-2 rounded-md border border-sky-200 bg-sky-50/50 p-3 dark:border-sky-900/50 dark:bg-sky-950/20">
+                    <p className="text-[11px] text-sky-900 dark:text-sky-200">No existing ward matched this guardian contact.</p>
+                    <p className="text-[10px] leading-relaxed text-sky-800/80 dark:text-sky-300/80">
+                      If this guardian is enrolling siblings together, staff can explicitly start a family group now. This does not apply a discount by itself.
+                    </p>
+                    {familyMatchDecision === "pending" ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 border-sky-300 text-[11px] text-sky-900 hover:bg-sky-100/60 dark:border-sky-800 dark:text-sky-200 dark:hover:bg-sky-900/30"
+                        disabled={isSubmitting}
+                        onClick={() => setFamilyMatchDecision("start")}
+                      >
+                        Start a new family group
+                      </Button>
+                    ) : familyMatchDecision === "start" ? (
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-[11px] font-medium text-sky-900 dark:text-sky-200">New family group will be saved with this enrollment.</p>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-[10px] text-sky-900 hover:bg-sky-100/70 dark:text-sky-200 dark:hover:bg-sky-900/30"
+                          disabled={isSubmitting}
+                          onClick={() => setFamilyMatchDecision("pending")}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
                 )}
               </div>
             </div>

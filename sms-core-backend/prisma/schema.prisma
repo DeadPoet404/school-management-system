@@ -54,6 +54,11 @@ enum InvoiceStatus {
   PAID
 }
 
+enum FamilyDiscountRule {
+  THREE_WARDS
+  FOUR_PLUS_WARDS
+}
+
 /// Payment provider is intentionally an enum so each gateway adapter is
 /// explicit and auditable. PAYSTACK is the first implementation.
 enum PaymentProvider {
@@ -193,8 +198,9 @@ model Student {
   payments          Payment[]
   paymentIntents    PaymentIntent[]
   paymentLogs       PaymentCollection[]
-  attendanceRecords AttendanceRecord[]
-  grades            GradeRecord[]
+  attendanceRecords          AttendanceRecord[]
+  grades                     GradeRecord[]
+  familyDiscountApplications FamilyDiscountApplication[]
 
   @@index([familyGroupId])
 }
@@ -208,7 +214,8 @@ model FamilyGroup {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  students Student[]
+  students              Student[]
+  discountApplications  FamilyDiscountApplication[]
 
   @@index([primaryPhone])
   @@index([primaryEmail])
@@ -302,8 +309,33 @@ model Invoice {
   paidAmount Decimal @default(0) @db.Decimal(10, 2)
   status   InvoiceStatus @default(UNPAID)
   configId String?
+  discountAmount      Decimal @default(0) @db.Decimal(10, 2)
+  discountDescription String? @db.Text
+
+  familyDiscountApplication FamilyDiscountApplication?
 
   @@index([studentId])
+}
+
+model FamilyDiscountApplication {
+  id            String             @id @default(uuid())
+  familyGroupId String
+  studentId     String
+  invoiceId     String             @unique
+  academicYear  Int
+  amount        Decimal            @db.Decimal(10, 2)
+  rule          FamilyDiscountRule
+  approvedBy    String?
+  reason        String?            @db.Text
+  createdAt     DateTime           @default(now())
+
+  familyGroup FamilyGroup @relation(fields: [familyGroupId], references: [id], onDelete: Restrict)
+  student     Student     @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  invoice     Invoice     @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  @@unique([familyGroupId, academicYear])
+  @@index([studentId])
+  @@index([academicYear])
 }
 
 model Payment {

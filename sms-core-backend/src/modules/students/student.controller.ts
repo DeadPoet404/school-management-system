@@ -186,6 +186,9 @@ export class StudentController {
         guardian2,
         familyMatchConfirmed,
         familyMatchStudentIds,
+        familyGroupStartConfirmed,
+        applyFamilyDiscount,
+        familyDiscountReason,
       } = req.body;
 
       if (!account?.fullName || !account?.email) {
@@ -204,6 +207,10 @@ export class StudentController {
         guardian2,
         familyMatchConfirmed,
         familyMatchStudentIds,
+        familyGroupStartConfirmed,
+        applyFamilyDiscount,
+        familyDiscountReason,
+        approvedBy: req.user?.sub ?? null,
         billing: billing || payroll,
       });
 

@@ -73,6 +73,9 @@ account: baseAccountSchema.extend({
   // decision. The service re-checks these ids and contacts server-side.
   familyMatchConfirmed: z.boolean().optional().default(false),
   familyMatchStudentIds: z.array(z.string().uuid()).max(50).optional().default([]),
+  familyGroupStartConfirmed: z.boolean().optional().default(false),
+  applyFamilyDiscount: z.boolean().optional().default(false),
+  familyDiscountReason: z.string().max(500, "Discount reason is too long.").nullable().optional(),
   billing: z.object({
     // Optional: the enrollment UI derives the band tier from the selected
     // class (admission + uniform + termly tuition). Explicit ids remain for
