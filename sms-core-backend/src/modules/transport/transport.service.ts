@@ -629,9 +629,11 @@ export class TransportService {
     }
 
     const acceptedIds = new Set(acceptedByClientId.keys());
+    const appendedAcceptedIds = new Set<string>();
     for (const event of input.events) {
-      if (acceptedIds.has(event.clientEventId)) {
+      if (acceptedIds.has(event.clientEventId) && !appendedAcceptedIds.has(event.clientEventId)) {
         results.push(acceptedByClientId.get(event.clientEventId)!);
+        appendedAcceptedIds.add(event.clientEventId);
       }
     }
 

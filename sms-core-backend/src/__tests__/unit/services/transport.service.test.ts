@@ -159,6 +159,39 @@ describe("TransportService.syncBatch", () => {
     expect(createMany).not.toHaveBeenCalled();
   });
 
+  it("counts a repeated client id in one batch once as accepted and once as duplicate", async () => {
+    const { db } = fakeDb({
+      currentAssignments: [{ studentId: "student-1", busId: "bus-1" }],
+      rosterAssignments: [],
+    });
+    const service = new TransportService(db);
+
+    const result = await service.syncBatch(syncInput({
+      events: [
+        {
+          clientEventId: "event-00000003",
+          source: "MANUAL",
+          studentId: "student-1",
+          deviceCapturedAt: "2026-09-21T07:32:00.000Z",
+          manualReason: "Retry queued locally",
+        },
+        {
+          clientEventId: "event-00000003",
+          source: "MANUAL",
+          studentId: "student-1",
+          deviceCapturedAt: "2026-09-21T07:32:00.000Z",
+          manualReason: "Retry queued locally",
+        },
+      ],
+    }));
+
+    expect(result).toMatchObject({ acceptedCount: 1, duplicateCount: 1, rejectedCount: 0 });
+    expect(result.results).toEqual(expect.arrayContaining([
+      expect.objectContaining({ status: "ACCEPTED", clientEventId: "event-00000003" }),
+      expect.objectContaining({ status: "DUPLICATE", code: "DUPLICATE_IN_BATCH" }),
+    ]));
+  });
+
   it("rejects an invalid QR token before creating a boarding event", async () => {
     const { db, createMany } = fakeDb();
     const service = new TransportService(db);
