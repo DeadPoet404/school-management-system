@@ -39,6 +39,9 @@ const OPERATIONS_BY_ROLE: Record<Role, string[]> = {
 
 const SUBPATH_OVERRIDES: { prefix: string; roles: Role[] }[] = [
   { prefix: "/students/gradebook", roles: ["FACULTY", "ADMIN", "STAFF"] },
+  // Transport control room is an ADMIN/STAFF workflow. The route lives under
+  // dashboard so it shares the shell, but it must not appear for accountants.
+  { prefix: "/dashboard/transport", roles: ["ADMIN", "STAFF"] },
 ]
 
 const LANDING_PRIORITY: TopLevelModule[] = ["/dashboard", "/students", "/teachers", "/staff", "/finance", "/operations"]
