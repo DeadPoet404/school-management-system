@@ -9,6 +9,7 @@ import {
   Sliders,
   GraduationCap,
   Settings,
+  BusFront,
 } from "lucide-react"
 
 import { DashboardIcon, BotIcon, MoneyIcon, PeopleIcon } from "./custom-icon"
@@ -41,6 +42,7 @@ const coreNavigationItems = [
   { title: "Staff", url: "/staff", icon: PeopleIcon },
   { title: "Teachers", url: "/teachers", icon: GraduationCap },
   { title: "Operations", url: "/operations", icon: Sliders },
+  { title: "Transport", url: "/dashboard/transport", icon: BusFront },
   { title: "Finance", url: "/finance", icon: MoneyIcon },
   { title: "Settings", url: "/settings", icon: Settings },
   { title: "My Fees", url: "/portal", icon: MoneyIcon },
