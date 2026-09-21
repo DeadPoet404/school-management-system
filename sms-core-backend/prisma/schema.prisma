@@ -20,6 +20,32 @@ enum EntityStatus {
   DEPARTED
 }
 
+enum TransportTripDirection {
+  TO_SCHOOL
+  FROM_SCHOOL
+}
+
+enum TransportTripStatus {
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
+enum TransportCardStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum TransportBoardingSource {
+  QR
+  MANUAL
+}
+
+enum TransportAssignmentStatus {
+  ASSIGNED
+  UNASSIGNED
+}
+
 enum PayrollStatus {
   PENDING
   DISBURSED
@@ -201,6 +227,9 @@ model Student {
   attendanceRecords          AttendanceRecord[]
   grades                     GradeRecord[]
   familyDiscountApplications FamilyDiscountApplication[]
+  transportAssignments       TransportAssignment[]
+  transportCards             TransportCard[]
+  transportBoardingEvents    TransportBoardingEvent[]
 
   @@index([familyGroupId])
 }
@@ -219,6 +248,114 @@ model FamilyGroup {
 
   @@index([primaryPhone])
   @@index([primaryEmail])
+}
+
+model TransportBus {
+  id                 String   @id @default(uuid())
+  code               String   @unique
+  registrationNumber String?  @unique
+  capacity           Int?
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  devices     TransportDevice[]
+  assignments TransportAssignment[]
+  trips       TransportTrip[]
+}
+
+model TransportDevice {
+  id         String   @id @default(uuid())
+  deviceCode String   @unique
+  label      String?
+  busId      String?
+  isActive   Boolean  @default(true)
+  lastSyncAt DateTime?
+  lastSeenAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  bus    TransportBus?            @relation(fields: [busId], references: [id], onDelete: SetNull)
+  events TransportBoardingEvent[]
+
+  @@index([busId])
+}
+
+model TransportCard {
+  id           String              @id @default(uuid())
+  studentId    String
+  qrToken      String              @unique
+  tokenVersion Int                 @default(1)
+  status       TransportCardStatus @default(ACTIVE)
+  issuedAt     DateTime            @default(now())
+  revokedAt    DateTime?
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  events  TransportBoardingEvent[]
+
+  @@index([studentId, status])
+}
+
+model TransportAssignment {
+  id            String   @id @default(uuid())
+  studentId     String
+  busId         String
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  student Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  bus     TransportBus @relation(fields: [busId], references: [id], onDelete: Restrict)
+
+  @@index([studentId, effectiveFrom])
+  @@index([busId, effectiveFrom, effectiveTo])
+}
+
+model TransportTrip {
+  id          String                @id @default(uuid())
+  busId       String
+  serviceDate DateTime
+  direction   TransportTripDirection
+  status      TransportTripStatus   @default(OPEN)
+  operatorId  String?
+  startedAt   DateTime              @default(now())
+  endedAt     DateTime?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  bus    TransportBus            @relation(fields: [busId], references: [id], onDelete: Restrict)
+  events TransportBoardingEvent[]
+
+  @@unique([busId, serviceDate, direction])
+  @@index([serviceDate, direction])
+}
+
+model TransportBoardingEvent {
+  id               String                    @id @default(uuid())
+  clientEventId    String                    @unique
+  tripId           String
+  studentId        String
+  cardId           String?
+  deviceId         String?
+  operatorId        String?
+  deviceCapturedAt DateTime
+  receivedAt       DateTime                  @default(now())
+  source           TransportBoardingSource
+  assignmentStatus TransportAssignmentStatus
+  rosterVersion    String?
+  syncBatchId      String?
+  manualReason     String?                   @db.Text
+  createdAt        DateTime                  @default(now())
+
+  trip    TransportTrip    @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  student Student          @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  card    TransportCard?   @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  device  TransportDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@unique([tripId, studentId])
+  @@index([studentId, deviceCapturedAt])
+  @@index([tripId])
 }
 
 model StudentAccount {
