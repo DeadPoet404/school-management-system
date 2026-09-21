@@ -33,6 +33,7 @@ import { notificationDispatchWorker } from './modules/communication/communicatio
 import paymentRoutes from './modules/payments/payments.routes';
 import paymentWebhookRoutes from './modules/payments/payments.webhook.routes';
 import { PaymentsSweeper } from './modules/payments/payments.sweeper';
+import transportRoutes from './modules/transport/transport.routes';
 
 // ── Auth ──
 import authRoutes from './modules/auth/auth.routes';
@@ -228,6 +229,10 @@ app.use('/api/attendance', authenticate, attendanceRoutes);
 app.use('/api/reference', authenticate, referenceRoutes);
 app.use('/api/analytics', authenticate, analyticsRoutes);
 app.use('/api/communication', authenticate, communicationRoutes);
+// Transport control room and future native-scanner contracts. The module
+// keeps its own ADMIN/STAFF role gate and accepts durable event batches rather
+// than one network request per boarding scan.
+app.use('/api/transport', authenticate, transportRoutes);
 // Institutional settings + data hygiene (admin-only; self-gates via requireRole).
 app.use('/api/admin', adminRoutes);
 

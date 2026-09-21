@@ -218,6 +218,14 @@ export class AdminService {
     counts.attendanceRecords = (await tx.attendanceRecord.deleteMany()).count;
     counts.gradeRecords = (await tx.gradeRecord.deleteMany()).count;
     counts.studentDepartures = (await tx.studentDeparture.deleteMany()).count;
+    // Transport boarding events intentionally use a Restrict student FK so
+    // immutable history cannot disappear through an ordinary student delete.
+    // The explicit student-zone wipe is the one approved destructive path and
+    // removes those events first; the conditional keeps older test doubles and
+    // partial maintenance clients compatible.
+    if ("transportBoardingEvent" in tx) {
+      counts.transportBoardingEvents = (await tx.transportBoardingEvent.deleteMany()).count;
+    }
     counts.students = (await tx.student.deleteMany()).count;
   }
 
