@@ -25,9 +25,11 @@ export type StudentPersonalInfoRow = {
 
 interface StudentPersonalInfoTableProps {
   data?: any[]
+  pagination?: { page: number; totalPages: number; totalItems: number; limit: number }
+  onPageChange?: (page: number) => void
 }
 
-export function StudentPersonalInfoTable({ data: initialData }: StudentPersonalInfoTableProps) {
+export function StudentPersonalInfoTable({ data: initialData, pagination, onPageChange }: StudentPersonalInfoTableProps) {
   const [students, setStudents] = React.useState<any[]>(initialData || [])
   const [isLoading, setIsLoading] = React.useState(!initialData)
   const [error, setError] = React.useState<string | null>(null)
@@ -203,6 +205,8 @@ export function StudentPersonalInfoTable({ data: initialData }: StudentPersonalI
           columns={columns}
           rowId={(record) => record.id}
           emptyMessage="No student core registry metrics discovered."
+          pagination={pagination}
+          onPageChange={onPageChange}
         />
       </div>
 

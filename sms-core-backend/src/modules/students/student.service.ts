@@ -369,6 +369,31 @@ export class StudentService {
     return (data || []).map((s: any) => this.normalizeMoney(s));
   }
 
+  async getAllFilteredLight(filters: StudentFilters) {
+    const where = this.buildWhereClause(filters);
+    const data = await (this.repo as any).findAllFilteredLight
+      ? (this.repo as any).findAllFilteredLight(where)
+      : this.repo.findAllFiltered(where);
+    // Compute feesStatus efficiently via aggregates
+    const ids = (data as any[]).map((s: any) => s.id);
+    if (ids.length === 0) return data;
+    const [invAgg, payAgg] = await Promise.all([
+      prisma.invoice.groupBy({ by: ['studentId'], where: { studentId: { in: ids } }, _sum: { amount: true } }),
+      prisma.payment.groupBy({ by: ['studentId'], where: { studentId: { in: ids }, deletedAt: null }, _sum: { amount: true } }),
+    ]);
+    const invMap = new Map(invAgg.map((i: any) => [i.studentId, Number(i._sum.amount || 0)]));
+    const payMap = new Map(payAgg.map((p: any) => [p.studentId, Number(p._sum.amount || 0)]));
+    return (data as any[]).map((s: any) => {
+      const totalInvoiced = invMap.get(s.id) || 0;
+      const totalPaid = payMap.get(s.id) || 0;
+      const balance = Math.max(0, totalInvoiced - totalPaid);
+      let feesStatus: 'Paid' | 'Partial' | 'Unpaid' = 'Unpaid';
+      if (balance <= 0 && totalPaid > 0) feesStatus = 'Paid';
+      else if (totalPaid > 0 && balance > 0) feesStatus = 'Partial';
+      return { ...s, feesStatus, totalInvoiced, totalPaid, balanceRemaining: balance };
+    });
+  }
+
   async getFilteredPaginated(
     filters: StudentFilters,
     skip: number,
@@ -380,6 +405,38 @@ export class StudentService {
       this.repo.countFiltered(where),
     ]);
     return { data: (data || []).map((s: any) => this.normalizeMoney(s)), total };
+  }
+
+  async getFilteredPaginatedLight(
+    filters: StudentFilters,
+    skip: number,
+    take: number,
+  ) {
+    const where = this.buildWhereClause(filters);
+    const [data, total] = await Promise.all([
+      (this.repo as any).findAllFilteredLight
+        ? (this.repo as any).findAllFilteredLight(where, skip, take)
+        : this.repo.findAllFiltered(where, skip, take),
+      this.repo.countFiltered(where),
+    ]);
+    const ids = (data as any[]).map((s: any) => s.id);
+    if (ids.length === 0) return { data, total };
+    const [invAgg, payAgg] = await Promise.all([
+      prisma.invoice.groupBy({ by: ['studentId'], where: { studentId: { in: ids } }, _sum: { amount: true } }),
+      prisma.payment.groupBy({ by: ['studentId'], where: { studentId: { in: ids }, deletedAt: null }, _sum: { amount: true } }),
+    ]);
+    const invMap = new Map(invAgg.map((i: any) => [i.studentId, Number(i._sum.amount || 0)]));
+    const payMap = new Map(payAgg.map((p: any) => [p.studentId, Number(p._sum.amount || 0)]));
+    const enriched = (data as any[]).map((s: any) => {
+      const totalInvoiced = invMap.get(s.id) || 0;
+      const totalPaid = payMap.get(s.id) || 0;
+      const balance = Math.max(0, totalInvoiced - totalPaid);
+      let feesStatus: 'Paid' | 'Partial' | 'Unpaid' = 'Unpaid';
+      if (balance <= 0 && totalPaid > 0) feesStatus = 'Paid';
+      else if (totalPaid > 0 && balance > 0) feesStatus = 'Partial';
+      return { ...s, feesStatus, totalInvoiced, totalPaid, balanceRemaining: balance };
+    });
+    return { data: enriched, total };
   }
 
   /**

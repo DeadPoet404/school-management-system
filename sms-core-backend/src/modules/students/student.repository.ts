@@ -49,6 +49,46 @@ export class StudentRepository implements IStudentRepository {
     });
   }
 
+  /**
+   * Lightweight list for the registry — enough for overview + personal-info,
+   * but avoids loading invoices/payments/billing full arrays (previous bottleneck).
+   * Fees status is computed via aggregates in the service layer.
+   */
+  async findAllFilteredLight(where: Prisma.StudentWhereInput, skip?: number, take?: number, tx = prisma) {
+    return tx.student.findMany({
+      where,
+      skip: skip ?? undefined,
+      take: take ?? undefined,
+      select: {
+        id: true,
+        studentId: true,
+        studentName: true,
+        enrollmentDate: true,
+        status: true,
+        currentGpa: true,
+        attendanceRate: true,
+        createdAt: true,
+        account: { select: { portalEmail: true } },
+        demographics: {
+          select: {
+            gender: true,
+            dateOfBirth: true,
+            residentialAddress: true,
+            religion: true,
+            formerSchool: true,
+            bloodType: true,
+          },
+        },
+        placement: { select: { class: { select: { name: true } } } },
+        compliance: { select: { nationalId: true, emergencyPhone: true } },
+        guardians: { select: { name: true, phone: true } },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+  }
+
   async countFiltered(where: Prisma.StudentWhereInput, tx = prisma) {
     return tx.student.count({ where });
   }

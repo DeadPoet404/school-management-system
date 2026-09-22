@@ -51,6 +51,8 @@ type StudentListResponse = {
   message?: string
   pagination?: {
     page?: number
+    limit?: number
+    totalItems?: number
     totalPages?: number
   }
 }
@@ -83,6 +85,13 @@ const StudentsPage = () => {
   const [error, setError] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
 
+  // Pagination — previously loaded ALL pages in parallel (7×100 = 668 rows with full relations)
+  // Now loads only current page with lightweight backend projection
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const LIMIT = 50
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setDebouncedSearch(searchQuery.trim())
@@ -91,30 +100,24 @@ const StudentsPage = () => {
     return () => window.clearTimeout(timer)
   }, [searchQuery])
 
+  // Reset to page 1 when search or filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [debouncedSearch, advancedFilters])
+
   useEffect(() => {
     let cancelled = false
 
     const loadClasses = async () => {
       try {
-        const response = await fetchWithAuth(
-          "/reference/classes"
-        )
+        const response = await fetchWithAuth("/reference/classes")
 
         if (!response.ok) return
 
-        const result =
-          (await response.json()) as ClassReferenceResponse
+        const result = (await response.json()) as ClassReferenceResponse
 
-        if (
-          !cancelled &&
-          result.success &&
-          Array.isArray(result.data)
-        ) {
-          setClassOptions(
-            result.data.filter(
-              (item) => item.isActive !== false
-            )
-          )
+        if (!cancelled && result.success && Array.isArray(result.data)) {
+          setClassOptions(result.data.filter((item) => item.isActive !== false))
         }
       } catch {
         // The student list remains usable without class options.
@@ -128,90 +131,48 @@ const StudentsPage = () => {
     }
   }, [])
 
-  const loadStudents = useCallback(async () => {
+  const loadStudents = useCallback(async (page: number) => {
     const requestId = ++studentRequestRef.current
 
-    const requestPage = async (page: number) => {
+    try {
+      setLoading(true)
+      setError(null)
+
       const params = new URLSearchParams({
         page: String(page),
-        limit: "100",
+        limit: String(LIMIT),
+        view: "light", // lightweight projection: no invoices/payments/compliance
       })
 
       if (debouncedSearch) {
         params.set("search", debouncedSearch)
       }
 
-      for (const [key, value] of Object.entries(
-        advancedFilters
-      )) {
+      for (const [key, value] of Object.entries(advancedFilters)) {
         if (value) params.set(key, value)
       }
 
-      const response = await fetchWithAuth(
-        `/students?${params.toString()}`
-      )
+      const response = await fetchWithAuth(`/students?${params.toString()}`)
 
-      const result =
-        (await response
-          .json()
-          .catch(() => null)) as StudentListResponse | null
+      const result = (await response.json().catch(() => null)) as StudentListResponse | null
 
       if (!response.ok || !result?.success) {
-        throw new Error(
-          result?.message ||
-            `Student search failed with HTTP ${response.status}.`
-        )
+        throw new Error(result?.message || `Student search failed with HTTP ${response.status}.`)
       }
 
       if (!Array.isArray(result.data)) {
-        throw new Error(
-          "The students endpoint returned an unexpected data structure."
-        )
+        throw new Error("The students endpoint returned an unexpected data structure.")
       }
 
-      return result
-    }
+      if (requestId !== studentRequestRef.current) return
 
-    try {
-      setLoading(true)
-      setError(null)
-
-      const firstPage = await requestPage(1)
-      const totalPages = Math.min(
-        100,
-        Math.max(
-          1,
-          Number(firstPage.pagination?.totalPages) || 1
-        )
-      )
-
-      const remainingPages = await Promise.all(
-        Array.from(
-          { length: totalPages - 1 },
-          (_, index) => requestPage(index + 2)
-        )
-      )
-
-      if (requestId !== studentRequestRef.current) {
-        return
-      }
-
-      setStudents([
-        ...(firstPage.data || []),
-        ...remainingPages.flatMap(
-          (page) => page.data || []
-        ),
-      ])
+      setStudents(result.data || [])
+      setTotalPages(Math.max(1, Number(result.pagination?.totalPages) || 1))
+      setTotalItems(Number(result.pagination?.totalItems) || result.data.length)
     } catch (caught) {
-      if (requestId !== studentRequestRef.current) {
-        return
-      }
+      if (requestId !== studentRequestRef.current) return
 
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Unable to load students."
-      )
+      setError(caught instanceof Error ? caught.message : "Unable to load students.")
     } finally {
       if (requestId === studentRequestRef.current) {
         setLoading(false)
@@ -220,8 +181,8 @@ const StudentsPage = () => {
   }, [advancedFilters, debouncedSearch])
 
   useEffect(() => {
-    void loadStudents()
-  }, [loadStudents])
+    void loadStudents(currentPage)
+  }, [loadStudents, currentPage])
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab)
@@ -235,9 +196,7 @@ const StudentsPage = () => {
     fileInputRef.current?.click()
   }
 
-  const handleFileSelected = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleFileSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const input = event.currentTarget
     const file = input.files?.[0]
 
@@ -259,15 +218,11 @@ const StudentsPage = () => {
       const result = await response.json().catch(() => null)
 
       if (!response.ok) {
-        throw new Error(
-          result?.message || `Student import failed with HTTP ${response.status}.`
-        )
+        throw new Error(result?.message || `Student import failed with HTTP ${response.status}.`)
       }
 
       const summary = result?.data ?? {}
-      const rowErrors = Array.isArray(summary.errors)
-        ? summary.errors.slice(0, 5)
-        : []
+      const rowErrors = Array.isArray(summary.errors) ? summary.errors.slice(0, 5) : []
 
       const lines = [
         `Student import complete for "${file.name}".`,
@@ -285,7 +240,7 @@ const StudentsPage = () => {
       }
 
       window.alert(lines.join("\n"))
-      await loadStudents()
+      await loadStudents(currentPage)
     } catch (err) {
       window.alert(err instanceof Error ? err.message : "Student import failed.")
     } finally {
@@ -294,9 +249,14 @@ const StudentsPage = () => {
     }
   }
 
-  const activeFilterCount = Object.values(
-    advancedFilters
-  ).filter(Boolean).length
+  const activeFilterCount = Object.values(advancedFilters).filter(Boolean).length
+
+  const pagination = {
+    page: currentPage,
+    totalPages,
+    totalItems,
+    limit: LIMIT,
+  }
 
   return (
     <div className="flex h-screen min-h-0 w-full flex-col space-y-3 overflow-hidden px-4 pt-4 pb-4 sm:space-y-4 sm:px-6 sm:pt-6">
@@ -313,16 +273,11 @@ const StudentsPage = () => {
         <h1 className="text-2xl font-medium tracking-tight text-foreground sm:text-4xl">
           Student Management System
         </h1>
-
       </div>
 
       <div className="flex w-full shrink-0 flex-col justify-between gap-4 border-b border-zinc-100 pt-4 pb-3 dark:border-zinc-900 lg:flex-row lg:items-center">
         <div className="mt-1 mb-[-8px]">
-          <ModuleTabs
-            activeTab={activeTab}
-            onTabChange={handleTabChange}
-            tabs={studentTabs}
-          />
+          <ModuleTabs activeTab={activeTab} onTabChange={handleTabChange} tabs={studentTabs} />
         </div>
 
         <div className="flex w-full flex-wrap items-center gap-2.5 lg:w-auto lg:flex-nowrap lg:shrink-0 lg:gap-3">
@@ -353,7 +308,7 @@ const StudentsPage = () => {
                   {
                     label: "Sync Student Data",
                     icon: RefreshCw,
-                    onClick: () => void loadStudents(),
+                    onClick: () => void loadStudents(currentPage),
                   },
                 ]}
               />
@@ -381,7 +336,7 @@ const StudentsPage = () => {
             <Button
               type="button"
               variant="outline"
-              onClick={() => void loadStudents()}
+              onClick={() => void loadStudents(currentPage)}
               className="h-11 lg:h-9 gap-1.5 border-zinc-200 px-3 text-xs font-medium tracking-wide text-zinc-700 shadow-none transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900/60"
             >
               <RefreshCw className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
@@ -394,54 +349,43 @@ const StudentsPage = () => {
       <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto rounded-md bg-background">
         {loading ? (
           <div className="flex h-48 items-center justify-center text-xs font-mono tracking-tight text-zinc-400 animate-pulse dark:text-zinc-500">
-            Syncing student registry records...
+            Syncing student registry records... Page {currentPage} of {totalPages}
           </div>
         ) : error ? (
           <div className="m-4 flex flex-col items-center justify-center gap-2 rounded-lg border border-red-200/40 bg-red-50/20 p-4 text-xs font-mono text-red-600 dark:border-red-900/30 dark:bg-red-950/10 dark:text-red-400">
             <p className="font-semibold">[Registry Connection Fault]</p>
             <p>{error}</p>
 
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => void loadStudents()}
-            >
+            <Button type="button" variant="outline" size="sm" onClick={() => void loadStudents(currentPage)}>
               Retry
             </Button>
           </div>
         ) : (
           <>
-            {/* ── Desktop: wide data tables (unchanged) ── */}
+            {/* ── Desktop: wide data tables ── */}
             <div className="hidden h-full w-full overflow-x-auto lg:block">
               <div className="min-w-max pr-4">
                 {activeTab === "overview" && (
-                  <StudentOverviewTable data={students} />
+                  <StudentOverviewTable data={students} pagination={pagination} onPageChange={setCurrentPage} />
                 )}
 
                 {activeTab === "personal-info" && (
-                  <StudentPersonalInfoTable data={students} />
+                  <StudentPersonalInfoTable data={students} pagination={pagination} onPageChange={setCurrentPage} />
                 )}
 
                 {activeTab === "financial-info" && (
-                  <StudentFinancialTable data={students} />
+                  <StudentFinancialTable data={students} pagination={pagination} onPageChange={setCurrentPage} />
                 )}
               </div>
             </div>
 
-            {/* ── Mobile: card-first views (each table self-gates below lg) ── */}
+            {/* ── Mobile: card-first views ── */}
             <div className="h-full w-full overflow-y-auto overscroll-contain lg:hidden">
-              {activeTab === "overview" && (
-                <StudentOverviewTable data={students} />
-              )}
+              {activeTab === "overview" && <StudentOverviewTable data={students} />}
 
-              {activeTab === "personal-info" && (
-                <StudentPersonalInfoTable data={students} />
-              )}
+              {activeTab === "personal-info" && <StudentPersonalInfoTable data={students} />}
 
-              {activeTab === "financial-info" && (
-                <StudentFinancialTable data={students} />
-              )}
+              {activeTab === "financial-info" && <StudentFinancialTable data={students} />}
             </div>
           </>
         )}

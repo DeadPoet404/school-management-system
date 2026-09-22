@@ -16,6 +16,7 @@ export function createMockStudentRepo(overrides?: Partial<IStudentRepository>): 
     findAll: vi.fn(),
     count: vi.fn(),
     findAllFiltered: vi.fn(),
+    findAllFilteredLight: vi.fn(),
     countFiltered: vi.fn(),
     findById: vi.fn(),
     findWithFinancialData: vi.fn(),

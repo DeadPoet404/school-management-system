@@ -33,9 +33,11 @@ export type StudentOverviewRow = {
 
 interface StudentOverviewTableProps {
   data?: any[]
+  pagination?: { page: number; totalPages: number; totalItems: number; limit: number }
+  onPageChange?: (page: number) => void
 }
 
-export function StudentOverviewTable({ data: initialData }: StudentOverviewTableProps) {
+export function StudentOverviewTable({ data: initialData, pagination, onPageChange }: StudentOverviewTableProps) {
   const { user } = useAuth()
   const canWrite = user?.role === "ADMIN" || user?.role === "STAFF"
   const isAdmin = user?.role === "ADMIN"
@@ -349,6 +351,8 @@ export function StudentOverviewTable({ data: initialData }: StudentOverviewTable
           columns={columns}
           rowId={(student) => student.id}
           emptyMessage="No student overview records found."
+          pagination={pagination}
+          onPageChange={onPageChange}
         />
       </div>
 

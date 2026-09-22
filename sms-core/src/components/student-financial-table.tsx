@@ -17,9 +17,11 @@ export type StudentFinancialRow = {
 
 interface StudentFinancialTableProps {
   data: any[] // Guaranteed array from parent orchestrator
+  pagination?: { page: number; totalPages: number; totalItems: number; limit: number }
+  onPageChange?: (page: number) => void
 }
 
-export function StudentFinancialTable({ data: rawStudents }: StudentFinancialTableProps) {
+export function StudentFinancialTable({ data: rawStudents, pagination, onPageChange }: StudentFinancialTableProps) {
   const transformedData = React.useMemo(() => {
     const statusColorMap: Record<string, string> = {
       Active: "text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20 px-2 py-0.5 rounded text-xs w-fit font-medium",
@@ -52,49 +54,66 @@ export function StudentFinancialTable({ data: rawStudents }: StudentFinancialTab
       const rawName = item.studentName || item.account?.fullName || item.name || "Unknown Student"
       const fallbackId = item.studentId || item.id || `STD-${index}`
 
-      // ── CLIENT-SIDE CHRONOLOGICAL LEDGER REDUCER ──
-      const rawInvoices = item.invoices || []
-      const rawPayments = item.payments || []
-
-      const invoiceLogs = rawInvoices.map((inv: any) => ({
-        id: inv.invoiceNo,
-        date: inv.createdAt,
-        type: "Invoice",
-        // Money arrives as Prisma Decimal → JSON string; coerce defensively.
-        amount: Number(inv.amount) || 0,
-      }))
-
-      const paymentLogs = rawPayments.map((pay: any) => ({
-        id: pay.receiptNo,
-        date: pay.createdAt,
-        type: pay.paymentType || "Payment",
-        amount: Number(pay.amount) || 0,
-      }))
-
-      // Sort timeline from oldest to newest to compute the exact rolling balance balances
-      const sortedHistory = [...invoiceLogs, ...paymentLogs].sort(
-        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-      )
-
+      // Light path: backend already computed totals via groupBy (fast)
+      // Heavy path: fallback to full invoice/payment arrays if present
       let rollingOutstandingBalance = 0
-      sortedHistory.forEach((transaction) => {
-        if (transaction.type === "Invoice") {
-          rollingOutstandingBalance += transaction.amount
-        } else {
-          rollingOutstandingBalance -= transaction.amount
-        }
-      })
+      let rawTransId = "—"
+      let rawPaymentType = "—"
+      let formattedDate = "—"
+      let formattedAmountPaid = "—"
 
-      const lastTx = sortedHistory[sortedHistory.length - 1]
-      const rawTransId = lastTx?.id || "—"
-      const rawPaymentType = lastTx?.type || "—"
-      
-      const formattedDate = lastTx?.date
-        ? new Date(lastTx.date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
-        : "—"
+      if (item.invoices || item.payments) {
+        // ── CLIENT-SIDE CHRONOLOGICAL LEDGER REDUCER (heavy) ──
+        const rawInvoices = item.invoices || []
+        const rawPayments = item.payments || []
 
-      const rawAmountPaid = lastTx && lastTx.type !== "Invoice" ? lastTx.amount : 0
-      const formattedAmountPaid = rawAmountPaid > 0 ? `₵ ${rawAmountPaid.toFixed(2)}` : "—"
+        const invoiceLogs = rawInvoices.map((inv: any) => ({
+          id: inv.invoiceNo,
+          date: inv.createdAt,
+          type: "Invoice",
+          amount: Number(inv.amount) || 0,
+        }))
+
+        const paymentLogs = rawPayments.map((pay: any) => ({
+          id: pay.receiptNo,
+          date: pay.createdAt,
+          type: pay.paymentType || "Payment",
+          amount: Number(pay.amount) || 0,
+        }))
+
+        const sortedHistory = [...invoiceLogs, ...paymentLogs].sort(
+          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+        )
+
+        sortedHistory.forEach((transaction) => {
+          if (transaction.type === "Invoice") {
+            rollingOutstandingBalance += transaction.amount
+          } else {
+            rollingOutstandingBalance -= transaction.amount
+          }
+        })
+
+        const lastTx = sortedHistory[sortedHistory.length - 1]
+        rawTransId = lastTx?.id || "—"
+        rawPaymentType = lastTx?.type || "—"
+        formattedDate = lastTx?.date
+          ? new Date(lastTx.date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+          : "—"
+        const rawAmountPaid = lastTx && lastTx.type !== "Invoice" ? lastTx.amount : 0
+        formattedAmountPaid = rawAmountPaid > 0 ? `₵ ${rawAmountPaid.toFixed(2)}` : "—"
+      } else {
+        // Light path
+        const totalInvoiced = Number(item.totalInvoiced || 0)
+        const totalPaid = Number(item.totalPaid || 0)
+        rollingOutstandingBalance = Number(item.balanceRemaining ?? Math.max(0, totalInvoiced - totalPaid))
+        rawTransId = totalPaid > 0 ? `Paid ₵${totalPaid.toFixed(2)}` : totalInvoiced > 0 ? `Inv ₵${totalInvoiced.toFixed(2)}` : "—"
+        rawPaymentType = item.feesStatus || "—"
+        formattedAmountPaid = totalPaid > 0 ? `₵ ${totalPaid.toFixed(2)}` : "—"
+        formattedDate = item.enrollmentDate
+          ? new Date(item.enrollmentDate).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+          : "—"
+      }
+
       const availableCredit = Number(item.billing?.creditBalance) || 0
 
       return {
@@ -119,7 +138,9 @@ export function StudentFinancialTable({ data: rawStudents }: StudentFinancialTab
             {availableCredit > 0
               ? `Credit ₵ ${availableCredit.toFixed(2)}`
               : rollingOutstandingBalance <= 0
-                ? "Settled"
+                ? rollingOutstandingBalance === 0 && (item.totalPaid > 0 || item.payments?.length > 0)
+                  ? "Settled"
+                  : "—"
                 : `₵ ${rollingOutstandingBalance.toFixed(2)}`}
           </span>
         ),
@@ -212,6 +233,8 @@ export function StudentFinancialTable({ data: rawStudents }: StudentFinancialTab
           columns={columns}
           rowId={(record) => record.id}
           emptyMessage="No core financial metrics mapped to active student bodies."
+          pagination={pagination}
+          onPageChange={onPageChange}
         />
       </div>
 

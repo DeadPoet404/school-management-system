@@ -232,6 +232,10 @@ model Student {
   transportBoardingEvents    TransportBoardingEvent[]
 
   @@index([familyGroupId])
+  @@index([studentName])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@index([enrollmentDate(sort: Desc)])
 }
 
 model FamilyGroup {
@@ -444,6 +448,8 @@ model Placement {
   class          Class?  @relation(fields: [classId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   academicTrack  String
   boardingStatus String
+
+  @@index([classId])
 }
 
 model StudentCompliance {

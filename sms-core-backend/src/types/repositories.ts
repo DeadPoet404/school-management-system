@@ -94,6 +94,7 @@ export interface IStudentRepository {
   findAll(skip?: number, take?: number, tx?: TransactionClient): Promise<any>;
   count(tx?: TransactionClient): Promise<number>;
   findAllFiltered(where: Prisma.StudentWhereInput, skip?: number, take?: number, tx?: TransactionClient): Promise<any>;
+  findAllFilteredLight(where: Prisma.StudentWhereInput, skip?: number, take?: number, tx?: TransactionClient): Promise<any>;
   countFiltered(where: Prisma.StudentWhereInput, tx?: TransactionClient): Promise<number>;
   findById(id: string, tx?: TransactionClient): Promise<any>;
   findWithFinancialData(tx?: TransactionClient): Promise<any>;

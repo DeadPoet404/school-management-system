@@ -35,7 +35,15 @@ export class StudentController {
         minGpa: typeof req.query.minGpa === 'string' ? req.query.minGpa : undefined,
         minAttendance: typeof req.query.minAttendance === 'string' ? req.query.minAttendance : undefined,
       };
-      const { data, total } = await this.studentService.getFilteredPaginated(filters, skip, limit);
+      // Light view is the default for the registry (fast). Heavy view only for CSV export
+      // or when explicitly requested via ?view=full
+      const view = typeof req.query.view === 'string' ? req.query.view : 'light';
+      const useLight = view !== 'full' && req.query.format !== 'csv';
+
+      const { data, total } = useLight
+        ? await (this.studentService as any).getFilteredPaginatedLight(filters, skip, limit)
+        : await this.studentService.getFilteredPaginated(filters, skip, limit);
+
       const safeData = toStudentListDtoForRole(data, role);
 
       if (req.query.format === "csv") {
