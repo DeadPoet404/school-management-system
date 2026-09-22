@@ -165,20 +165,49 @@ jobs:
     # total wall clock (170s) on every push and every PR. Whether the images
     # build is independent of whether lint and tests pass, so run it in
     # parallel. Trade-off: a run that fails lint still spends Actions minutes
-    # building images, but the wall clock drops to ~95s (the slowest job)
-    # instead of the sum.
+    # building images, but the wall clock becomes the slowest job instead of
+    # the sum.
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build backend image
-        run: docker build -t sms-backend-ci ./sms-core-backend
-
-      - name: Build frontend image
+      # The two images are independent, but building them back to back cost
+      # 43s + 47s = 90s and left this job as the critical path of the whole
+      # workflow even after it was un-gated. Build them at once. Logs are kept
+      # per image so a failure still names the image that broke and prints its
+      # full output rather than an interleaved mess.
+      - name: Build backend and frontend images concurrently
         run: |
-          docker build \
+          docker build --progress=plain -t sms-backend-ci ./sms-core-backend \
+            > /tmp/backend-build.log 2>&1 &
+          backend_pid=$!
+
+          docker build --progress=plain \
             --build-arg NEXT_PUBLIC_API_URL=/api \
             --build-arg BACKEND_URL=http://backend:5000 \
             -t sms-frontend-ci \
-            ./sms-core
+            ./sms-core > /tmp/frontend-build.log 2>&1 &
+          frontend_pid=$!
+
+          rc_backend=0
+          rc_frontend=0
+          wait "$backend_pid" || rc_backend=$?
+          wait "$frontend_pid" || rc_frontend=$?
+
+          for entry in "backend:$rc_backend:/tmp/backend-build.log" \
+                       "frontend:$rc_frontend:/tmp/frontend-build.log"; do
+            name="${entry%%:*}"
+            rest="${entry#*:}"
+            rc="${rest%%:*}"
+            log="${rest#*:}"
+            echo ""
+            echo "===== ${name} image build (exit ${rc}) ====="
+            if [ "$rc" -ne 0 ]; then
+              cat "$log"
+            else
+              tail -n 20 "$log"
+            fi
+          done
+
+          [ "$rc_backend" -eq 0 ] && [ "$rc_frontend" -eq 0 ]
