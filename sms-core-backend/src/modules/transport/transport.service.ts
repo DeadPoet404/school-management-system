@@ -259,14 +259,40 @@ export class TransportService {
     });
     if (!bus) throw new AppError(404, "Active transport bus not found.");
 
-    const trip = await this.db.transportTrip.upsert({
-      where: {
-        busId_serviceDate_direction: {
-          busId: bus.id,
-          serviceDate,
-          direction: input.direction,
-        },
+    const uniqueWhere = {
+      busId_serviceDate_direction: {
+        busId: bus.id,
+        serviceDate,
+        direction: input.direction,
       },
+    };
+    const include = { bus: { select: { id: true, code: true, capacity: true } } } as const;
+
+    // Guard the reopen path BEFORE the upsert. The upsert's update branch
+    // resets status to OPEN and clears endedAt, so an unguarded call against a
+    // completed run silently destroys its reconciliation boundary — a
+    // double-tap, a device retry or a stale control-room tab is enough.
+    const existing = await this.db.transportTrip.findUnique({
+      where: uniqueWhere,
+      select: { id: true, status: true, endedAt: true },
+    });
+
+    if (existing && existing.status !== TransportTripStatus.OPEN && !input.reopen) {
+      throw new AppError(
+        409,
+        `Trip for bus ${bus.code} on ${input.serviceDate} (${input.direction}) is already ${existing.status}. ` +
+          `Pass reopen: true to reopen it deliberately; this clears endedAt.`
+      );
+    }
+
+    // An already-OPEN trip is idempotent: return it untouched so offline
+    // devices and retried control-room calls never mutate a live run.
+    if (existing && existing.status === TransportTripStatus.OPEN) {
+      return this.db.transportTrip.findUniqueOrThrow({ where: uniqueWhere, include });
+    }
+
+    const trip = await this.db.transportTrip.upsert({
+      where: uniqueWhere,
       update: {
         status: TransportTripStatus.OPEN,
         operatorId: input.operatorId ?? undefined,
@@ -278,7 +304,7 @@ export class TransportService {
         direction: input.direction,
         operatorId: input.operatorId ?? null,
       },
-      include: { bus: { select: { id: true, code: true, capacity: true } } },
+      include,
     });
     return trip;
   }

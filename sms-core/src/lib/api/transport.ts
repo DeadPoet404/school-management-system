@@ -141,7 +141,13 @@ export function issueTransportCard(body: { studentId: string; replaceExisting?: 
   return request<{ id: string; qrToken: string; tokenVersion: number; status: string; student: { studentName: string } }>("/transport/cards", json(body))
 }
 
-export function openTransportTrip(body: { busId: string; serviceDate: string; direction: TransportDirection }) {
+export function openTransportTrip(body: {
+  busId: string
+  serviceDate: string
+  direction: TransportDirection
+  /** Required to reopen a CLOSED or CANCELLED trip; the API returns 409 without it. */
+  reopen?: boolean
+}) {
   return request<TransportTrip>("/transport/trips", json(body))
 }
 

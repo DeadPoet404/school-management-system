@@ -32,6 +32,11 @@ export const tripOpenSchema = z.object({
   serviceDate,
   direction: z.enum(["TO_SCHOOL", "FROM_SCHOOL"]),
   operatorId: z.string().trim().min(1).nullable().optional(),
+  // Re-opening a CLOSED or CANCELLED trip is a deliberate act, not a side
+  // effect of a retried POST. Without this flag the upsert silently reset
+  // status to OPEN and wiped endedAt, which destroys the reconciliation
+  // boundary for a completed run.
+  reopen: z.boolean().default(false),
 });
 
 export const tripStatusSchema = z.object({

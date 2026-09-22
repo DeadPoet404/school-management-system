@@ -211,3 +211,90 @@ describe("TransportService.syncBatch", () => {
     expect(createMany).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * openTrip lifecycle guard.
+ *
+ * The upsert's update branch resets status to OPEN and clears endedAt, so an
+ * unguarded repeat POST against a completed run silently destroyed its
+ * reconciliation boundary. These tests pin the guarded contract:
+ *   - no trip            -> create
+ *   - trip already OPEN  -> idempotent return, NO upsert (a live run is never
+ *                           mutated by a retry)
+ *   - trip CLOSED/CANCELLED without reopen:true -> 409
+ *   - trip CLOSED with reopen:true -> reopened, endedAt cleared
+ */
+function tripDb({ bus = { id: "bus-1", code: "BUS-01", capacity: 40 }, existing = null }: any = {}) {
+  const db: any = {
+    transportBus: { findFirst: vi.fn().mockResolvedValue(bus) },
+    transportTrip: {
+      findUnique: vi.fn().mockResolvedValue(existing),
+      findUniqueOrThrow: vi.fn().mockResolvedValue({ ...existing, id: "trip-1" }),
+      upsert: vi.fn().mockImplementation(async (args: any) => ({
+        id: "trip-1",
+        ...args.create,
+        ...(existing ? args.update : {}),
+      })),
+    },
+  };
+  return { db: db as PrismaClient, upsert: db.transportTrip.upsert };
+}
+
+const OPEN_TRIP_INPUT = {
+  busId: "bus-1",
+  serviceDate: "2026-09-21",
+  direction: "TO_SCHOOL" as const,
+  reopen: false,
+};
+
+describe("TransportService.openTrip", () => {
+  it("creates a trip when none exists for that bus/date/direction", async () => {
+    const { db, upsert } = tripDb({ existing: null });
+    const trip = await new TransportService(db).openTrip(OPEN_TRIP_INPUT);
+    expect(upsert).toHaveBeenCalledTimes(1);
+    expect(trip.busId).toBe("bus-1");
+    expect(trip.direction).toBe("TO_SCHOOL");
+  });
+
+  it("returns an already-OPEN trip without mutating it", async () => {
+    const { db, upsert } = tripDb({
+      existing: { id: "trip-1", status: "OPEN", endedAt: null },
+    });
+    const trip = await new TransportService(db).openTrip(OPEN_TRIP_INPUT);
+    expect(upsert).not.toHaveBeenCalled();
+    expect(trip.id).toBe("trip-1");
+  });
+
+  it.each(["CLOSED", "CANCELLED"])(
+    "refuses to silently reopen a %s trip",
+    async (status) => {
+      const { db, upsert } = tripDb({
+        existing: { id: "trip-1", status, endedAt: new Date("2026-09-21T15:00:00.000Z") },
+      });
+      await expect(new TransportService(db).openTrip(OPEN_TRIP_INPUT)).rejects.toMatchObject({
+        statusCode: 409,
+      });
+      expect(upsert).not.toHaveBeenCalled();
+    }
+  );
+
+  it("reopens a CLOSED trip when reopen is explicit, clearing endedAt", async () => {
+    const { db, upsert } = tripDb({
+      existing: { id: "trip-1", status: "CLOSED", endedAt: new Date("2026-09-21T15:00:00.000Z") },
+    });
+    await new TransportService(db).openTrip({ ...OPEN_TRIP_INPUT, reopen: true });
+    expect(upsert).toHaveBeenCalledTimes(1);
+    expect(upsert.mock.calls[0][0].update).toMatchObject({
+      status: "OPEN",
+      endedAt: null,
+    });
+  });
+
+  it("rejects an inactive or unknown bus", async () => {
+    const { db, upsert } = tripDb({ bus: null });
+    await expect(new TransportService(db).openTrip(OPEN_TRIP_INPUT)).rejects.toMatchObject({
+      statusCode: 404,
+    });
+    expect(upsert).not.toHaveBeenCalled();
+  });
+});

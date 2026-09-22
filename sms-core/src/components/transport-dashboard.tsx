@@ -19,6 +19,7 @@ import {
   XCircle,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { ApiClientError } from "@/lib/fetch-with-auth"
 import {
   assignTransportStudent,
   createTransportBus,
@@ -272,7 +273,7 @@ export function TransportDashboard() {
     }
   }, [addFeedback, direction, offline, roster, rosterKey, selectedBusId, serviceDate, staleLocalRoster])
 
-  const openTrip = async () => {
+  const openTrip = async (reopen = false) => {
     if (!selectedBusId) {
       addFeedback({ kind: "error", title: "Choose a bus first", detail: "A trip is unique per bus, date, and direction." })
       return
@@ -283,11 +284,29 @@ export function TransportDashboard() {
     }
     setBusy("trip")
     try {
-      const next = await openTransportTrip({ busId: selectedBusId, serviceDate, direction })
+      const next = await openTransportTrip({ busId: selectedBusId, serviceDate, direction, reopen })
       setTrips((previous) => [next, ...previous.filter((trip) => trip.id !== next.id)])
       setTripId(next.id)
-      addFeedback({ kind: "success", title: "Trip is open", detail: `${next.bus.code} · ${direction.replace("_", " ")} · ${serviceDate}` })
+      addFeedback({
+        kind: "success",
+        title: reopen ? "Trip reopened" : "Trip is open",
+        detail: `${next.bus.code} · ${direction.replace("_", " ")} · ${serviceDate}`,
+      })
     } catch (error) {
+      // 409 means a CLOSED or CANCELLED trip already exists for this bus, date
+      // and direction. Reopening clears its endedAt, so it is confirmed here
+      // rather than happening silently on a retry or a double-click.
+      if (!reopen && error instanceof ApiClientError && error.statusCode === 409) {
+        setBusy(null)
+        if (
+          window.confirm(
+            "This trip is already closed or cancelled.\n\nReopen it? Its recorded close time will be cleared.",
+          )
+        ) {
+          await openTrip(true)
+        }
+        return
+      }
       addFeedback({ kind: "error", title: "Trip could not be opened", detail: error instanceof Error ? error.message : "Try again." })
     } finally {
       setBusy(null)
