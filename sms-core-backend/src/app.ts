@@ -134,6 +134,15 @@ app.use(cors({
 }));
 
 // ── GLOBAL MIDDLEWARE ──
+// Offline transport scanners batch up to 500 boarding events per sync
+// (syncBatchSchema .max(500), docs/TRANSPORT_MVP.md). At ~250 bytes an event
+// that batch is ~130 KB, which express.json()'s default 100kb limit rejects
+// with 413 BEFORE validation runs — so the documented contract was unreachable
+// and a device holding a large queue would fail permanently (the client keeps
+// the queue intact on error and retries the same oversized batch forever).
+// Mount a scoped parser first: body-parser marks req._body, so the global
+// parser below skips this path and every other route stays at 100kb.
+app.use('/api/transport/sync', express.json({ limit: '2mb' }));
 app.use(express.json());
 
 // ── P1: Cookie parser — required to read httpOnly cookies set by auth controller ──
