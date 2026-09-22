@@ -16,13 +16,20 @@ All routes are under `/api/transport` and require an authenticated `ADMIN` or
   contains only a random card id and version; it contains no personal data.
 - `GET/POST /trips` — one `TO_SCHOOL` and one `FROM_SCHOOL` trip per bus and
   service date; the database unique constraint enforces this invariant.
+  `POST` is idempotent while the trip is `OPEN`. Against a `CLOSED` or
+  `CANCELLED` trip it returns **409** unless the body carries
+  `reopen: true`, because reopening clears `endedAt` and must be deliberate.
 - `PATCH /trips/:id/status` — close or cancel a trip.
 - `GET /roster` — bus/date/direction roster plus `rosterVersion`. A changed
   version is a warning, not a hard block.
 - `POST /sync` — accepts up to 500 locally captured events in one request.
   `clientEventId` is unique, and retries return `DUPLICATE` rather than create
   a second boarding event. Wrong-bus scans are accepted with
-  `assignmentStatus: UNASSIGNED` and a `WRONG_BUS` warning.
+  `assignmentStatus: UNASSIGNED` and a `WRONG_BUS` warning (the student holds
+  an active assignment to a different bus) or a `NO_ACTIVE_ASSIGNMENT` warning
+  (the student holds none). A roster version mismatch adds `ROSTER_STALE`.
+  Both cases are accepted, never rejected — a child is not left stranded
+  because the paperwork disagrees.
 - `GET /exceptions` and `GET /reports/boardings` — synced boarding and
   wrong-bus/no-assignment reporting.
 
