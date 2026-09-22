@@ -51,6 +51,54 @@ export class TransportController {
     }
   };
 
+  listRoutes = async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      res.json({ success: true, data: await this.service.listRoutes() });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createRoute = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      res.status(201).json({ success: true, data: await this.service.createRoute(req.body) });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getRoute = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      res.json({ success: true, data: await this.service.getRoute(req.params.id!) });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updateRoute = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      res.json({ success: true, data: await this.service.updateRoute(req.params.id!, req.body) });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createStop = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      res.status(201).json({ success: true, data: await this.service.createStop(req.params.id!, req.body) });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updateStop = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      res.json({ success: true, data: await this.service.updateStop(req.params.id!, req.body) });
+    } catch (error) {
+      next(error);
+    }
+  };
+
   listStudents = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       res.json({ success: true, data: await this.service.listStudentCandidates(queryString(req.query.search)) });

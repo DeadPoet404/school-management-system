@@ -6,6 +6,10 @@ import type {
   AssignmentCreateInput,
   BusCreateInput,
   CardIssueInput,
+  RouteCreateInput,
+  RouteUpdateInput,
+  StopCreateInput,
+  StopUpdateInput,
   SyncBatchInput,
   SyncEventInput,
   TripOpenInput,
@@ -145,6 +149,151 @@ export class TransportService {
     });
   }
 
+  async listRoutes() {
+    // Stops are included in the list rather than fetched per route: a school
+    // has a handful of routes with a handful of stops each, and both the route
+    // manager and the assignment stop-picker need them at once. Inlining them
+    // avoids an N+1 round trip on every control-room load.
+    return this.db.transportRoute.findMany({
+      where: { isActive: true },
+      orderBy: { code: "asc" },
+      include: {
+        stops: { orderBy: { sequence: "asc" }, include: { _count: { select: { assignments: true } } } },
+        _count: { select: { stops: true, assignments: true, trips: true } },
+      },
+    });
+  }
+
+  async createRoute(input: RouteCreateInput) {
+    // Checked explicitly rather than left to the P2002 fallback: the global
+    // handler only maps Prisma errors outside development, and its message
+    // leaks the constraint name ("TransportRoute_code_key") to the operator.
+    const clash = await this.db.transportRoute.findUnique({
+      where: { code: input.code },
+      select: { id: true, name: true },
+    });
+    if (clash) {
+      throw new AppError(409, `A route with code "${input.code}" already exists (${clash.name}).`);
+    }
+
+    return this.db.transportRoute.create({
+      data: {
+        code: input.code,
+        name: input.name,
+        notes: input.notes ?? null,
+      },
+      include: { stops: { where: { isActive: true }, orderBy: { sequence: "asc" } } },
+    });
+  }
+
+  async getRoute(routeId: string) {
+    const route = await this.db.transportRoute.findUnique({
+      where: { id: routeId },
+      include: {
+        stops: {
+          orderBy: { sequence: "asc" },
+          include: { _count: { select: { assignments: true } } },
+        },
+        _count: { select: { assignments: true, trips: true } },
+      },
+    });
+    if (!route) throw new AppError(404, "Transport route not found.");
+    return route;
+  }
+
+  async updateRoute(routeId: string, input: RouteUpdateInput) {
+    const existing = await this.db.transportRoute.findUnique({ where: { id: routeId }, select: { id: true } });
+    if (!existing) throw new AppError(404, "Transport route not found.");
+
+    return this.db.transportRoute.update({
+      where: { id: routeId },
+      data: {
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.notes !== undefined ? { notes: input.notes } : {}),
+        ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+      },
+      include: { stops: { orderBy: { sequence: "asc" } } },
+    });
+  }
+
+  async createStop(routeId: string, input: StopCreateInput) {
+    const route = await this.db.transportRoute.findFirst({
+      where: { id: routeId, isActive: true },
+      select: { id: true, code: true },
+    });
+    if (!route) throw new AppError(404, "Active transport route not found.");
+
+    // `sequence` omitted => append after the current last stop, which is what
+    // an operator means almost every time. Given explicitly => it must be free,
+    // checked up front so the caller gets a useful message instead of a raw
+    // unique-violation 409.
+    let sequence: number;
+    if (input.sequence === null || input.sequence === undefined) {
+      const last = await this.db.transportStop.findFirst({
+        where: { routeId },
+        orderBy: { sequence: "desc" },
+        select: { sequence: true },
+      });
+      sequence = (last?.sequence ?? 0) + 1;
+    } else {
+      sequence = input.sequence;
+      const clash = await this.db.transportStop.findUnique({
+        where: { routeId_sequence: { routeId, sequence } },
+        select: { name: true },
+      });
+      if (clash) {
+        throw new AppError(409, `Sequence ${sequence} is already used by stop "${clash.name}" on this route.`);
+      }
+    }
+
+    return this.db.transportStop.create({
+      data: {
+        routeId,
+        name: input.name,
+        sequence,
+        latitude: input.latitude ?? null,
+        longitude: input.longitude ?? null,
+      },
+      include: { route: { select: { id: true, code: true, name: true } } },
+    });
+  }
+
+  async updateStop(stopId: string, input: StopUpdateInput) {
+    const existing = await this.db.transportStop.findUnique({
+      where: { id: stopId },
+      select: { id: true, routeId: true, sequence: true },
+    });
+    if (!existing) throw new AppError(404, "Transport stop not found.");
+
+    const data: {
+      name?: string;
+      sequence?: number;
+      latitude?: number | null;
+      longitude?: number | null;
+      isActive?: boolean;
+    } = {};
+    if (input.name !== undefined) data.name = input.name;
+    if (input.latitude !== undefined) data.latitude = input.latitude;
+    if (input.longitude !== undefined) data.longitude = input.longitude;
+    if (input.isActive !== undefined) data.isActive = input.isActive;
+    if (input.sequence !== undefined && input.sequence !== existing.sequence) {
+      const clash = await this.db.transportStop.findUnique({
+        where: { routeId_sequence: { routeId: existing.routeId, sequence: input.sequence } },
+        select: { id: true, name: true },
+      });
+      if (clash && clash.id !== stopId) {
+        throw new AppError(409, `Sequence ${input.sequence} is already used by stop "${clash.name}" on this route.`);
+      }
+      data.sequence = input.sequence;
+    }
+
+    return this.db.transportStop.update({
+      where: { id: stopId },
+      data,
+      include: { route: { select: { id: true, code: true, name: true } } },
+    });
+  }
+
   async listStudentCandidates(search?: string) {
     const term = search?.trim();
     return this.db.student.findMany({
@@ -190,14 +339,48 @@ export class TransportService {
     if (!student) throw new AppError(404, "Student not found.");
     if (!bus) throw new AppError(404, "Active transport bus not found.");
 
+    // Resolve the optional route/stop leg. A stop always implies its route, so
+    // naming only a stop is enough — the operator does not have to keep the two
+    // pickers in sync by hand. Naming both inconsistently is a caller error.
+    let routeId: string | null = input.routeId ?? null;
+    let stopId: string | null = input.stopId ?? null;
+    if (stopId) {
+      const stop = await this.db.transportStop.findFirst({
+        where: { id: stopId, isActive: true },
+        select: { id: true, routeId: true, name: true },
+      });
+      if (!stop) throw new AppError(404, "Active transport stop not found.");
+      if (routeId && routeId !== stop.routeId) {
+        throw new AppError(400, `Stop "${stop.name}" belongs to a different route than the one supplied.`);
+      }
+      routeId = stop.routeId;
+      stopId = stop.id;
+    }
+    if (routeId) {
+      const route = await this.db.transportRoute.findFirst({
+        where: { id: routeId, isActive: true },
+        select: { id: true, code: true },
+      });
+      if (!route) throw new AppError(404, "Active transport route not found.");
+      routeId = route.id;
+    }
+
     return this.db.$transaction(async (tx) => {
       // Close an open previous assignment at the boundary of the new one.
       // This preserves the historical row while making the effective roster
       // deterministic for offline devices.
+      //
+      // `lte`, not `lt`: re-assigning a child with the SAME effective instant
+      // (the common "move them as of today" case, and what a double-submit
+      // produces) used to leave both rows open. loadRosterEntries then took
+      // whichever row the database happened to return first, so a child could
+      // silently appear on the wrong bus's roster. Closing the tie leaves a
+      // zero-or-negative interval, which reads as "superseded at the instant it
+      // began" and is excluded from every roster window.
       await tx.transportAssignment.updateMany({
         where: {
           studentId: student.id,
-          effectiveFrom: { lt: effectiveFrom },
+          effectiveFrom: { lte: effectiveFrom },
           effectiveTo: null,
         },
         data: { effectiveTo: new Date(effectiveFrom.getTime() - 1) },
@@ -207,10 +390,17 @@ export class TransportService {
         data: {
           studentId: student.id,
           busId: bus.id,
+          routeId,
+          stopId,
           effectiveFrom,
           effectiveTo,
         },
-        include: { bus: { select: { id: true, code: true } }, student: { select: { id: true, studentId: true, studentName: true } } },
+        include: {
+          bus: { select: { id: true, code: true } },
+          route: { select: { id: true, code: true, name: true } },
+          stop: { select: { id: true, name: true, sequence: true } },
+          student: { select: { id: true, studentId: true, studentName: true } },
+        },
       });
     });
   }
@@ -259,6 +449,19 @@ export class TransportService {
     });
     if (!bus) throw new AppError(404, "Active transport bus not found.");
 
+    // `routeId` is tri-state on purpose: absent means "leave whatever is there
+    // alone" (important on the reopen path, where a retry must not silently
+    // detach a trip from its route), explicit null means "clear it".
+    let routeId: string | null | undefined = input.routeId;
+    if (typeof input.routeId === "string") {
+      const route = await this.db.transportRoute.findFirst({
+        where: { id: input.routeId, isActive: true },
+        select: { id: true, code: true },
+      });
+      if (!route) throw new AppError(404, "Active transport route not found.");
+      routeId = route.id;
+    }
+
     const uniqueWhere = {
       busId_serviceDate_direction: {
         busId: bus.id,
@@ -266,7 +469,10 @@ export class TransportService {
         direction: input.direction,
       },
     };
-    const include = { bus: { select: { id: true, code: true, capacity: true } } } as const;
+    const include = {
+      bus: { select: { id: true, code: true, capacity: true } },
+      route: { select: { id: true, code: true, name: true } },
+    } as const;
 
     // Guard the reopen path BEFORE the upsert. The upsert's update branch
     // resets status to OPEN and clears endedAt, so an unguarded call against a
@@ -274,7 +480,7 @@ export class TransportService {
     // double-tap, a device retry or a stale control-room tab is enough.
     const existing = await this.db.transportTrip.findUnique({
       where: uniqueWhere,
-      select: { id: true, status: true, endedAt: true },
+      select: { id: true, status: true, endedAt: true, routeId: true },
     });
 
     if (existing && existing.status !== TransportTripStatus.OPEN && !input.reopen) {
@@ -288,6 +494,13 @@ export class TransportService {
     // An already-OPEN trip is idempotent: return it untouched so offline
     // devices and retried control-room calls never mutate a live run.
     if (existing && existing.status === TransportTripStatus.OPEN) {
+      // Idempotent for retries — but an explicit routeId is an operator
+      // choosing which route this run serves, not a device replaying a POST.
+      // Bind it without touching status, startedAt or endedAt, so the
+      // reconciliation boundary of a live run is never disturbed.
+      if (typeof routeId === "string" && existing.routeId !== routeId) {
+        await this.db.transportTrip.update({ where: { id: existing.id }, data: { routeId } });
+      }
       return this.db.transportTrip.findUniqueOrThrow({ where: uniqueWhere, include });
     }
 
@@ -297,9 +510,11 @@ export class TransportService {
         status: TransportTripStatus.OPEN,
         operatorId: input.operatorId ?? undefined,
         endedAt: null,
+        ...(routeId !== undefined ? { routeId } : {}),
       },
       create: {
         busId: bus.id,
+        routeId: routeId ?? null,
         serviceDate,
         direction: input.direction,
         operatorId: input.operatorId ?? null,
@@ -317,6 +532,7 @@ export class TransportService {
       take: 100,
       include: {
         bus: { select: { id: true, code: true, capacity: true } },
+        route: { select: { id: true, code: true, name: true } },
         _count: { select: { events: true } },
       },
     });
@@ -345,6 +561,8 @@ export class TransportService {
       orderBy: { effectiveFrom: "desc" },
       include: {
         bus: { select: { id: true, code: true } },
+        route: { select: { id: true, code: true, name: true } },
+        stop: { select: { id: true, name: true, sequence: true } },
         student: {
           select: {
             id: true,
@@ -382,12 +600,45 @@ export class TransportService {
     ]);
     if (!bus) throw new AppError(404, "Active transport bus not found.");
 
+    // TO_SCHOOL runs the route in sequence order; FROM_SCHOOL runs it back, so
+    // the driver's manifest is the reverse rather than a second stored order
+    // that could drift. Children with no stop sort last in both directions.
+    const directionSign = input.direction === "FROM_SCHOOL" ? -1 : 1;
+    const orderedEntries = [...entries].sort((a, b) => {
+      if (a.stop && b.stop) {
+        if (a.stop.sequence !== b.stop.sequence) return (a.stop.sequence - b.stop.sequence) * directionSign;
+      } else if (a.stop !== b.stop) {
+        return a.stop ? -1 : 1;
+      }
+      return a.student.studentName.localeCompare(b.student.studentName);
+    });
+
+    const stopCounts = new Map<string, { stopId: string | null; stopName: string; sequence: number | null; studentCount: number }>();
+    for (const entry of orderedEntries) {
+      const key = entry.stop?.id ?? "__none__";
+      const bucket =
+        stopCounts.get(key) ??
+        {
+          stopId: entry.stop?.id ?? null,
+          stopName: entry.stop?.name ?? "No stop assigned",
+          sequence: entry.stop?.sequence ?? null,
+          studentCount: 0,
+        };
+      bucket.studentCount += 1;
+      stopCounts.set(key, bucket);
+    }
+    const stopManifest = Array.from(stopCounts.values()).sort((a, b) => {
+      if (a.sequence === null || b.sequence === null) return a.sequence === null ? 1 : -1;
+      return (a.sequence - b.sequence) * directionSign;
+    });
+
     const versionRows = entries.map((entry) => ({
       assignmentId: entry.id,
       studentId: entry.student.id,
       cardId: entry.student.transportCards[0]?.id ?? null,
       cardVersion: entry.student.transportCards[0]?.tokenVersion ?? null,
       busId: entry.busId,
+      stopId: entry.stopId,
       effectiveFrom: entry.effectiveFrom.toISOString(),
       effectiveTo: entry.effectiveTo?.toISOString() ?? null,
     }));
@@ -404,7 +655,9 @@ export class TransportService {
       staleAfterHours: STALE_ROSTER_HOURS,
       isVersionStale: staleByVersion,
       warnings: staleByVersion ? ["ROSTER_VERSION_CHANGED"] : [],
-      roster: entries.map((entry) => ({
+      route: entries.find((entry) => entry.route)?.route ?? null,
+      stopManifest,
+      roster: orderedEntries.map((entry) => ({
         assignmentId: entry.id,
         student: {
           id: entry.student.id,
@@ -412,6 +665,9 @@ export class TransportService {
           studentName: entry.student.studentName,
           className: entry.student.placement?.class?.name ?? null,
         },
+        stop: entry.stop
+          ? { id: entry.stop.id, name: entry.stop.name, sequence: entry.stop.sequence }
+          : null,
         card: entry.student.transportCards[0]
           ? {
               id: entry.student.transportCards[0].id,

@@ -298,3 +298,230 @@ describe("TransportService.openTrip", () => {
     expect(upsert).not.toHaveBeenCalled();
   });
 });
+
+// ── routes and stops ────────────────────────────────────────────────────────
+// The point of this increment is that a child belongs to a *stop on a route*,
+// not merely to a vehicle. These cover the three behaviours that are easy to
+// get subtly wrong: sequence allocation, stop-implies-route derivation, and
+// direction-aware manifest ordering.
+
+function rosterEntry(overrides: any = {}) {
+  const studentId = overrides.studentId ?? "student-1";
+  return {
+    id: overrides.id ?? `assignment-${studentId}`,
+    studentId,
+    busId: overrides.busId ?? "bus-1",
+    stopId: overrides.stop?.id ?? null,
+    effectiveFrom: new Date("2026-09-01T00:00:00.000Z"),
+    effectiveTo: null,
+    bus: { id: "bus-1", code: "BUS-01" },
+    route: overrides.route ?? null,
+    stop: overrides.stop ?? null,
+    student: {
+      id: studentId,
+      studentId: overrides.studentNumber ?? `SMS-${studentId}`,
+      studentName: overrides.studentName ?? "Ama",
+      status: "ACTIVE",
+      placement: { class: { name: "JHS 1A" } },
+      transportCards: [],
+    },
+  };
+}
+
+function rosterDb(entries: any[] = []) {
+  return {
+    transportBus: { findFirst: vi.fn().mockResolvedValue({ id: "bus-1", code: "BUS-01", capacity: 40 }) },
+    transportAssignment: { findMany: vi.fn().mockResolvedValue(entries) },
+  } as unknown as PrismaClient;
+}
+
+const STOP_A = { id: "stop-a", name: "First Gate", sequence: 1 };
+const STOP_B = { id: "stop-b", name: "Second Gate", sequence: 2 };
+
+function threeChildren() {
+  return [
+    rosterEntry({ studentId: "s1", studentName: "Zoe", stop: STOP_B }),
+    rosterEntry({ studentId: "s2", studentName: "Ada", stop: null }),
+    rosterEntry({ studentId: "s3", studentName: "Kojo", stop: STOP_A }),
+  ];
+}
+
+describe("TransportService.getRoster stop ordering", () => {
+  it("orders TO_SCHOOL by stop sequence and lists children with no stop last", async () => {
+    const service = new TransportService(rosterDb(threeChildren()));
+    const roster = await service.getRoster({ busId: "bus-1", serviceDate: "2026-09-22", direction: "TO_SCHOOL" });
+
+    expect(roster.roster.map((row: any) => row.student.studentName)).toEqual(["Kojo", "Zoe", "Ada"]);
+    expect(roster.stopManifest.map((row: any) => row.stopName)).toEqual(["First Gate", "Second Gate", "No stop assigned"]);
+    expect(roster.stopManifest.map((row: any) => row.studentCount)).toEqual([1, 1, 1]);
+  });
+
+  it("reverses the stop order for FROM_SCHOOL rather than storing a second order", async () => {
+    const service = new TransportService(rosterDb(threeChildren()));
+    const roster = await service.getRoster({ busId: "bus-1", serviceDate: "2026-09-22", direction: "FROM_SCHOOL" });
+
+    expect(roster.roster.map((row: any) => row.student.studentName)).toEqual(["Zoe", "Kojo", "Ada"]);
+    expect(roster.stopManifest.map((row: any) => row.stopName)).toEqual(["Second Gate", "First Gate", "No stop assigned"]);
+  });
+
+  it("sorts children alphabetically within the same stop", async () => {
+    const service = new TransportService(
+      rosterDb([
+        rosterEntry({ studentId: "s1", studentName: "Zoe", stop: STOP_A }),
+        rosterEntry({ studentId: "s2", studentName: "Ada", stop: STOP_A }),
+      ])
+    );
+    const roster = await service.getRoster({ busId: "bus-1", serviceDate: "2026-09-22", direction: "TO_SCHOOL" });
+    expect(roster.roster.map((row: any) => row.student.studentName)).toEqual(["Ada", "Zoe"]);
+    expect(roster.stopManifest).toHaveLength(1);
+    expect(roster.stopManifest[0]?.studentCount).toBe(2);
+  });
+
+  it("bumps rosterVersion when a child moves to a different stop", async () => {
+    const before = await new TransportService(rosterDb(threeChildren())).getRoster({
+      busId: "bus-1",
+      serviceDate: "2026-09-22",
+      direction: "TO_SCHOOL",
+    });
+    const moved = threeChildren().map((entry) =>
+      entry.studentId === "s1" ? rosterEntry({ studentId: "s1", studentName: "Zoe", stop: STOP_A }) : entry
+    );
+    const after = await new TransportService(rosterDb(moved)).getRoster({
+      busId: "bus-1",
+      serviceDate: "2026-09-22",
+      direction: "TO_SCHOOL",
+    });
+
+    // A cached device roster must notice a stop change, or the driver keeps a
+    // manifest that no longer matches who is standing at the gate.
+    expect(after.rosterVersion).not.toEqual(before.rosterVersion);
+  });
+});
+
+describe("TransportService.createStop", () => {
+  function stopDb({ lastSequence = null, clash = null, route = { id: "route-1", code: "R1" } }: any = {}) {
+    const create = vi.fn().mockResolvedValue({ id: "stop-new" });
+    const db: any = {
+      transportRoute: { findFirst: vi.fn().mockResolvedValue(route) },
+      transportStop: {
+        findFirst: vi.fn().mockResolvedValue(lastSequence === null ? null : { sequence: lastSequence }),
+        findUnique: vi.fn().mockResolvedValue(clash),
+        create,
+      },
+    };
+    return { db: db as PrismaClient, create };
+  }
+
+  it("appends after the highest existing sequence when none is supplied", async () => {
+    const { db, create } = stopDb({ lastSequence: 7 });
+    await new TransportService(db).createStop("route-1", { name: "Junction", sequence: null, latitude: null, longitude: null });
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ routeId: "route-1", sequence: 8 }) })
+    );
+  });
+
+  it("starts at sequence 1 on an empty route", async () => {
+    const { db, create } = stopDb({ lastSequence: null });
+    await new TransportService(db).createStop("route-1", { name: "First", sequence: null, latitude: null, longitude: null });
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ sequence: 1 }) }));
+  });
+
+  it("rejects an explicit sequence already taken with 409 and does not write", async () => {
+    const { db, create } = stopDb({ clash: { name: "Existing Stop" } });
+    await expect(
+      new TransportService(db).createStop("route-1", { name: "Duplicate", sequence: 3, latitude: null, longitude: null })
+    ).rejects.toMatchObject({ statusCode: 409 });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("404s when the route is missing or inactive", async () => {
+    const { db, create } = stopDb({ route: null });
+    await expect(
+      new TransportService(db).createStop("route-1", { name: "Orphan", sequence: null, latitude: null, longitude: null })
+    ).rejects.toMatchObject({ statusCode: 404 });
+    expect(create).not.toHaveBeenCalled();
+  });
+});
+
+describe("TransportService.createAssignment with a stop", () => {
+  function assignmentDb({ stop = { id: "stop-1", routeId: "route-1", name: "First Gate" }, route = { id: "route-1", code: "R1" } }: any = {}) {
+    const txCreate = vi.fn().mockResolvedValue({ id: "assignment-1" });
+    const tx = { transportAssignment: { updateMany: vi.fn().mockResolvedValue({ count: 0 }), create: txCreate } };
+    const db: any = {
+      student: { findUnique: vi.fn().mockResolvedValue({ id: "s1", studentName: "Ama" }) },
+      transportBus: { findFirst: vi.fn().mockResolvedValue({ id: "bus-1", code: "BUS-01" }) },
+      transportStop: { findFirst: vi.fn().mockResolvedValue(stop) },
+      transportRoute: { findFirst: vi.fn().mockResolvedValue(route) },
+      $transaction: vi.fn(async (callback: any) => callback(tx)),
+    };
+    return { db: db as PrismaClient, txCreate };
+  }
+
+  const base = { studentId: "s1", busId: "bus-1", effectiveFrom: "2026-09-22T00:00:00.000Z" };
+
+  it("derives the route from the stop so the two pickers cannot disagree", async () => {
+    const { db, txCreate } = assignmentDb({});
+    await new TransportService(db).createAssignment({ ...base, stopId: "stop-1" });
+    expect(txCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ routeId: "route-1", stopId: "stop-1" }) })
+    );
+  });
+
+  it("rejects a stop that belongs to a different route than the one supplied", async () => {
+    const { db, txCreate } = assignmentDb({ stop: { id: "stop-1", routeId: "route-OTHER", name: "First Gate" } });
+    await expect(
+      new TransportService(db).createAssignment({ ...base, stopId: "stop-1", routeId: "route-1" })
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(txCreate).not.toHaveBeenCalled();
+  });
+
+  it("still creates a bus-only assignment when no stop is given", async () => {
+    const { db, txCreate } = assignmentDb({});
+    await new TransportService(db).createAssignment(base);
+    expect(txCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ routeId: null, stopId: null }) })
+    );
+  });
+
+  it("404s when the stop is missing or inactive", async () => {
+    const { db, txCreate } = assignmentDb({ stop: null });
+    await expect(new TransportService(db).createAssignment({ ...base, stopId: "stop-gone" })).rejects.toMatchObject({
+      statusCode: 404,
+    });
+    expect(txCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe("TransportService.createAssignment supersession", () => {
+  it("closes a prior open assignment effective at the SAME instant, not only earlier ones", async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const txCreate = vi.fn().mockResolvedValue({ id: "assignment-2" });
+    const tx = { transportAssignment: { updateMany, create: txCreate } };
+    const db: any = {
+      student: { findUnique: vi.fn().mockResolvedValue({ id: "s1", studentName: "Ama" }) },
+      transportBus: { findFirst: vi.fn().mockResolvedValue({ id: "bus-2", code: "BUS-02" }) },
+      transportStop: { findFirst: vi.fn().mockResolvedValue(null) },
+      transportRoute: { findFirst: vi.fn().mockResolvedValue(null) },
+      $transaction: vi.fn(async (callback: any) => callback(tx)),
+    };
+
+    const effectiveFrom = "2027-01-01T00:00:00.000Z";
+    await new TransportService(db as PrismaClient).createAssignment({
+      studentId: "s1",
+      busId: "bus-2",
+      effectiveFrom,
+    });
+
+    // `lte` is the whole fix: with `lt` a same-instant re-assignment left two
+    // open rows and the roster resolved the child to an arbitrary bus.
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          studentId: "s1",
+          effectiveFrom: { lte: new Date(effectiveFrom) },
+          effectiveTo: null,
+        }),
+      })
+    );
+  });
+});

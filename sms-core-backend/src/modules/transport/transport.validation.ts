@@ -15,9 +15,49 @@ export const busCreateSchema = z.object({
   capacity: z.coerce.number().int().min(1).max(200).nullable().optional(),
 });
 
+export const routeCreateSchema = z.object({
+  code: z.string().trim().min(1).max(32),
+  name: z.string().trim().min(1).max(120),
+  notes: z.string().trim().max(2000).nullable().optional(),
+});
+
+// isActive is the retirement switch. Routes are never hard-deleted while stops
+// or assignments reference them (the FK is RESTRICT), so deactivating is how a
+// route leaves service while its history stays reconcilable.
+export const routeUpdateSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120).optional(),
+    notes: z.string().trim().max(2000).nullable().optional(),
+    isActive: z.boolean().optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, "At least one field must be provided.");
+
+const coordinate = (limit: number) =>
+  z.coerce.number().min(-limit).max(limit).nullable().optional();
+
+export const stopCreateSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  // Omitted => appended after the current highest sequence on the route.
+  sequence: z.coerce.number().int().min(1).max(999).nullable().optional(),
+  latitude: coordinate(90),
+  longitude: coordinate(180),
+});
+
+export const stopUpdateSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120).optional(),
+    sequence: z.coerce.number().int().min(1).max(999).optional(),
+    latitude: coordinate(90),
+    longitude: coordinate(180),
+    isActive: z.boolean().optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, "At least one field must be provided.");
+
 export const assignmentCreateSchema = z.object({
   studentId: z.string().trim().min(1),
   busId: z.string().trim().min(1),
+  routeId: z.string().trim().min(1).nullable().optional(),
+  stopId: z.string().trim().min(1).nullable().optional(),
   effectiveFrom: dateTime,
   effectiveTo: dateTime.nullable().optional(),
 });
@@ -29,6 +69,7 @@ export const cardIssueSchema = z.object({
 
 export const tripOpenSchema = z.object({
   busId: z.string().trim().min(1),
+  routeId: z.string().trim().min(1).nullable().optional(),
   serviceDate,
   direction: z.enum(["TO_SCHOOL", "FROM_SCHOOL"]),
   operatorId: z.string().trim().min(1).nullable().optional(),
@@ -68,6 +109,10 @@ export const rosterQuerySchema = z.object({
 });
 
 export type BusCreateInput = z.infer<typeof busCreateSchema>;
+export type RouteCreateInput = z.infer<typeof routeCreateSchema>;
+export type RouteUpdateInput = z.infer<typeof routeUpdateSchema>;
+export type StopCreateInput = z.infer<typeof stopCreateSchema>;
+export type StopUpdateInput = z.infer<typeof stopUpdateSchema>;
 export type AssignmentCreateInput = z.infer<typeof assignmentCreateSchema>;
 export type CardIssueInput = z.infer<typeof cardIssueSchema>;
 export type TripOpenInput = z.infer<typeof tripOpenSchema>;

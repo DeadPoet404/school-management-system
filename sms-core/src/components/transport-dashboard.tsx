@@ -8,6 +8,8 @@ import {
   CloudUpload,
   FileWarning,
   LoaderCircle,
+  MapPin,
+  Milestone,
   Plus,
   QrCode,
   RefreshCw,
@@ -23,7 +25,10 @@ import { ApiClientError } from "@/lib/fetch-with-auth"
 import {
   assignTransportStudent,
   createTransportBus,
+  createTransportRoute,
+  createTransportStop,
   getTransportBuses,
+  getTransportRoutes,
   getTransportReport,
   getTransportRoster,
   getTransportStudents,
@@ -31,11 +36,15 @@ import {
   issueTransportCard,
   openTransportTrip,
   syncTransportBatch,
+  updateTransportRoute,
+  updateTransportStop,
   updateTransportTripStatus,
   type TransportBus,
   type TransportDirection,
   type TransportReport,
   type TransportRoster,
+  type TransportRoute,
+  type TransportStop,
   type TransportStudent,
   type TransportSyncResponse,
   type TransportTrip,
@@ -128,7 +137,7 @@ function readPersisted(): Partial<PersistedSimulator> | null {
 export function TransportDashboard() {
   const persisted = React.useMemo(() => readPersisted(), [])
   const [hydrated, setHydrated] = React.useState(false)
-  const [activeTab, setActiveTab] = React.useState<"control" | "scanner" | "reports">("control")
+  const [activeTab, setActiveTab] = React.useState<"control" | "routes" | "scanner" | "reports">("control")
   const [offline, setOffline] = React.useState(persisted?.offline ?? false)
   const [deviceCode, setDeviceCode] = React.useState(persisted?.deviceCode ?? "browser-simulator-01")
   const [serviceDate, setServiceDate] = React.useState(persisted?.serviceDate ?? today())
@@ -154,6 +163,15 @@ export function TransportDashboard() {
   const [newBusCode, setNewBusCode] = React.useState("")
   const [newBusRegistration, setNewBusRegistration] = React.useState("")
   const [newBusCapacity, setNewBusCapacity] = React.useState("")
+  const [routes, setRoutes] = React.useState<TransportRoute[]>([])
+  const [selectedRouteId, setSelectedRouteId] = React.useState("")
+  const [newRouteCode, setNewRouteCode] = React.useState("")
+  const [newRouteName, setNewRouteName] = React.useState("")
+  const [newStopName, setNewStopName] = React.useState("")
+  // Assignment stop picker. The API derives the route from the stop, so only the
+  // stop id is sent; the route select exists purely to narrow the stop list.
+  const [assignRouteId, setAssignRouteId] = React.useState("")
+  const [assignStopId, setAssignStopId] = React.useState("")
   const [selectedStudentId, setSelectedStudentId] = React.useState("")
   const [studentSearch, setStudentSearch] = React.useState("")
   const [scanValue, setScanValue] = React.useState("")
@@ -161,6 +179,7 @@ export function TransportDashboard() {
   const [manualReason, setManualReason] = React.useState("Offline identity confirmation")
 
   const currentTrip = trips.find((trip) => trip.id === tripId) ?? null
+  const selectedRoute = routes.find((route) => route.id === selectedRouteId) ?? null
   const selectedBus = buses.find((bus) => bus.id === selectedBusId) ?? null
   const currentRosterKey = makeRosterKey(selectedBusId, serviceDate, direction)
   const staleLocalRoster = Boolean(
@@ -206,14 +225,16 @@ export function TransportDashboard() {
     setBusy("directory")
     setLoadError(null)
     try {
-      const [busData, studentData, tripData] = await Promise.all([
+      const [busData, studentData, tripData, routeData] = await Promise.all([
         getTransportBuses(),
         getTransportStudents(studentSearch || undefined),
         getTransportTrips(serviceDate),
+        getTransportRoutes(),
       ])
       setBuses(busData)
       setStudents(studentData)
       setTrips(tripData)
+      setRoutes(routeData)
       setSelectedBusId((current) => current || busData[0]?.id || "")
       if (!tripId) {
         const matchingTrip = tripData.find((trip) => trip.busId === (selectedBusId || busData[0]?.id) && trip.direction === direction)
@@ -336,6 +357,82 @@ export function TransportDashboard() {
     }
   }
 
+  const reloadRoutes = React.useCallback(async () => {
+    try {
+      setRoutes(await getTransportRoutes())
+    } catch {
+      // Non-fatal: the control room still works without the route registry.
+    }
+  }, [])
+
+  const createRoute = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!newRouteCode.trim() || !newRouteName.trim()) return
+    setBusy("route")
+    try {
+      const created = await createTransportRoute({ code: newRouteCode.trim(), name: newRouteName.trim() })
+      setNewRouteCode("")
+      setNewRouteName("")
+      setSelectedRouteId(created.id)
+      await reloadRoutes()
+      addFeedback({ kind: "success", title: "Route created", detail: `${created.code} · ${created.name}. Now add its stops in pickup order.` })
+    } catch (error) {
+      addFeedback({ kind: "error", title: "Route not created", detail: error instanceof Error ? error.message : "Try again." })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const addStop = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!selectedRouteId || !newStopName.trim()) return
+    setBusy("stop")
+    try {
+      const created = await createTransportStop(selectedRouteId, { name: newStopName.trim() })
+      setNewStopName("")
+      await reloadRoutes()
+      addFeedback({ kind: "success", title: "Stop added", detail: `${created.name} appended at position ${created.sequence}.` })
+    } catch (error) {
+      addFeedback({ kind: "error", title: "Stop not added", detail: error instanceof Error ? error.message : "Try again." })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const retireRoute = async (route: TransportRoute) => {
+    setBusy("route")
+    try {
+      await updateTransportRoute(route.id, { isActive: false })
+      if (selectedRouteId === route.id) setSelectedRouteId("")
+      setAssignRouteId("")
+      setAssignStopId("")
+      await reloadRoutes()
+      addFeedback({ kind: "success", title: "Route retired", detail: `${route.code} left the active list. Children already assigned to a bus keep travelling.` })
+    } catch (error) {
+      addFeedback({ kind: "error", title: "Route not retired", detail: error instanceof Error ? error.message : "Try again." })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const toggleStop = async (stop: TransportStop) => {
+    setBusy("stop")
+    try {
+      await updateTransportStop(stop.id, { isActive: !stop.isActive })
+      if (stop.isActive && assignStopId === stop.id) setAssignStopId("")
+      await reloadRoutes()
+      addFeedback({
+        kind: "success",
+        title: stop.isActive ? "Stop deactivated" : "Stop reactivated",
+        detail: stop.isActive ? `${stop.name} is no longer offered to new assignments; existing ones keep it.` : `${stop.name} is available again.`,
+      })
+    } catch (error) {
+      addFeedback({ kind: "error", title: "Stop not updated", detail: error instanceof Error ? error.message : "Try again." })
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const assignStudent = async () => {
     if (!selectedStudentId || !selectedBusId) return
     setBusy("assignment")
@@ -343,9 +440,19 @@ export function TransportDashboard() {
       await assignTransportStudent({
         studentId: selectedStudentId,
         busId: selectedBusId,
+        stopId: assignStopId || null,
         effectiveFrom: `${serviceDate}T00:00:00.000Z`,
       })
-      addFeedback({ kind: "success", title: "Roster assignment saved", detail: "Download the roster again to make this assignment available offline." })
+      const stopName = assignStopId
+        ? routes.flatMap((route) => route.stops ?? []).find((stop) => stop.id === assignStopId)?.name ?? null
+        : null
+      addFeedback({
+        kind: "success",
+        title: "Roster assignment saved",
+        detail: stopName
+          ? `Assigned to stop “${stopName}”. Download the roster again to make it available offline.`
+          : "Download the roster again to make this assignment available offline.",
+      })
       if (!offline) await loadRoster()
     } catch (error) {
       addFeedback({ kind: "error", title: "Assignment failed", detail: error instanceof Error ? error.message : "Try again." })
@@ -590,9 +697,9 @@ export function TransportDashboard() {
       )}
 
       <div className="flex flex-wrap gap-1 rounded-xl border border-stone-200 bg-stone-50 p-1">
-        {(["control", "scanner", "reports"] as const).map((tab) => (
+        {(["control", "routes", "scanner", "reports"] as const).map((tab) => (
           <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={cn("rounded-lg px-4 py-2 text-xs font-semibold capitalize transition", activeTab === tab ? "bg-white text-stone-950 shadow-sm" : "text-stone-500 hover:text-stone-900")}>
-            {tab === "control" ? "Control room" : tab === "scanner" ? "Scanner simulator" : "Exceptions & reports"}
+            {tab === "control" ? "Control room" : tab === "routes" ? "Routes & stops" : tab === "scanner" ? "Scanner simulator" : "Exceptions & reports"}
           </button>
         ))}
       </div>
@@ -639,7 +746,9 @@ export function TransportDashboard() {
               <p className="mt-2 text-xs leading-5 text-stone-500">These are administrative setup actions. The scanner simulator only reads the downloaded roster and writes to local storage while offline.</p>
               <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto_auto]">
                 <select value={selectedStudentId} onChange={(event) => setSelectedStudentId(event.target.value)} className="h-10 rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-900 outline-none focus:border-stone-500"><option value="">Choose an active student</option>{students.map((student) => <option key={student.id} value={student.id}>{student.studentName} · {student.studentId}</option>)}</select>
-                <button type="button" onClick={() => void assignStudent()} disabled={!selectedStudentId || !selectedBusId || busy !== null || offline} className="inline-flex items-center justify-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-800 disabled:opacity-40">Assign to bus</button>
+                <select value={assignRouteId} onChange={(event) => { setAssignRouteId(event.target.value); setAssignStopId("") }} className="h-10 rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-900 outline-none focus:border-stone-500"><option value="">Route (optional)</option>{routes.map((route) => <option key={route.id} value={route.id}>{route.code} · {route.name}</option>)}</select>
+                <select value={assignStopId} onChange={(event) => setAssignStopId(event.target.value)} disabled={!assignRouteId} className="h-10 rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-900 outline-none focus:border-stone-500 disabled:cursor-not-allowed disabled:opacity-40"><option value="">Stop (optional)</option>{(routes.find((route) => route.id === assignRouteId)?.stops ?? []).filter((stop) => stop.isActive).map((stop) => <option key={stop.id} value={stop.id}>{stop.sequence}. {stop.name}</option>)}</select>
+                <button type="button" onClick={() => void assignStudent()} disabled={!selectedStudentId || !selectedBusId || busy !== null || offline} className="inline-flex items-center justify-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-800 disabled:opacity-40">{assignStopId ? "Assign to stop" : "Assign to bus"}</button>
                 <button type="button" onClick={() => void issueCard()} disabled={!selectedStudentId || busy !== null || offline} className="inline-flex items-center justify-center gap-2 rounded-lg bg-stone-950 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"><QrCode className="h-3.5 w-3.5" /> Issue QR</button>
               </div>
               <div className="mt-4 flex items-center gap-2"><input value={studentSearch} onChange={(event) => setStudentSearch(event.target.value)} placeholder="Search students before refreshing" className="h-9 min-w-0 flex-1 rounded-lg border border-stone-200 px-3 text-xs outline-none focus:border-stone-500" /><button type="button" onClick={() => void refreshDirectory()} disabled={busy !== null || offline} className="h-9 rounded-lg border border-stone-200 px-3 text-xs font-semibold text-stone-700 disabled:opacity-40">Search</button></div>
@@ -652,12 +761,73 @@ export function TransportDashboard() {
             {roster && rosterKey === currentRosterKey ? <>
               <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4"><div className="rounded-xl bg-stone-50 p-3"><p className="text-[10px] uppercase tracking-wider text-stone-400">Students</p><p className="mt-1 text-xl font-semibold text-stone-950">{roster.roster.length}</p></div><div className="rounded-xl bg-stone-50 p-3"><p className="text-[10px] uppercase tracking-wider text-stone-400">QR ready</p><p className="mt-1 text-xl font-semibold text-stone-950">{roster.roster.filter((entry) => entry.card).length}</p></div><div className="rounded-xl bg-stone-50 p-3"><p className="text-[10px] uppercase tracking-wider text-stone-400">Roster age</p><p className="mt-1 text-sm font-semibold text-stone-950">{prettyDate(roster.generatedAt)}</p></div><div className="rounded-xl bg-stone-50 p-3"><p className="text-[10px] uppercase tracking-wider text-stone-400">Version</p><p className="mt-1 truncate font-mono text-xs font-semibold text-stone-950">{roster.rosterVersion}</p></div></div>
               {staleLocalRoster && <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span><b>Stale roster warning.</b> It remains usable by design. Sync results will carry the old version so the backend can report changes.</span></div>}
-              <div className="mt-4 overflow-hidden rounded-xl border border-stone-100"><div className="max-h-[28rem] overflow-auto"><table className="w-full text-left text-xs"><thead className="sticky top-0 bg-stone-50 text-[10px] uppercase tracking-wider text-stone-400"><tr><th className="px-3 py-2">Student</th><th className="px-3 py-2">Class</th><th className="px-3 py-2">Card</th></tr></thead><tbody className="divide-y divide-stone-100">{roster.roster.map((entry) => <tr key={entry.student.id}><td className="px-3 py-2.5"><p className="font-semibold text-stone-900">{entry.student.studentName}</p><p className="font-mono text-[10px] text-stone-400">{entry.student.studentId}</p></td><td className="px-3 py-2.5 text-stone-500">{entry.student.className ?? "—"}</td><td className="px-3 py-2.5">{entry.card ? <span className="inline-flex items-center gap-1 text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" /> ready</span> : <span className="text-amber-700">No card</span>}</td></tr>)}</tbody></table></div></div>
+              {(roster.stopManifest?.length ?? 0) > 0 && <div className="mt-4 flex flex-wrap items-center gap-2"><span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-stone-400">Pickup order</span>{roster.stopManifest.map((row) => <span key={row.stopId ?? "no-stop"} className="inline-flex items-center gap-1.5 rounded-full border border-stone-200 bg-white px-2.5 py-1 text-[11px] font-medium text-stone-700">{row.stopId ? <MapPin className="h-3 w-3 text-stone-400" /> : <Users className="h-3 w-3 text-amber-500" />}{row.sequence !== null ? `${row.sequence}. ` : ""}{row.stopName}<b className="font-semibold text-stone-950">{row.studentCount}</b></span>)}</div>}
+              <div className="mt-4 overflow-hidden rounded-xl border border-stone-100"><div className="max-h-[28rem] overflow-auto"><table className="w-full text-left text-xs"><thead className="sticky top-0 bg-stone-50 text-[10px] uppercase tracking-wider text-stone-400"><tr><th className="px-3 py-2">Student</th><th className="px-3 py-2">Class</th><th className="px-3 py-2">Stop</th><th className="px-3 py-2">Card</th></tr></thead><tbody className="divide-y divide-stone-100">{roster.roster.map((entry) => <tr key={entry.student.id}><td className="px-3 py-2.5"><p className="font-semibold text-stone-900">{entry.student.studentName}</p><p className="font-mono text-[10px] text-stone-400">{entry.student.studentId}</p></td><td className="px-3 py-2.5 text-stone-500">{entry.student.className ?? "—"}</td><td className="px-3 py-2.5 text-stone-500">{entry.stop ? `${entry.stop.sequence}. ${entry.stop.name}` : <span className="text-stone-300">—</span>}</td><td className="px-3 py-2.5">{entry.card ? <span className="inline-flex items-center gap-1 text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" /> ready</span> : <span className="text-amber-700">No card</span>}</td></tr>)}</tbody></table></div></div>
             </> : <div className="mt-8 rounded-xl border border-dashed border-stone-200 p-8 text-center"><ScanLine className="mx-auto h-8 w-8 text-stone-300" /><p className="mt-3 text-sm font-semibold text-stone-800">No roster loaded for this context</p><p className="mt-1 text-xs leading-5 text-stone-500">Open a trip, download its roster while online, then switch to Offline mode. The cached roster survives page restart.</p></div>}
           </section>
 
           <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm xl:col-span-2">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-400">Create bus</p><h2 className="mt-1 text-lg font-semibold text-stone-950">Add a vehicle to the transport registry</h2></div><form onSubmit={createBus} className="flex flex-wrap gap-2 sm:justify-end"><input value={newBusCode} onChange={(event) => setNewBusCode(event.target.value)} placeholder="Bus code e.g. BUS-01" className="h-9 w-40 rounded-lg border border-stone-200 px-3 text-xs outline-none focus:border-stone-500" /><input value={newBusRegistration} onChange={(event) => setNewBusRegistration(event.target.value)} placeholder="Registration (optional)" className="h-9 w-44 rounded-lg border border-stone-200 px-3 text-xs outline-none focus:border-stone-500" /><input value={newBusCapacity} onChange={(event) => setNewBusCapacity(event.target.value)} type="number" min="1" placeholder="Capacity" className="h-9 w-24 rounded-lg border border-stone-200 px-3 text-xs outline-none focus:border-stone-500" /><button type="submit" disabled={busy !== null || offline} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-stone-950 px-3 text-xs font-semibold text-white disabled:opacity-40"><Plus className="h-3.5 w-3.5" /> Add bus</button></form></div></section>
+        </div>
+      )}
+
+      {activeTab === "routes" && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div><p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-400">Route registry</p><h2 className="mt-1 text-lg font-semibold text-stone-950">Routes outlive the buses running them</h2></div>
+              <Milestone className="h-5 w-5 text-stone-400" />
+            </div>
+            <p className="mt-2 text-xs leading-5 text-stone-500">Assign a child to a stop on a route and the vehicle can be swapped, replaced or borrowed without invalidating the assignment. Retiring a route never strands a child — the bus leg of every existing assignment survives.</p>
+            <form onSubmit={createRoute} className="mt-4 flex flex-wrap gap-2">
+              <input value={newRouteCode} onChange={(event) => setNewRouteCode(event.target.value)} placeholder="Code e.g. R-EAST" className="h-9 w-36 rounded-lg border border-stone-200 px-3 text-xs outline-none focus:border-stone-500" />
+              <input value={newRouteName} onChange={(event) => setNewRouteName(event.target.value)} placeholder="Name e.g. East Legon Loop" className="h-9 min-w-0 flex-1 rounded-lg border border-stone-200 px-3 text-xs outline-none focus:border-stone-500" />
+              <button type="submit" disabled={busy !== null || offline || !newRouteCode.trim() || !newRouteName.trim()} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-stone-950 px-3 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"><Plus className="h-3.5 w-3.5" /> Add route</button>
+            </form>
+            <div className="mt-4 space-y-2">
+              {routes.length === 0 && <p className="rounded-xl border border-dashed border-stone-200 p-5 text-center text-xs leading-5 text-stone-500">No active routes yet. Children can still be assigned to a bus alone — stops are optional.</p>}
+              {routes.map((route) => (
+                <div key={route.id} className={cn("rounded-xl border p-3 transition", selectedRouteId === route.id ? "border-stone-900 bg-stone-50" : "border-stone-200 hover:border-stone-300")}>
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => setSelectedRouteId(route.id)} className="min-w-0 flex-1 text-left">
+                      <p className="truncate text-sm font-semibold text-stone-950">{route.name}</p>
+                      <p className="font-mono text-[10px] text-stone-400">{route.code}</p>
+                    </button>
+                    <span className="rounded-full border border-stone-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-stone-600">{route._count?.stops ?? route.stops?.length ?? 0} stops</span>
+                    <span className="rounded-full border border-stone-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-stone-600">{route._count?.assignments ?? 0} assigned</span>
+                    <button type="button" onClick={() => void retireRoute(route)} disabled={busy !== null || offline} className="rounded-md border border-stone-200 bg-white px-2 py-1 text-[10px] font-semibold text-stone-600 hover:text-stone-950 disabled:opacity-40">Retire</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div><p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-400">Stops in pickup order</p><h2 className="mt-1 text-lg font-semibold text-stone-950">{selectedRoute ? selectedRoute.name : "Select a route"}</h2></div>
+              <MapPin className="h-5 w-5 text-stone-400" />
+            </div>
+            {selectedRoute ? <>
+              <form onSubmit={addStop} className="mt-4 flex flex-wrap gap-2">
+                <input value={newStopName} onChange={(event) => setNewStopName(event.target.value)} placeholder="Stop name e.g. Airport City" className="h-9 min-w-0 flex-1 rounded-lg border border-stone-200 px-3 text-xs outline-none focus:border-stone-500" />
+                <button type="submit" disabled={busy !== null || offline || !newStopName.trim()} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-stone-950 px-3 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"><Plus className="h-3.5 w-3.5" /> Append stop</button>
+              </form>
+              <p className="mt-2 text-[11px] leading-4 text-stone-500">Stops append in pickup order. The return trip runs the same list backwards automatically — there is no second order to maintain.</p>
+              {(selectedRoute.stops ?? []).length === 0 && <p className="mt-4 rounded-xl border border-dashed border-stone-200 p-5 text-center text-xs text-stone-500">No stops on this route yet.</p>}
+              <ol className="mt-4 space-y-2">
+                {(selectedRoute.stops ?? []).map((stop) => (
+                  <li key={stop.id} className="flex items-center gap-3 rounded-xl border border-stone-200 p-3">
+                    <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold", stop.isActive ? "bg-stone-950 text-white" : "bg-stone-200 text-stone-500")}>{stop.sequence}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className={cn("truncate text-sm font-semibold", stop.isActive ? "text-stone-950" : "text-stone-400 line-through")}>{stop.name}</p>
+                      <p className="text-[10px] text-stone-400">{stop.latitude !== null && stop.longitude !== null ? `${stop.latitude.toFixed(4)}, ${stop.longitude.toFixed(4)}` : "No coordinates"} · {stop._count?.assignments ?? 0} assigned</p>
+                    </div>
+                    <button type="button" onClick={() => void toggleStop(stop)} disabled={busy !== null || offline} className="rounded-md border border-stone-200 bg-white px-2 py-1 text-[10px] font-semibold text-stone-600 hover:text-stone-950 disabled:opacity-40">{stop.isActive ? "Deactivate" : "Reactivate"}</button>
+                  </li>
+                ))}
+              </ol>
+            </> : <div className="mt-10 rounded-xl border border-dashed border-stone-200 p-8 text-center"><Milestone className="mx-auto h-8 w-8 text-stone-300" /><p className="mt-3 text-sm font-semibold text-stone-800">No route selected</p><p className="mt-1 text-xs leading-5 text-stone-500">Create a route or pick one from the list to manage its stops.</p></div>}
+          </section>
         </div>
       )}
 

@@ -250,6 +250,49 @@ model FamilyGroup {
   @@index([primaryEmail])
 }
 
+/// A named route (e.g. "East Legon loop"). A route is a stable, long-lived
+/// thing: it outlives the bus that happens to run it on a given day, which is
+/// the whole point. Assigning a student to a bus alone means every vehicle
+/// swap, breakdown or driver change silently invalidates the assignment;
+/// assigning to a stop on a route does not.
+model TransportRoute {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  name      String
+  notes     String?  @db.Text
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stops       TransportStop[]
+  assignments TransportAssignment[]
+  trips       TransportTrip[]
+
+  @@index([isActive])
+}
+
+/// An ordered pickup/dropoff point on a route. `sequence` is the position along
+/// the route in the TO_SCHOOL direction; FROM_SCHOOL is the reverse and is
+/// derived in the application layer rather than stored, so the two can never
+/// drift apart.
+model TransportStop {
+  id        String   @id @default(uuid())
+  routeId   String
+  name      String
+  sequence  Int
+  latitude  Float?
+  longitude Float?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  route       TransportRoute        @relation(fields: [routeId], references: [id], onDelete: Restrict)
+  assignments TransportAssignment[]
+
+  @@unique([routeId, sequence])
+  @@index([routeId, isActive, sequence])
+}
+
 model TransportBus {
   id                 String   @id @default(uuid())
   code               String   @unique
@@ -297,38 +340,49 @@ model TransportCard {
 }
 
 model TransportAssignment {
-  id            String   @id @default(uuid())
+  id            String    @id @default(uuid())
   studentId     String
   busId         String
+  routeId       String?
+  stopId        String?
   effectiveFrom DateTime
   effectiveTo   DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  student Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  bus     TransportBus @relation(fields: [busId], references: [id], onDelete: Restrict)
+  student Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  bus     TransportBus    @relation(fields: [busId], references: [id], onDelete: Restrict)
+  // SetNull, not Restrict: retiring a route or a stop must not strand a child
+  // who is still assigned to a bus. The bus leg of the assignment survives and
+  // the stop detail is simply cleared.
+  route   TransportRoute? @relation(fields: [routeId], references: [id], onDelete: SetNull)
+  stop    TransportStop?  @relation(fields: [stopId], references: [id], onDelete: SetNull)
 
   @@index([studentId, effectiveFrom])
   @@index([busId, effectiveFrom, effectiveTo])
+  @@index([stopId])
 }
 
 model TransportTrip {
-  id          String                @id @default(uuid())
+  id          String                 @id @default(uuid())
   busId       String
+  routeId     String?
   serviceDate DateTime
   direction   TransportTripDirection
-  status      TransportTripStatus   @default(OPEN)
+  status      TransportTripStatus    @default(OPEN)
   operatorId  String?
-  startedAt   DateTime              @default(now())
+  startedAt   DateTime               @default(now())
   endedAt     DateTime?
-  createdAt   DateTime              @default(now())
-  updatedAt   DateTime              @updatedAt
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
 
-  bus    TransportBus            @relation(fields: [busId], references: [id], onDelete: Restrict)
+  bus    TransportBus             @relation(fields: [busId], references: [id], onDelete: Restrict)
+  route  TransportRoute?          @relation(fields: [routeId], references: [id], onDelete: SetNull)
   events TransportBoardingEvent[]
 
   @@unique([busId, serviceDate, direction])
   @@index([serviceDate, direction])
+  @@index([routeId, serviceDate])
 }
 
 model TransportBoardingEvent {

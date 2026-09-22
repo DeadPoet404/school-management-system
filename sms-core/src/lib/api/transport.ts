@@ -11,6 +11,36 @@ export interface TransportBus {
   _count?: { assignments: number; trips: number; devices: number }
 }
 
+export interface TransportStop {
+  id: string
+  routeId: string
+  name: string
+  sequence: number
+  latitude: number | null
+  longitude: number | null
+  isActive: boolean
+  route?: { id: string; code: string; name: string }
+  _count?: { assignments: number }
+}
+
+export interface TransportRoute {
+  id: string
+  code: string
+  name: string
+  notes: string | null
+  isActive: boolean
+  stops?: TransportStop[]
+  _count?: { stops: number; assignments: number; trips: number }
+}
+
+/** Per-stop headcount, already ordered for the trip's direction. */
+export interface TransportStopManifestRow {
+  stopId: string | null
+  stopName: string
+  sequence: number | null
+  studentCount: number
+}
+
 export interface TransportStudent {
   id: string
   studentId: string
@@ -27,6 +57,8 @@ export interface TransportRosterEntry {
     studentName: string
     className: string | null
   }
+  /** Null when the child is assigned to the bus but not to a stop. */
+  stop: { id: string; name: string; sequence: number } | null
   card: {
     id: string
     qrToken: string
@@ -46,6 +78,8 @@ export interface TransportRoster {
   staleAfterHours: number
   isVersionStale: boolean
   warnings: string[]
+  route: { id: string; code: string; name: string } | null
+  stopManifest: TransportStopManifestRow[]
   roster: TransportRosterEntry[]
 }
 
@@ -59,6 +93,7 @@ export interface TransportTrip {
   startedAt: string
   endedAt: string | null
   bus: { id: string; code: string; capacity: number | null }
+  route: { id: string; code: string; name: string } | null
   _count?: { events: number }
 }
 
@@ -128,12 +163,61 @@ export function createTransportBus(body: { code: string; registrationNumber?: st
   return request<TransportBus>("/transport/buses", json(body))
 }
 
+export function getTransportRoutes() {
+  return request<TransportRoute[]>("/transport/routes")
+}
+
+export function createTransportRoute(body: { code: string; name: string; notes?: string | null }) {
+  return request<TransportRoute>("/transport/routes", json(body))
+}
+
+export function getTransportRoute(id: string) {
+  return request<TransportRoute>(`/transport/routes/${encodeURIComponent(id)}`)
+}
+
+export function updateTransportRoute(id: string, body: { name?: string; notes?: string | null; isActive?: boolean }) {
+  return request<TransportRoute>(`/transport/routes/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  })
+}
+
+export function createTransportStop(routeId: string, body: {
+  name: string
+  sequence?: number | null
+  latitude?: number | null
+  longitude?: number | null
+}) {
+  return request<TransportStop>(`/transport/routes/${encodeURIComponent(routeId)}/stops`, json(body))
+}
+
+export function updateTransportStop(id: string, body: {
+  name?: string
+  sequence?: number
+  latitude?: number | null
+  longitude?: number | null
+  isActive?: boolean
+}) {
+  return request<TransportStop>(`/transport/stops/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  })
+}
+
 export function getTransportStudents(search?: string) {
   const query = search ? `?search=${encodeURIComponent(search)}` : ""
   return request<TransportStudent[]>(`/transport/students${query}`)
 }
 
-export function assignTransportStudent(body: { studentId: string; busId: string; effectiveFrom: string; effectiveTo?: string | null }) {
+export function assignTransportStudent(body: {
+  studentId: string
+  busId: string
+  /** Optional. Omit `routeId` when passing `stopId` — the API derives it. */
+  routeId?: string | null
+  stopId?: string | null
+  effectiveFrom: string
+  effectiveTo?: string | null
+}) {
   return request("/transport/assignments", json(body))
 }
 
@@ -143,6 +227,8 @@ export function issueTransportCard(body: { studentId: string; replaceExisting?: 
 
 export function openTransportTrip(body: {
   busId: string
+  /** Optional. Re-POSTing an OPEN trip with a routeId binds it without disturbing the run. */
+  routeId?: string | null
   serviceDate: string
   direction: TransportDirection
   /** Required to reopen a CLOSED or CANCELLED trip; the API returns 409 without it. */
