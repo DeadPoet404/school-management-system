@@ -272,24 +272,24 @@ export class StaffService {
       fullName: string;
       email: string;
       password: string;
-      employmentDate: string;
+      employmentDate?: string;
       role?: string;
     };
-    demographics: {
-      dateOfBirth: string;
-      gender: string;
-      residentialAddress: string;
-      phone: string;
+    demographics?: {
+      dateOfBirth?: string;
+      gender?: string;
+      residentialAddress?: string;
+      phone?: string;
       bloodType?: string | null;
       religion?: string | null;
       formerSchool?: string | null;
-    };
-    placement: {
-      departmentId: string;
-      jobTitle: string;
-      employmentType: string;
-      shiftSchedule: string;
-    };
+    } | null;
+    placement?: {
+      departmentId?: string;
+      jobTitle?: string;
+      employmentType?: string;
+      shiftSchedule?: string;
+    } | null;
     compliance?: {
       nationalId?: string | null;
       ssnitNumber?: string | null;
@@ -297,86 +297,127 @@ export class StaffService {
         name?: string | null;
         phone?: string | null;
       } | null;
-    };
-    payroll: {
-      clearanceTier: string;
-      baseSalary: string | number;
+    } | null;
+    payroll?: {
+      clearanceTier?: string;
+      baseSalary?: string | number | null;
       bankName?: string | null;
       bankAccount?: string | null;
-    };
+    } | null;
   }) {
     const { account, demographics, placement, compliance, payroll } = payload;
+    const roleUpper = (account.role || "STAFF").toUpperCase();
+    const isDriver = roleUpper === "DRIVER";
+
+    // Normalize optional buckets so capStringFields never crashes
+    const demo = demographics || {};
+    const place = placement || {};
+    const pay = payroll || {};
+    const comp = compliance || {};
 
     // 2026-09 "no small letters" rule: entered text is stored in capitals.
     // Emails are excluded — they are matched case-sensitively for logins.
     capStringFields(account, ['fullName']);
-    capStringFields(demographics, ['gender', 'residentialAddress', 'bloodType', 'religion', 'formerSchool']);
-    capStringFields(placement, ['jobTitle', 'employmentType', 'shiftSchedule']);
-    if (compliance) {
-      capStringFields(compliance, ['nationalId', 'ssnitNumber']);
-      if (compliance.emergencyContact) capStringFields(compliance.emergencyContact, ['name']);
+    if (demo) capStringFields(demo as Record<string, unknown>, ['gender', 'residentialAddress', 'bloodType', 'religion', 'formerSchool']);
+    if (place) capStringFields(place as Record<string, unknown>, ['jobTitle', 'employmentType', 'shiftSchedule']);
+    if (comp) {
+      capStringFields(comp as Record<string, unknown>, ['nationalId', 'ssnitNumber']);
+      const ec = (comp as { emergencyContact?: Record<string, unknown> | null }).emergencyContact;
+      if (ec) capStringFields(ec as Record<string, unknown>, ['name']);
     }
-    capStringFields(payroll, ['clearanceTier', 'bankName', 'bankAccount']);
+    if (pay) capStringFields(pay as Record<string, unknown>, ['clearanceTier', 'bankName', 'bankAccount']);
 
-    const deptPrefix = placement.departmentId ? placement.departmentId.replace("dept-", "").toUpperCase() : "STF";
-    const generatedStaffId = formatInstitutionalId('STF', deptPrefix);
-    
+    // Defaults — driver gets transport-flavoured defaults, others get generic
+    const defaultDob = new Date('1990-01-01');
+    const safeDob = (() => {
+      const raw = (demo as { dateOfBirth?: string }).dateOfBirth;
+      if (!raw) return defaultDob;
+      const d = new Date(raw);
+      return isNaN(d.getTime()) ? defaultDob : d;
+    })();
+
+    const safeGender = (demo as { gender?: string }).gender?.trim() || (isDriver ? 'MALE' : 'OTHER');
+    const safeAddress = (demo as { residentialAddress?: string }).residentialAddress?.trim() || 'Not provided';
+    const safePhone = (demo as { phone?: string }).phone?.trim() || '0000000000';
+
+    const safeDeptId = (place as { departmentId?: string }).departmentId?.trim() || (isDriver ? 'TRANSPORT' : 'OPERATIONS');
+    const safeJobTitle = (place as { jobTitle?: string }).jobTitle?.trim() || (isDriver ? 'Bus Driver' : 'General Staff');
+    const safeEmpType = (place as { employmentType?: string }).employmentType?.trim() || 'FULL_TIME';
+    const safeShift = (place as { shiftSchedule?: string }).shiftSchedule?.trim() || (isDriver ? 'MORNING' : 'Standard Shift');
+
+    const safeClearance = (pay as { clearanceTier?: string }).clearanceTier?.trim() || 'clear-std';
+    const rawSalary = (pay as { baseSalary?: string | number | null }).baseSalary;
+    const safeBaseSalary = rawSalary !== undefined && rawSalary !== null && String(rawSalary).trim() !== '' ? parseFloat(String(rawSalary)) || 0 : 0;
+
+    const safeBankName = (pay as { bankName?: string | null }).bankName?.trim() || null;
+    const safeBankAccount = (pay as { bankAccount?: string | null }).bankAccount?.trim() || null;
+
+    const safeAppointmentDate = (() => {
+      const raw = account.employmentDate;
+      if (!raw) return new Date();
+      const d = new Date(raw);
+      return isNaN(d.getTime()) ? new Date() : d;
+    })();
+
+    const deptPrefix = safeDeptId ? safeDeptId.replace(/^dept-/i, '').toUpperCase().slice(0, 8) : 'STF';
+    const generatedStaffId = formatInstitutionalId('STF', deptPrefix || 'STF');
+
     return await prisma.$transaction(async (tx) => {
       const hashedPassword = await hashPassword(account.password);
 
       const completeDbPayload: Prisma.StaffCreateInput = {
         staffId: generatedStaffId,
         staffName: account.fullName,
-        appointmentDate: new Date(account.employmentDate),
+        appointmentDate: safeAppointmentDate,
         status: EntityStatus.ACTIVE,
 
         account: {
           create: {
             email: account.email,
             passwordHash: hashedPassword,
-            role: account.role || "STAFF",
+            role: roleUpper,
           },
         },
 
         demographics: {
           create: {
-            dateOfBirth: new Date(demographics.dateOfBirth),
-            gender: demographics.gender,
-            residentialAddress: demographics.residentialAddress,
-            phone: demographics.phone,
-            bloodType: demographics.bloodType || null,
-            religion: demographics.religion || null,
-            formerSchool: demographics.formerSchool || null,
+            dateOfBirth: safeDob,
+            gender: safeGender,
+            residentialAddress: safeAddress,
+            phone: safePhone,
+            bloodType: (demo as { bloodType?: string | null }).bloodType || null,
+            religion: (demo as { religion?: string | null }).religion || null,
+            formerSchool: (demo as { formerSchool?: string | null }).formerSchool || null,
           },
         },
 
         placement: {
           create: {
-            departmentId: placement.departmentId,
-            jobTitle: placement.jobTitle,
-            employmentType: placement.employmentType,
-            shiftSchedule: placement.shiftSchedule,
+            departmentId: safeDeptId,
+            jobTitle: safeJobTitle,
+            employmentType: safeEmpType,
+            shiftSchedule: safeShift,
           },
         },
 
         compliance: {
           create: {
-            nationalId: compliance?.nationalId || null,
-            ssnitNumber: compliance?.ssnitNumber || null,
-            emergencyName: compliance?.emergencyContact?.name || null,
-            emergencyPhone: compliance?.emergencyContact?.phone || null,
+            nationalId: (comp as { nationalId?: string | null }).nationalId || null,
+            ssnitNumber: (comp as { ssnitNumber?: string | null }).ssnitNumber || null,
+            emergencyName: (comp as { emergencyContact?: { name?: string | null } | null }).emergencyContact?.name || null,
+            emergencyPhone: (comp as { emergencyContact?: { phone?: string | null } | null }).emergencyContact?.phone || null,
           },
         },
 
         payroll: {
           create: {
-            clearanceTier: payroll.clearanceTier,
-            baseSalary: payroll.baseSalary ? parseFloat(payroll.baseSalary as string) : 0,
+            clearanceTier: safeClearance,
+            baseSalary: safeBaseSalary,
             deductions: 0,
-            netPay: payroll.baseSalary ? parseFloat(payroll.baseSalary as string) : 0,
-            bankName: payroll.bankName || null,
-            bankAccount: payroll.bankAccount || null,
-            salaryStatus: "PENDING",
+            netPay: safeBaseSalary,
+            bankName: safeBankName,
+            bankAccount: safeBankAccount,
+            salaryStatus: 'PENDING',
           },
         },
       };

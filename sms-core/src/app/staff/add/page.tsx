@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ArrowLeft, CheckCircle2, AlertCircle, ShieldCheck, Phone, Pencil, Lock } from "lucide-react"
+import { ArrowLeft, CheckCircle2, AlertCircle, ShieldCheck, Phone, Pencil, Lock, ChevronDown, Bus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Input } from "@/components/ui/input"
@@ -33,54 +33,35 @@ const MOCK_CLEARANCE_LEVELS: ClearanceOption[] = [
   {
     id: "clear-std",
     name: "Level 1: General Staff Access",
-    description: "Standard portal read/write for basic assignment nodes",
+    description: "Standard portal read/write",
   },
   {
     id: "clear-fin",
     name: "Level 2: Financial Ledger Access",
-    description: "Read/write access to treasury and fee tracking systems",
+    description: "Treasury and fee tracking",
   },
   {
     id: "clear-adm",
-    name: "Level 3: Full Operational Super-Admin",
-    description: "Unrestricted infrastructure and system configuration rights",
+    name: "Level 3: Full Super-Admin",
+    description: "Unrestricted system configuration",
   },
 ]
 
-/**
- * Auto-generate the staff portal email from the full name:
- * "SAMUEL OSEI MENSAH" -> samuel.mensah@jocomfy.com
- * Keeps only alphabetic parts, joins first + last with a dot.
- * Same system as student enrollment.
- */
 function generatePortalEmail(fullName: string): string {
-  const parts = fullName
-    .trim()
-    .toLowerCase()
-    .split(/[^a-z]+/)
-    .filter((part) => part.length > 0)
+  const parts = fullName.trim().toLowerCase().split(/[^a-z]+/).filter((p) => p.length > 0)
   if (parts.length === 0) return ""
-  const local =
-    parts.length === 1 ? parts[0]! : `${parts[0]}.${parts[parts.length - 1]!}`
+  const local = parts.length === 1 ? parts[0]! : `${parts[0]}.${parts[parts.length - 1]!}`
   return `${local}@jocomfy.com`
 }
 
-/**
- * Auto-generate the temporary password token.
- * Unambiguous alphabet only — no 0/O, 1/l/I.
- * Same as student enrollment.
- */
 function generateTemporaryToken(): string {
   const alphabet = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
   if (typeof crypto !== "undefined" && "getRandomValues" in crypto) {
     const bytes = crypto.getRandomValues(new Uint8Array(10))
     let secret = ""
-    for (let i = 0; i < bytes.length; i += 1) {
-      secret += alphabet[bytes[i]! % alphabet.length]
-    }
+    for (let i = 0; i < bytes.length; i += 1) secret += alphabet[bytes[i]! % alphabet.length]
     return `JCS-${secret}`
   }
-  // Fallback for SSR (will be replaced on mount)
   return `JCS-${Math.random().toString(36).slice(2, 12)}`
 }
 
@@ -91,20 +72,13 @@ function ComprehensiveStaffEnrollmentWizard() {
 
   const backConfig = {
     href: fromSource === "operations" ? "/operations" : "/staff",
-    label:
-      fromSource === "operations"
-        ? "Back to Operations"
-        : "Back to Staff Registry",
+    label: fromSource === "operations" ? "Back to Operations" : "Back to Staff Registry",
   }
 
   const [formState, setFormState] = React.useState<FormState>("idle")
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null)
 
-  // ── STEP 1: ACCOUNT ACCESS & CORE CREDENTIALS (AUTO-GENERATED) ──
-  // Both credential fields are AUTO-GENERATED and read-only by default —
-  // they are not browser inputs on page load, so autofill can never
-  // inject a staff/admin address or a saved password. The pencil icon
-  // unlocks manual entry for genuine edge cases (name collisions).
+  // ── CORE (always required) ──
   const [fullName, setFullName] = React.useState("")
   const [portalOverride, setPortalOverride] = React.useState("")
   const [portalEditing, setPortalEditing] = React.useState(false)
@@ -113,76 +87,58 @@ function ComprehensiveStaffEnrollmentWizard() {
   const [employmentDate, setEmploymentDate] = React.useState("")
   const [staffRole, setStaffRole] = React.useState("STAFF")
 
-  // Computed from the staff's name unless the operator unlocked and
-  // typed an override. "SAMUEL OSEI MENSAH" → samuel.mensah@jocomfy.com
   const portalEmail = portalOverride.trim() || generatePortalEmail(fullName)
+  const isDriver = staffRole === "DRIVER"
 
-  // ── STEP 2: PERSONAL DEMOGRAPHICS & BACKGROUND ──
+  // ── MINIMAL DRIVER FIELDS ──
+  const [phone, setPhone] = React.useState("")
+  const [ghanaCardNumber, setGhanaCardNumber] = React.useState("")
+  const [emergencyContactName, setEmergencyContactName] = React.useState("")
+  const [emergencyContactPhone, setEmergencyContactPhone] = React.useState("")
+
+  // ── ADVANCED OPTIONAL (for non-driver or expanded driver) ──
+  const [showAdvanced, setShowAdvanced] = React.useState(false)
   const [dateOfBirth, setDateOfBirth] = React.useState("")
   const [gender, setGender] = React.useState("")
   const [residentialAddress, setResidentialAddress] = React.useState("")
-  const [phone, setPhone] = React.useState("")
   const [bloodType, setBloodType] = React.useState("")
   const [religion, setReligion] = React.useState("")
   const [formerSchool, setFormerSchool] = React.useState("")
-
-  // ── STEP 3: ROLE PLACEMENT & ASSIGNMENT ──
   const [departmentId, setDepartmentId] = React.useState<string>("")
   const [jobTitle, setJobTitle] = React.useState("")
   const [employmentType, setEmploymentType] = React.useState("")
   const [shiftSchedule, setShiftSchedule] = React.useState("")
-
-  // ── STEP 4: STATUTORY COMPLIANCE & NATIONAL IDENTITY ──
-  const [ghanaCardNumber, setGhanaCardNumber] = React.useState("")
   const [ssnitNumber, setSsnitNumber] = React.useState("")
-  const [emergencyContactName, setEmergencyContactName] = React.useState("")
-  const [emergencyContactPhone, setEmergencyContactPhone] = React.useState("")
-
-  // ── STEP 5: COMPENSATION & TREASURY DISBURSEMENT ──
   const [clearanceTier, setClearanceTier] = React.useState("")
   const [baseSalary, setBaseSalary] = React.useState("")
   const [bankName, setBankName] = React.useState("")
   const [bankAccount, setBankAccount] = React.useState("")
 
-  // ── SERVER CONFIRMATION TELEMETRY ──
-  const [createdStaffId, setCreatedStaffId] = React.useState<string | null>(
-    null
-  )
-  const [createdStaffName, setCreatedStaffName] = React.useState<
-    string | null
-  >(null)
+  const [createdStaffId, setCreatedStaffId] = React.useState<string | null>(null)
+  const [createdStaffName, setCreatedStaffName] = React.useState<string | null>(null)
 
-  // ── REFERENCE DATA (live, from /api/reference) ──
   const { data: departments = [], isLoading: deptsLoading } = useDepartments()
-
   const isSubmitting = formState === "submitting"
 
-  // ── GHANA CARD AUTO-FORMATTER: GHA-XXXXXXXXX-X ──
   const handleGhanaCardChange = (value: string) => {
     const stripped = value.replace(/[^A-Za-z0-9]/g, "").toUpperCase()
     let formatted = ""
-
-    if (stripped.length <= 3) {
-      formatted = stripped
-    } else if (stripped.length <= 12) {
-      formatted = stripped.slice(0, 3) + "-" + stripped.slice(3)
-    } else {
-      formatted =
-        stripped.slice(0, 3) +
-        "-" +
-        stripped.slice(3, 12) +
-        "-" +
-        stripped.slice(12, 13)
-    }
-
+    if (stripped.length <= 3) formatted = stripped
+    else if (stripped.length <= 12) formatted = stripped.slice(0, 3) + "-" + stripped.slice(3)
+    else formatted = stripped.slice(0, 3) + "-" + stripped.slice(3, 12) + "-" + stripped.slice(12, 13)
     setGhanaCardNumber(formatted)
   }
 
   const isGhanaCardValid = React.useMemo(() => {
-    return /^GHA-\\d{9}-\\d$/.test(ghanaCardNumber)
+    if (!ghanaCardNumber) return true
+    return /^GHA-\d{9}-\d$/.test(ghanaCardNumber)
   }, [ghanaCardNumber])
 
-  // ── STRUCTURAL UNIFIED PAYLOAD ASSEMBLY → REAL BACKEND ──
+  // Auto-expand advanced when non-driver selected
+  React.useEffect(() => {
+    if (!isDriver) setShowAdvanced(false) // keep collapsed by default but allow toggle
+  }, [isDriver])
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setFormState("submitting")
@@ -190,46 +146,49 @@ function ComprehensiveStaffEnrollmentWizard() {
 
     if (!fullName.trim()) {
       setFormState("error")
-      setErrorMessage("Full legal name is required to generate the portal email.")
+      setErrorMessage("Full legal name is required.")
       return
     }
     if (!portalEmail) {
       setFormState("error")
-      setErrorMessage("Portal email could not be generated from the name. Tap the pencil to type one.")
+      setErrorMessage("Portal email could not be generated. Tap pencil to type one.")
       return
     }
     if (!securityToken.trim() || securityToken.trim().length < 6) {
       setFormState("error")
-      setErrorMessage("Temporary security token is required (auto-generated).")
+      setErrorMessage("Security token is required.")
       return
     }
-
     if (ghanaCardNumber && !isGhanaCardValid) {
       setFormState("error")
-      setErrorMessage(
-        "National ID / Ghana Card format is invalid. Expected: GHA-XXXXXXXXX-X"
-      )
+      setErrorMessage("Ghana Card format invalid. Expected GHA-XXXXXXXXX-X or leave empty.")
       return
     }
 
+    // Build minimal payload — backend now fills defaults for anything missing
     const staffPayload = {
       account: {
         fullName,
         email: portalEmail,
         password: securityToken.trim(),
-        employmentDate,
+        employmentDate: employmentDate || new Date().toISOString().slice(0, 10),
         role: staffRole,
       },
       demographics: {
-        dateOfBirth,
-        gender,
-        residentialAddress,
-        phone,
-        bloodType,
-        religion,
-        formerSchool,
+        dateOfBirth: dateOfBirth || undefined,
+        gender: gender || undefined,
+        residentialAddress: residentialAddress || undefined,
+        phone: phone || undefined,
+        bloodType: bloodType || null,
+        religion: religion || null,
+        formerSchool: formerSchool || null,
       },
-      placement: { departmentId, jobTitle, employmentType, shiftSchedule },
+      placement: {
+        departmentId: departmentId || undefined,
+        jobTitle: jobTitle || (isDriver ? "Bus Driver" : undefined),
+        employmentType: employmentType || undefined,
+        shiftSchedule: shiftSchedule || undefined,
+      },
       compliance: {
         nationalId: ghanaCardNumber || null,
         ssnitNumber: ssnitNumber || null,
@@ -239,10 +198,10 @@ function ComprehensiveStaffEnrollmentWizard() {
         },
       },
       payroll: {
-        clearanceTier,
+        clearanceTier: clearanceTier || undefined,
         baseSalary: baseSalary ? parseFloat(baseSalary) : 0,
-        bankName,
-        bankAccount,
+        bankName: bankName || null,
+        bankAccount: bankAccount || null,
       },
     }
 
@@ -252,51 +211,28 @@ function ComprehensiveStaffEnrollmentWizard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(staffPayload),
       })
-
       const rawText = await response.text()
       let json: unknown
-
       try {
         json = JSON.parse(rawText)
       } catch {
-        throw new Error(
-          "Server returned an unstable body string instead of structured application/json data."
-        )
+        throw new Error("Server returned non-JSON.")
       }
-
       if (!response.ok) {
-        const errorData = json as Record<string, unknown>
-        throw new Error(
-          (errorData.message as string) ||
-            (errorData.error as string) ||
-            `Ingestion error tracking status: ${response.status}`
-        )
+        const err = json as Record<string, unknown>
+        throw new Error((err.message as string) || (err.error as string) || `Error ${response.status}`)
       }
-
-      const savedStaff = (json as Record<string, unknown>).data as Record<
-        string,
-        unknown
-      >
-      setCreatedStaffId(
-        (savedStaff.staffId as string) || (savedStaff.id as string) || null
-      )
-      setCreatedStaffName(
-        (savedStaff.staffName as string) ||
-          (savedStaff.name as string) ||
-          null
-      )
+      const saved = (json as Record<string, unknown>).data as Record<string, unknown>
+      setCreatedStaffId((saved.staffId as string) || (saved.id as string) || null)
+      setCreatedStaffName((saved.staffName as string) || (saved.name as string) || null)
       setFormState("success")
-      // Fresh credentials for next enrollment
       setPortalOverride("")
       setPortalEditing(false)
       setTokenEditing(false)
       setSecurityToken(generateTemporaryToken())
     } catch (err: unknown) {
       setFormState("error")
-      setErrorMessage(
-        (err as Error)?.message ||
-          "Failed to commit staff registration transaction pipelines."
-      )
+      setErrorMessage((err as Error)?.message || "Failed to create staff.")
     }
   }
 
@@ -304,864 +240,328 @@ function ComprehensiveStaffEnrollmentWizard() {
     if (!createdStaffId) return
     setFormState("submitting")
     try {
-      await new Promise((resolve) => setTimeout(resolve, 300))
+      await new Promise((r) => setTimeout(r, 300))
       router.push(backConfig.href)
     } catch (err: unknown) {
-      setErrorMessage(
-        (err as Error)?.message || "Unable to promote staff record state."
-      )
+      setErrorMessage((err as Error)?.message || "Unable to promote staff.")
       setFormState("error")
     }
   }
 
-  const handleSkip = () => {
-    router.push(backConfig.href)
-  }
+  const handleSkip = () => router.push(backConfig.href)
 
-  // ── SUCCESS CONFIRMATION RENDER ──
   if (formState === "success") {
     return (
-      <div className="flex w-full max-w-3xl flex-col space-y-5 overflow-visible bg-transparent sm:space-y-6 md:overflow-hidden">
-        <div className="flex flex-col gap-2 shrink-0">
-          <Link
-            href={backConfig.href}
-            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-fit group"
-          >
-            <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
-            {backConfig.label}
-          </Link>
-        </div>
-
-        <div className="flex flex-col items-center justify-center py-16 gap-4 motion-stagger">
+      <div className="flex w-full max-w-3xl flex-col space-y-5">
+        <Link href={backConfig.href} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground w-fit group">
+          <ArrowLeft className="h-3.5 w-3.5 group-hover:-translate-x-0.5 transition-transform" />
+          {backConfig.label}
+        </Link>
+        <div className="flex flex-col items-center justify-center py-16 gap-4">
           <CheckCircle2 className="h-12 w-12 text-emerald-600" />
-          <h2 className="text-2xl font-semibold text-foreground tracking-tight">
-            Staff Member Enrolled
-          </h2>
+          <h2 className="text-2xl font-semibold tracking-tight">Staff Member Enrolled</h2>
           <p className="text-sm text-muted-foreground text-center max-w-md leading-relaxed">
-            <span className="font-medium text-foreground">
-              {createdStaffName}
-            </span>{" "}
-            has been saved inside database ledgers with system parameters
-            assigned to Staff ID{" "}
-            <span className="font-mono text-foreground bg-zinc-100 dark:bg-zinc-900 px-1.5 py-0.5 rounded text-xs">
-              {createdStaffId}
-            </span>
-            .
+            <span className="font-medium text-foreground">{createdStaffName}</span> saved as{" "}
+            <span className="font-mono bg-zinc-100 dark:bg-zinc-900 px-1.5 py-0.5 rounded text-xs">{createdStaffId}</span>
+            {isDriver && " — assign a bus in Transport → Drivers."}
           </p>
           <div className="flex items-center gap-3 mt-4">
-            <Button
-              variant="ghost"
-              className="h-11 text-sm sm:h-9 sm:text-xs"
-              onClick={handleSkip}
-            >
-              Retain as Pending
-            </Button>
-            <Button
-              className="h-11 text-sm sm:h-9 sm:text-xs px-4 bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900"
-              onClick={handleActivate}
-            >
-              Activate & Provision Access
-            </Button>
+            <Button variant="ghost" className="h-9 text-xs" onClick={handleSkip}>Back to list</Button>
+            <Button className="h-9 text-xs px-4 bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900" onClick={handleActivate}>Done</Button>
           </div>
         </div>
       </div>
     )
   }
 
-  const StepBadge = ({ num, isLast }: { num: number; isLast?: boolean }) => (
-    <div className="absolute left-0 top-0 hidden h-full flex-col items-center sm:flex">
-      <div className="flex h-7 w-7 items-center justify-center rounded-full border border-stone-200 bg-background text-xs font-semibold text-stone-600 dark:border-stone-800 dark:text-stone-400 shadow-xs">
-        {num}
-      </div>
-      {!isLast && (
-        <div className="w-[1px] flex-1 bg-stone-200 dark:bg-stone-800 mt-2" />
-      )}
-    </div>
-  )
-
-  // ── MAIN FORM RENDER ──
   return (
-    <div className="flex w-full max-w-3xl flex-col space-y-5 overflow-visible bg-transparent sm:space-y-6 md:overflow-hidden">
-      <div className="flex flex-col gap-2 shrink-0">
-        <Link
-          href={backConfig.href}
-          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-fit group"
-        >
-          <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
+    <div className="flex w-full max-w-3xl flex-col space-y-5">
+      <div className="flex flex-col gap-2">
+        <Link href={backConfig.href} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground w-fit group">
+          <ArrowLeft className="h-3.5 w-3.5 group-hover:-translate-x-0.5 transition-transform" />
           {backConfig.label}
         </Link>
         <div>
-          <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-3xl">
-            Add staff member
-          </h1>
-          <p className="mt-1 hidden text-xs text-muted-foreground sm:block sm:text-sm">
-            Add the staff account, personal details, role and payment details. Email and password are auto-generated from the name.
+          <h1 className="text-xl font-semibold tracking-tight sm:text-3xl">Add staff member</h1>
+          <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
+            {isDriver ? "Driver needs only name — everything else is optional. Assign bus after." : "Only name and role are required. Everything else is optional."}
           </p>
         </div>
       </div>
 
-      <hr className="border-stone-200 dark:border-stone-800 shrink-0" />
+      <hr className="border-stone-200 dark:border-stone-800" />
 
       {formState === "error" && errorMessage && (
         <div className="flex items-start gap-2 p-3 rounded-lg border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950">
           <AlertCircle className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />
-          <p className="text-sm text-red-700 dark:text-red-300">
-            {errorMessage}
-          </p>
+          <p className="text-sm text-red-700 dark:text-red-300">{errorMessage}</p>
         </div>
       )}
 
-      <ScrollArea className="h-auto max-h-none w-full rounded-none border-none bg-transparent shadow-none md:h-[680px]">
-        <form
-          onSubmit={handleSubmit}
-          className="space-y-8 pb-28 pr-0 sm:space-y-12 sm:pb-24 sm:pr-4"
-        >
-          {/* ═══════════════════════════════════════════════════════
-              STEP 1: ACCOUNT ACCESS & CORE CREDENTIALS (AUTO)
-              ═══════════════════════════════════════════════════════ */}
-          <div className="relative pl-0 group sm:pl-10">
-            <StepBadge num={1} />
-            <div className="space-y-5">
-              <h3 className="text-base font-semibold text-foreground tracking-tight">
-                Account Access & Core Credentials
-              </h3>
+      <ScrollArea className="h-auto max-h-none w-full md:h-[680px]">
+        <form onSubmit={handleSubmit} className="space-y-8 pb-28 pr-0 sm:pr-4">
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="full-name"
-                    className="text-sm font-semibold sm:text-xs text-foreground"
-                  >
-                    Full Legal Name <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="full-name"
-                    placeholder="e.g. Samuel Osei Mensah"
-                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    required
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="employment-date"
-                    className="text-sm font-semibold sm:text-xs text-foreground"
-                  >
-                    Official Appointment Date{" "}
-                    <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="employment-date"
-                    type="date"
-                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
-                    value={employmentDate}
-                    onChange={(e) => setEmploymentDate(e.target.value)}
-                    required
-                    disabled={isSubmitting}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-semibold sm:text-xs text-foreground">
-                    Portal Access Address <span className="text-red-500">*</span>
-                  </Label>
-                  {portalEditing ? (
-                    <div className="flex items-center gap-1.5">
-                      <Input
-                        value={portalOverride}
-                        onChange={(e) => setPortalOverride(e.target.value)}
-                        onFocus={(e) => e.currentTarget.select()}
-                        autoFocus
-                        autoComplete="off"
-                        className="h-11 sm:h-9 flex-1 text-sm sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
-                        disabled={isSubmitting}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setPortalEditing(false)}
-                        title="Lock the computed address"
-                        className="h-11 sm:h-9 w-11 sm:w-9 p-0 shrink-0 border-stone-200 dark:border-stone-800 text-stone-500"
-                        disabled={isSubmitting}
-                      >
-                        <Lock className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="h-11 sm:h-9 flex items-center justify-between gap-2 rounded-md bg-stone-50 dark:bg-zinc-900/40 border border-stone-200 dark:border-stone-800 px-3">
-                      <span aria-live="polite" className="truncate text-sm sm:text-xs font-medium text-stone-700 dark:text-zinc-300">
-                        {portalEmail || "…"}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => {
-                          setPortalOverride(portalEmail)
-                          setPortalEditing(true)
-                        }}
-                        title="Edit portal address (normally computed from the name)"
-                        className="h-7 w-7 p-0 shrink-0 text-stone-400 hover:text-stone-700"
-                        disabled={isSubmitting}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  )}
-                  <p className="text-[11px] leading-snug text-stone-500">
-                    {portalEditing ? "Type the address, then lock it." : "Computed from full name — tap pencil to change."}
-                  </p>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-semibold sm:text-xs text-foreground">
-                    Temporary Security Token <span className="text-red-500">*</span>
-                  </Label>
-                  {tokenEditing ? (
-                    <div className="flex items-center gap-1.5">
-                      <Input
-                        value={securityToken}
-                        onChange={(e) => setSecurityToken(e.target.value)}
-                        onFocus={(e) => e.currentTarget.select()}
-                        autoFocus
-                        autoComplete="new-password"
-                        className="h-11 sm:h-9 flex-1 font-mono text-sm sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
-                        disabled={isSubmitting}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setTokenEditing(false)}
-                        title="Lock the token"
-                        className="h-11 sm:h-9 w-11 sm:w-9 p-0 shrink-0 border-stone-200 dark:border-stone-800 text-stone-500"
-                        disabled={isSubmitting}
-                      >
-                        <Lock className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="h-11 sm:h-9 flex items-center justify-between gap-2 rounded-md bg-stone-50 dark:bg-zinc-900/40 border border-stone-200 dark:border-stone-800 px-3">
-                      <span className="truncate font-mono text-sm sm:text-xs font-semibold tracking-wide text-stone-700">
-                        {securityToken}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => setTokenEditing(true)}
-                        title="Set a custom token"
-                        className="h-7 w-7 p-0 shrink-0 text-stone-400 hover:text-stone-700"
-                        disabled={isSubmitting}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  )}
-                  <p className="text-[11px] leading-snug text-stone-500">
-                    {tokenEditing ? "Type the token, then lock it." : "Auto-generated — share with staff, or tap pencil to set your own."}
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="staff-role"
-                    className="text-sm font-semibold sm:text-xs text-foreground"
-                  >
-                    System Role <span className="text-red-500">*</span>
-                  </Label>
-                  <Select value={staffRole} onValueChange={setStaffRole} disabled={isSubmitting}>
-                    <SelectTrigger id="staff-role" className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800">
-                      <SelectValue placeholder="Select role..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="STAFF" className="text-xs">STAFF — general operations</SelectItem>
-                      <SelectItem value="DRIVER" className="text-xs">DRIVER — bus driver portal only</SelectItem>
-                      <SelectItem value="ADMIN" className="text-xs">ADMIN — full system</SelectItem>
-                      <SelectItem value="ACCOUNTANT" className="text-xs">ACCOUNTANT — finance</SelectItem>
-                      <SelectItem value="FACULTY" className="text-xs">FACULTY — teaching</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-[11px] text-stone-500">DRIVER sees only Transport driver portal (own buses, roster in pickup order, offline scan).</p>
-                </div>
-              </div>
+          {/* CORE */}
+          <div className="space-y-5">
+            <div className="flex items-center gap-2">
+              <div className="h-7 w-7 rounded-full border bg-background flex items-center justify-center text-xs font-semibold">1</div>
+              <h3 className="text-base font-semibold tracking-tight">Account & Role</h3>
+              {isDriver && <span className="ml-2 inline-flex items-center gap-1 text-[11px] bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 px-2 py-0.5 rounded-full"><Bus className="h-3 w-3" />Driver fast-track</span>}
             </div>
-          </div>
 
-          {/* ═══════════════════════════════════════════════════════
-              STEP 2: PERSONAL DEMOGRAPHICS & BACKGROUND
-              ═══════════════════════════════════════════════════════ */}
-          <div className="relative pl-0 group sm:pl-10">
-            <StepBadge num={2} />
-            <div className="space-y-5">
-              <h3 className="text-base font-semibold text-foreground tracking-tight">
-                Personal Demographics & Background Matrix
-              </h3>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="dob"
-                    className="text-sm font-semibold sm:text-xs text-foreground"
-                  >
-                    Date of Birth <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="dob"
-                    type="date"
-                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
-                    value={dateOfBirth}
-                    onChange={(e) => setDateOfBirth(e.target.value)}
-                    required
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="gender"
-                    className="text-sm font-semibold sm:text-xs text-foreground"
-                  >
-                    Gender Identity <span className="text-red-500">*</span>
-                  </Label>
-                  <Select
-                    value={gender}
-                    onValueChange={setGender}
-                    disabled={isSubmitting}
-                  >
-                    <SelectTrigger
-                      id="gender"
-                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
-                    >
-                      <SelectValue placeholder="Select gender..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="MALE" className="text-xs">
-                        Male
-                      </SelectItem>
-                      <SelectItem value="FEMALE" className="text-xs">
-                        Female
-                      </SelectItem>
-                      <SelectItem value="OTHER" className="text-xs">
-                        Other
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="phone"
-                    className="text-sm font-semibold sm:text-xs text-foreground"
-                  >
-                    Mobile Phone Number <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="phone"
-                    placeholder="e.g. +233 50 XXX XXXX"
-                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800 font-mono"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    required
-                    disabled={isSubmitting}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="blood-type"
-                    className="text-sm font-semibold sm:text-xs text-foreground"
-                  >
-                    Blood Group{" "}
-                    <span className="text-stone-400 text-[10px]">
-                      (Optional)
-                    </span>
-                  </Label>
-                  <Select
-                    value={bloodType}
-                    onValueChange={setBloodType}
-                    disabled={isSubmitting}
-                  >
-                    <SelectTrigger
-                      id="blood-type"
-                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
-                    >
-                      <SelectValue placeholder="Select blood group..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="A_PLUS" className="text-xs">
-                        A+
-                      </SelectItem>
-                      <SelectItem value="A_MINUS" className="text-xs">
-                        A-
-                      </SelectItem>
-                      <SelectItem value="B_PLUS" className="text-xs">
-                        B+
-                      </SelectItem>
-                      <SelectItem value="B_MINUS" className="text-xs">
-                        B-
-                      </SelectItem>
-                      <SelectItem value="AB_PLUS" className="text-xs">
-                        AB+
-                      </SelectItem>
-                      <SelectItem value="AB_MINUS" className="text-xs">
-                        AB-
-                      </SelectItem>
-                      <SelectItem value="O_PLUS" className="text-xs">
-                        O+
-                      </SelectItem>
-                      <SelectItem value="O_MINUS" className="text-xs">
-                        O-
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="religion"
-                    className="text-sm font-semibold sm:text-xs text-foreground"
-                  >
-                    Religion Affiliation{" "}
-                    <span className="text-stone-400 text-[10px]">
-                      (Optional)
-                    </span>
-                  </Label>
-                  <Input
-                    id="religion"
-                    placeholder="e.g. Christian, Islamic, Traditional"
-                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
-                    value={religion}
-                    onChange={(e) => setReligion(e.target.value)}
-                    disabled={isSubmitting}
-                  />
-                </div>
-              </div>
-
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label
-                  htmlFor="address"
-                  className="text-sm font-semibold sm:text-xs text-foreground"
-                >
-                  Primary Residential Address{" "}
-                  <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="address"
-                  placeholder="e.g. Plot 42, Airport Ridge, Sekondi-Takoradi"
-                  className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
-                  value={residentialAddress}
-                  onChange={(e) => setResidentialAddress(e.target.value)}
-                  required
-                  disabled={isSubmitting}
-                />
+                <Label className="text-xs font-semibold">Full Legal Name <span className="text-red-500">*</span></Label>
+                <Input placeholder="e.g. Samuel Osei Mensah" className="h-9 text-xs rounded-md" value={fullName} onChange={(e) => setFullName(e.target.value)} required disabled={isSubmitting} />
               </div>
-
               <div className="space-y-1.5">
-                <Label
-                  htmlFor="former-school"
-                  className="text-sm font-semibold sm:text-xs text-foreground"
-                >
-                  Prior Educational Institution{" "}
-                  <span className="text-stone-400 text-[10px]">
-                    (Optional)
-                  </span>
-                </Label>
-                <Input
-                  id="former-school"
-                  placeholder="e.g. University of Cape Coast, KNUST"
-                  className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
-                  value={formerSchool}
-                  onChange={(e) => setFormerSchool(e.target.value)}
-                  disabled={isSubmitting}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* ═══════════════════════════════════════════════════════
-              STEP 3: ROLE PLACEMENT & ASSIGNMENT
-              ═══════════════════════════════════════════════════════ */}
-          <div className="relative pl-0 group sm:pl-10">
-            <StepBadge num={3} />
-            <div className="space-y-5">
-              <h3 className="text-base font-semibold text-foreground tracking-tight">
-                Institutional Placement & Role Assignment
-              </h3>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="department"
-                    className="text-sm font-semibold sm:text-xs text-foreground"
-                  >
-                    Assigned Functional Department{" "}
-                    <span className="text-red-500">*</span>
-                  </Label>
-                  <Select
-                    value={departmentId}
-                    onValueChange={setDepartmentId}
-                    required
-                    disabled={isSubmitting || deptsLoading}
-                  >
-                    <SelectTrigger
-                      id="department"
-                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
-                    >
-                      <SelectValue
-                        placeholder={
-                          deptsLoading
-                            ? "Loading operational grids..."
-                            : "Select department..."
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {departments.map((dept) => (
-                        <SelectItem
-                          key={dept.id}
-                          value={dept.id}
-                          className="text-xs"
-                        >
-                          {dept.name} ({dept.code})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="job-title"
-                    className="text-sm font-semibold sm:text-xs text-foreground"
-                  >
-                    Official Job Title / Designation{" "}
-                    <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="job-title"
-                    placeholder="e.g. Senior Treasury Accountant"
-                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
-                    value={jobTitle}
-                    onChange={(e) => setJobTitle(e.target.value)}
-                    required
-                    disabled={isSubmitting}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="employment-type"
-                    className="text-sm font-semibold sm:text-xs text-foreground"
-                  >
-                    Employment Framework Classification{" "}
-                    <span className="text-red-500">*</span>
-                  </Label>
-                  <Select
-                    value={employmentType}
-                    onValueChange={setEmploymentType}
-                    required
-                    disabled={isSubmitting}
-                  >
-                    <SelectTrigger
-                      id="employment-type"
-                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
-                    >
-                      <SelectValue placeholder="Select framework configuration..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="FULL_TIME" className="text-xs">
-                        Permanent Full-Time
-                      </SelectItem>
-                      <SelectItem value="PART_TIME" className="text-xs">
-                        Part-Time Associate
-                      </SelectItem>
-                      <SelectItem value="CONTRACT" className="text-xs">
-                        Temporary Contract Node
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="shift-schedule"
-                    className="text-sm font-semibold sm:text-xs text-foreground"
-                  >
-                    Operational Shift Allocation{" "}
-                    <span className="text-red-500">*</span>
-                  </Label>
-                  <Select
-                    value={shiftSchedule}
-                    onValueChange={setShiftSchedule}
-                    required
-                    disabled={isSubmitting}
-                  >
-                    <SelectTrigger
-                      id="shift-schedule"
-                      className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
-                    >
-                      <SelectValue placeholder="Select shift rotation schedule..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="MORNING" className="text-xs">
-                        Standard Morning Shift (08:00 - 16:30)
-                      </SelectItem>
-                      <SelectItem value="EVENING" className="text-xs">
-                        Mid/Evening Cover Rotation (14:00 - 22:00)
-                      </SelectItem>
-                      <SelectItem value="NIGHT" className="text-xs">
-                        Overnight Security/Ops Window (22:00 - 06:00)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ═══════════════════════════════════════════════════════
-              STEP 4: STATUTORY COMPLIANCE & NATIONAL IDENTITY
-              ═══════════════════════════════════════════════════════ */}
-          <div className="relative pl-0 group sm:pl-10">
-            <StepBadge num={4} />
-            <div className="space-y-5">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-stone-500 dark:text-stone-400" />
-                <h3 className="text-base font-semibold text-foreground tracking-tight">
-                  Statutory Compliance & Emergency Nodes
-                </h3>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="ghana-card"
-                    className="text-sm font-semibold sm:text-xs text-foreground"
-                  >
-                    National ID Token / Ghana Card{" "}
-                    <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="ghana-card"
-                    placeholder="GHA-XXXXXXXXX-X"
-                    maxLength={16}
-                    className={`h-9 text-xs rounded-md bg-background font-mono text-[11px] tracking-wider uppercase ${
-                      ghanaCardNumber && !isGhanaCardValid
-                        ? "border-red-300 dark:border-red-800"
-                        : "border-stone-200 dark:border-stone-800"
-                    }`}
-                    value={ghanaCardNumber}
-                    onChange={(e) => handleGhanaCardChange(e.target.value)}
-                    required
-                    disabled={isSubmitting}
-                  />
-                  {ghanaCardNumber && (
-                    <p
-                      className={`text-[10px] font-medium ${
-                        isGhanaCardValid
-                          ? "text-emerald-600 dark:text-emerald-400"
-                          : "text-red-500 dark:text-red-400"
-                      }`}
-                    >
-                      {isGhanaCardValid
-                        ? "✓ Valid format"
-                        : "✗ Invalid format — expected GHA-XXXXXXXXX-X"}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="ssnit"
-                    className="text-sm font-semibold sm:text-xs text-foreground"
-                  >
-                    SSNIT Social Security Registry ID{" "}
-                    <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="ssnit"
-                    placeholder="e.g. N123456789012"
-                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800 font-mono text-[11px]"
-                    value={ssnitNumber}
-                    onChange={(e) => setSsnitNumber(e.target.value)}
-                    required
-                    disabled={isSubmitting}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="emergency-name"
-                    className="text-sm font-semibold sm:text-xs text-foreground"
-                  >
-                    Emergency Contact Full Name{" "}
-                    <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="emergency-name"
-                    placeholder="e.g. Rebecca Mensah"
-                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
-                    value={emergencyContactName}
-                    onChange={(e) => setEmergencyContactName(e.target.value)}
-                    required
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <Phone className="h-3 w-3 text-stone-400 dark:text-stone-500" />
-                    <Label
-                      htmlFor="emergency-phone"
-                      className="text-sm font-semibold sm:text-xs text-foreground"
-                    >
-                      Emergency Contact Phone{" "}
-                      <span className="text-red-500">*</span>
-                    </Label>
-                  </div>
-                  <Input
-                    id="emergency-phone"
-                    placeholder="e.g. +233 20 XXX XXXX"
-                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800 font-mono"
-                    value={emergencyContactPhone}
-                    onChange={(e) => setEmergencyContactPhone(e.target.value)}
-                    required
-                    disabled={isSubmitting}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ═══════════════════════════════════════════════════════
-              STEP 5: COMPENSATION & TREASURY DISBURSEMENT
-              ═══════════════════════════════════════════════════════ */}
-          <div className="relative pl-0 group sm:pl-10">
-            <StepBadge num={5} isLast />
-            <div className="space-y-5">
-              <h3 className="text-base font-semibold text-foreground tracking-tight">
-                Compensation Ledger & Security Clearance
-              </h3>
-
-              <div className="space-y-1.5">
-                <Label
-                  htmlFor="clearance-tier"
-                  className="text-sm font-semibold sm:text-xs text-foreground"
-                >
-                  System Authorization & Clearance Matrix{" "}
-                  <span className="text-red-500">*</span>
-                </Label>
-                <Select
-                  value={clearanceTier}
-                  onValueChange={setClearanceTier}
-                  required
-                  disabled={isSubmitting}
-                >
-                  <SelectTrigger
-                    id="clearance-tier"
-                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
-                  >
-                    <SelectValue placeholder="Assign platform permissions mapping..." />
-                  </SelectTrigger>
+                <Label className="text-xs font-semibold">System Role <span className="text-red-500">*</span></Label>
+                <Select value={staffRole} onValueChange={setStaffRole} disabled={isSubmitting}>
+                  <SelectTrigger className="h-9 text-xs rounded-md"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {MOCK_CLEARANCE_LEVELS.map((tier) => (
-                      <SelectItem
-                        key={tier.id}
-                        value={tier.id}
-                        className="text-xs"
-                      >
-                        <span className="font-medium">{tier.name}</span> —{" "}
-                        <span className="text-muted-foreground text-[11px]">
-                          {tier.description}
-                        </span>
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="STAFF" className="text-xs">STAFF — general ops</SelectItem>
+                    <SelectItem value="DRIVER" className="text-xs">DRIVER — bus driver only (minimal form)</SelectItem>
+                    <SelectItem value="ADMIN" className="text-xs">ADMIN — full system</SelectItem>
+                    <SelectItem value="ACCOUNTANT" className="text-xs">ACCOUNTANT — finance</SelectItem>
+                    <SelectItem value="FACULTY" className="text-xs">FACULTY — teaching</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+            </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label
-                  htmlFor="salary"
-                  className="text-sm font-semibold sm:text-xs text-foreground"
-                >
-                  Base Salary Compensation Package (₵ / Month){" "}
-                  <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="salary"
-                  type="number"
-                  min="0"
-                  placeholder="e.g. 4500"
-                  className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
-                  value={baseSalary}
-                  onChange={(e) => setBaseSalary(e.target.value)}
-                  required
-                  disabled={isSubmitting}
-                />
+                <Label className="text-xs font-semibold">Portal Email <span className="text-red-500">*</span></Label>
+                {portalEditing ? (
+                  <div className="flex items-center gap-1.5">
+                    <Input value={portalOverride} onChange={(e) => setPortalOverride(e.target.value)} autoFocus autoComplete="off" className="h-9 flex-1 text-xs" disabled={isSubmitting} />
+                    <Button type="button" variant="outline" onClick={() => setPortalEditing(false)} className="h-9 w-9 p-0"><Lock className="h-3.5 w-3.5" /></Button>
+                  </div>
+                ) : (
+                  <div className="h-9 flex items-center justify-between gap-2 rounded-md bg-stone-50 dark:bg-zinc-900/40 border px-3">
+                    <span className="truncate text-xs font-medium">{portalEmail || "…"}</span>
+                    <Button type="button" variant="ghost" onClick={() => { setPortalOverride(portalEmail); setPortalEditing(true) }} className="h-7 w-7 p-0 text-stone-400"><Pencil className="h-3.5 w-3.5" /></Button>
+                  </div>
+                )}
+                <p className="text-[11px] text-stone-500">Auto from name — pencil to override.</p>
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="bank-name"
-                    className="text-sm font-semibold sm:text-xs text-foreground"
-                  >
-                    Disbursement Banking Institution{" "}
-                    <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="bank-name"
-                    placeholder="e.g. GCB Bank, Ecobank, Standard Chartered"
-                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
-                    value={bankName}
-                    onChange={(e) => setBankName(e.target.value)}
-                    required
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="bank-account"
-                    className="text-sm font-semibold sm:text-xs text-foreground"
-                  >
-                    Settlement Clearing Account Number{" "}
-                    <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="bank-account"
-                    placeholder="e.g. 1011130004521"
-                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800 font-mono text-[11px]"
-                    value={bankAccount}
-                    onChange={(e) => setBankAccount(e.target.value)}
-                    required
-                    disabled={isSubmitting}
-                  />
-                </div>
-              </div>
-
-              {/* FORM ACTIONS */}
-              <div className="sticky bottom-0 z-10 -mx-4 flex flex-col-reverse gap-2 border-t border-stone-200 bg-background/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:flex-row sm:items-center sm:justify-end sm:gap-3 sm:bg-transparent sm:px-0 sm:pt-5 sm:pb-0 sm:dark:bg-transparent dark:border-stone-800">
-                <Button
-                  variant="ghost"
-                  type="button"
-                  className="h-11 w-full text-sm font-normal text-stone-500 sm:h-9 sm:w-auto sm:text-xs"
-                  asChild
-                >
-                  <Link href={backConfig.href}>Cancel</Link>
-                </Button>
-                <Button
-                  type="submit"
-                  className="h-11 w-full bg-stone-900 px-4 text-sm font-medium text-white transition-colors dark:bg-stone-100 dark:text-stone-900 sm:h-9 sm:w-auto sm:text-xs"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? "Creating staff member…" : "Create staff member"}
-                </Button>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Security Token <span className="text-red-500">*</span></Label>
+                {tokenEditing ? (
+                  <div className="flex items-center gap-1.5">
+                    <Input value={securityToken} onChange={(e) => setSecurityToken(e.target.value)} autoFocus autoComplete="new-password" className="h-9 flex-1 font-mono text-xs" disabled={isSubmitting} />
+                    <Button type="button" variant="outline" onClick={() => setTokenEditing(false)} className="h-9 w-9 p-0"><Lock className="h-3.5 w-3.5" /></Button>
+                  </div>
+                ) : (
+                  <div className="h-9 flex items-center justify-between gap-2 rounded-md bg-stone-50 dark:bg-zinc-900/40 border px-3">
+                    <span className="truncate font-mono text-xs font-semibold">{securityToken}</span>
+                    <Button type="button" variant="ghost" onClick={() => setTokenEditing(true)} className="h-7 w-7 p-0 text-stone-400"><Pencil className="h-3.5 w-3.5" /></Button>
+                  </div>
+                )}
+                <p className="text-[11px] text-stone-500">Auto-generated, share with staff.</p>
               </div>
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Phone <span className="text-stone-400 text-[10px]">(Optional)</span></Label>
+                <Input placeholder="+233..." className="h-9 text-xs rounded-md font-mono" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={isSubmitting} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Appointment Date <span className="text-stone-400 text-[10px]">(Optional, defaults today)</span></Label>
+                <Input type="date" className="h-9 text-xs rounded-md" value={employmentDate} onChange={(e) => setEmploymentDate(e.target.value)} disabled={isSubmitting} />
+              </div>
+            </div>
+          </div>
+
+          {/* DRIVER MINIMAL */}
+          {isDriver ? (
+            <div className="space-y-5 rounded-lg border border-amber-200 bg-amber-50/50 dark:border-amber-900/40 dark:bg-amber-950/20 p-4">
+              <div className="flex items-center gap-2">
+                <Bus className="h-4 w-4 text-amber-700" />
+                <h3 className="text-sm font-semibold">Driver details (all optional)</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">Ghana Card / License No <span className="text-stone-400 text-[10px]">(Optional)</span></Label>
+                  <Input placeholder="GHA-XXXXXXXXX-X" maxLength={16} className={`h-9 text-xs font-mono uppercase ${ghanaCardNumber && !isGhanaCardValid ? "border-red-300" : ""}`} value={ghanaCardNumber} onChange={(e) => handleGhanaCardChange(e.target.value)} disabled={isSubmitting} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">Emergency Contact <span className="text-stone-400 text-[10px]">(Optional)</span></Label>
+                  <Input placeholder="Name" className="h-9 text-xs" value={emergencyContactName} onChange={(e) => setEmergencyContactName(e.target.value)} disabled={isSubmitting} />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold flex items-center gap-1"><Phone className="h-3 w-3" />Emergency Phone <span className="text-stone-400 text-[10px]">(Optional)</span></Label>
+                  <Input placeholder="+233..." className="h-9 text-xs font-mono" value={emergencyContactPhone} onChange={(e) => setEmergencyContactPhone(e.target.value)} disabled={isSubmitting} />
+                </div>
+              </div>
+              <p className="text-[11px] text-amber-800 dark:text-amber-300">That's it. Create driver, then go to Transport → Drivers to assign a bus. Bus assignment is separate.</p>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              <div className="flex items-center gap-2">
+                <Phone className="h-4 w-4 text-stone-500" />
+                <h3 className="text-sm font-semibold">Contact (optional)</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">Ghana Card <span className="text-stone-400 text-[10px]">(Optional)</span></Label>
+                  <Input placeholder="GHA-XXXXXXXXX-X" maxLength={16} className={`h-9 text-xs font-mono uppercase ${ghanaCardNumber && !isGhanaCardValid ? "border-red-300" : ""}`} value={ghanaCardNumber} onChange={(e) => handleGhanaCardChange(e.target.value)} disabled={isSubmitting} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">Emergency Contact Name <span className="text-stone-400 text-[10px]">(Optional)</span></Label>
+                  <Input placeholder="e.g. Rebecca Mensah" className="h-9 text-xs" value={emergencyContactName} onChange={(e) => setEmergencyContactName(e.target.value)} disabled={isSubmitting} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Emergency Phone <span className="text-stone-400 text-[10px]">(Optional)</span></Label>
+                <Input placeholder="+233..." className="h-9 text-xs font-mono" value={emergencyContactPhone} onChange={(e) => setEmergencyContactPhone(e.target.value)} disabled={isSubmitting} />
+              </div>
+            </div>
+          )}
+
+          {/* ADVANCED TOGGLE */}
+          <div className="space-y-4">
+            <Button type="button" variant="outline" onClick={() => setShowAdvanced(!showAdvanced)} className="h-9 text-xs w-full justify-between">
+              <span>{showAdvanced ? "Hide additional details" : isDriver ? "Add more details (optional)" : "Additional details (all optional)"}</span>
+              <ChevronDown className={`h-4 w-4 transition-transform ${showAdvanced ? "rotate-180" : ""}`} />
+            </Button>
+
+            {showAdvanced && (
+              <div className="space-y-8 pt-2">
+                {/* Demographics */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-semibold flex items-center gap-2"><span className="h-5 w-5 rounded-full border flex items-center justify-center text-[10px]">2</span> Personal (optional)</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Date of Birth <span className="text-stone-400 text-[10px]">(Optional)</span></Label>
+                      <Input type="date" className="h-9 text-xs" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} disabled={isSubmitting} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Gender <span className="text-stone-400 text-[10px]">(Optional)</span></Label>
+                      <Select value={gender} onValueChange={setGender} disabled={isSubmitting}>
+                        <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select..." /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="MALE" className="text-xs">Male</SelectItem>
+                          <SelectItem value="FEMALE" className="text-xs">Female</SelectItem>
+                          <SelectItem value="OTHER" className="text-xs">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Blood Group <span className="text-stone-400 text-[10px]">(Optional)</span></Label>
+                      <Select value={bloodType} onValueChange={setBloodType} disabled={isSubmitting}>
+                        <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select..." /></SelectTrigger>
+                        <SelectContent>
+                          {["A_PLUS","A_MINUS","B_PLUS","B_MINUS","AB_PLUS","AB_MINUS","O_PLUS","O_MINUS"].map(v=> <SelectItem key={v} value={v} className="text-xs">{v.replace("_","")}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Residential Address <span className="text-stone-400 text-[10px]">(Optional)</span></Label>
+                      <Input placeholder="e.g. Plot 42, Airport Ridge" className="h-9 text-xs" value={residentialAddress} onChange={(e) => setResidentialAddress(e.target.value)} disabled={isSubmitting} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Religion <span className="text-stone-400 text-[10px]">(Optional)</span></Label>
+                      <Input placeholder="Christian, Islamic..." className="h-9 text-xs" value={religion} onChange={(e) => setReligion(e.target.value)} disabled={isSubmitting} />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Former School <span className="text-stone-400 text-[10px]">(Optional)</span></Label>
+                    <Input placeholder="University..." className="h-9 text-xs" value={formerSchool} onChange={(e) => setFormerSchool(e.target.value)} disabled={isSubmitting} />
+                  </div>
+                </div>
+
+                {/* Placement */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-semibold flex items-center gap-2"><span className="h-5 w-5 rounded-full border flex items-center justify-center text-[10px]">3</span> Placement (optional)</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Department <span className="text-stone-400 text-[10px]">(Optional)</span></Label>
+                      <Select value={departmentId} onValueChange={setDepartmentId} disabled={isSubmitting || deptsLoading}>
+                        <SelectTrigger className="h-9 text-xs"><SelectValue placeholder={deptsLoading ? "Loading..." : "Select department..."} /></SelectTrigger>
+                        <SelectContent>
+                          {departments.map((dept) => <SelectItem key={dept.id} value={dept.id} className="text-xs">{dept.name} ({dept.code})</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Job Title <span className="text-stone-400 text-[10px]">(Optional)</span></Label>
+                      <Input placeholder={isDriver ? "Bus Driver" : "e.g. Senior Accountant"} className="h-9 text-xs" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} disabled={isSubmitting} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Employment Type <span className="text-stone-400 text-[10px]">(Optional)</span></Label>
+                      <Select value={employmentType} onValueChange={setEmploymentType} disabled={isSubmitting}>
+                        <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select..." /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="FULL_TIME" className="text-xs">Full-Time</SelectItem>
+                          <SelectItem value="PART_TIME" className="text-xs">Part-Time</SelectItem>
+                          <SelectItem value="CONTRACT" className="text-xs">Contract</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Shift <span className="text-stone-400 text-[10px]">(Optional)</span></Label>
+                      <Select value={shiftSchedule} onValueChange={setShiftSchedule} disabled={isSubmitting}>
+                        <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select..." /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="MORNING" className="text-xs">Morning (08:00-16:30)</SelectItem>
+                          <SelectItem value="EVENING" className="text-xs">Evening (14:00-22:00)</SelectItem>
+                          <SelectItem value="NIGHT" className="text-xs">Night (22:00-06:00)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Compliance & Payroll */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-semibold flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-stone-500" /> Compliance & Payroll (optional)</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">SSNIT <span className="text-stone-400 text-[10px]">(Optional)</span></Label>
+                      <Input placeholder="N123..." className="h-9 text-xs font-mono text-[11px]" value={ssnitNumber} onChange={(e) => setSsnitNumber(e.target.value)} disabled={isSubmitting} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Clearance Tier <span className="text-stone-400 text-[10px]">(Optional)</span></Label>
+                      <Select value={clearanceTier} onValueChange={setClearanceTier} disabled={isSubmitting}>
+                        <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select..." /></SelectTrigger>
+                        <SelectContent>
+                          {MOCK_CLEARANCE_LEVELS.map(t=> <SelectItem key={t.id} value={t.id} className="text-xs">{t.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Base Salary ₵ <span className="text-stone-400 text-[10px]">(Optional)</span></Label>
+                      <Input type="number" min="0" placeholder="e.g. 4500" className="h-9 text-xs" value={baseSalary} onChange={(e) => setBaseSalary(e.target.value)} disabled={isSubmitting} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Bank <span className="text-stone-400 text-[10px]">(Optional)</span></Label>
+                      <Input placeholder="GCB, Ecobank..." className="h-9 text-xs" value={bankName} onChange={(e) => setBankName(e.target.value)} disabled={isSubmitting} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Account No <span className="text-stone-400 text-[10px]">(Optional)</span></Label>
+                      <Input placeholder="1011..." className="h-9 text-xs font-mono text-[11px]" value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} disabled={isSubmitting} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="sticky bottom-0 z-10 -mx-4 flex flex-col-reverse gap-2 border-t bg-background/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:flex-row sm:justify-end sm:gap-3 sm:bg-transparent sm:px-0 sm:pt-5">
+            <Button variant="ghost" type="button" className="h-11 w-full text-sm sm:h-9 sm:w-auto sm:text-xs" asChild><Link href={backConfig.href}>Cancel</Link></Button>
+            <Button type="submit" className="h-11 w-full bg-stone-900 px-4 text-sm text-white dark:bg-stone-100 dark:text-stone-900 sm:h-9 sm:w-auto sm:text-xs" disabled={isSubmitting}>
+              {isSubmitting ? "Creating..." : isDriver ? "Create driver" : "Create staff member"}
+            </Button>
           </div>
         </form>
       </ScrollArea>
@@ -1171,13 +571,7 @@ function ComprehensiveStaffEnrollmentWizard() {
 
 export default function StaffAddPage() {
   return (
-    <React.Suspense
-      fallback={
-        <div className="p-6 text-sm text-muted-foreground">
-          Loading staff form…
-        </div>
-      }
-    >
+    <React.Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading staff form…</div>}>
       <ComprehensiveStaffEnrollmentWizard />
     </React.Suspense>
   )
