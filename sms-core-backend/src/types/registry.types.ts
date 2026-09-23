@@ -120,41 +120,45 @@ account: baseAccountSchema.extend({
   }).optional(),
 });
 
-// Staff Enrollment Shape
+// Staff Enrollment Shape — MINIMAL: only account required, driver fast-track
+// Previously required every field and role literal STAFF only, which broke DRIVER creation
 export const staffEnrollmentSchema = z.object({
-account: baseAccountSchema.extend({
-    employmentDate: z.string().min(1, "Employment date is required."),
-    role: z.literal("STAFF"),
+  account: baseAccountSchema.extend({
+    employmentDate: z.string().optional().nullable(),
+    role: z.enum(["STAFF", "DRIVER", "ADMIN", "ACCOUNTANT", "FACULTY", "TEACHER"]).or(z.string().min(1)).optional().default("STAFF"),
   }),
   demographics: z.object({
-    dateOfBirth: z.string().min(1),
-    gender: z.string().min(1),
-    residentialAddress: z.string().min(1),
-    phone: z.string().min(1),
-    bloodType: z.string().nullable(),
-    religion: z.string().nullable(),
-    formerSchool: z.string().nullable(),
-  }),
+    dateOfBirth: z.string().optional().nullable(),
+    gender: z.string().optional().nullable(),
+    residentialAddress: z.string().optional().nullable(),
+    phone: z.string().optional().nullable(),
+    bloodType: z.string().nullable().optional(),
+    religion: z.string().nullable().optional(),
+    formerSchool: z.string().nullable().optional(),
+  }).optional().nullable(),
   placement: z.object({
-    departmentId: z.string().min(1),
-    jobTitle: z.string().min(1),
-    employmentType: z.string().min(1),
-    shiftSchedule: z.string().min(1),
-  }),
+    departmentId: z.string().optional().nullable(),
+    jobTitle: z.string().optional().nullable(),
+    employmentType: z.string().optional().nullable(),
+    shiftSchedule: z.string().optional().nullable(),
+  }).optional().nullable(),
   compliance: z.object({
-    nationalId: z.string().regex(/^GHA-\d{9}-\d$/, "National ID must match GHA-XXXXXXXXX-X").nullable(),
-    ssnitNumber: z.string().nullable(),
+    nationalId: z.string().nullable().optional().refine((v) => {
+      if (!v || v.trim() === "") return true
+      return /^GHA-\d{9}-\d$/.test(v)
+    }, { message: "National ID must match GHA-XXXXXXXXX-X" }),
+    ssnitNumber: z.string().nullable().optional(),
     emergencyContact: z.object({
-      name: z.string().nullable(),
-      phone: z.string().nullable(),
-    }),
-  }),
+      name: z.string().nullable().optional(),
+      phone: z.string().nullable().optional(),
+    }).nullable().optional(),
+  }).optional().nullable(),
   payroll: z.object({
-    clearanceTier: z.string().min(1),
-    baseSalary: z.number().nonnegative(),
-    bankName: z.string().min(1),
-    bankAccount: z.string().min(1),
-  }),
+    clearanceTier: z.string().optional().nullable(),
+    baseSalary: z.coerce.number().nonnegative().optional().nullable(),
+    bankName: z.string().nullable().optional(),
+    bankAccount: z.string().nullable().optional(),
+  }).optional().nullable(),
 });
 
 // Student Lifecycle Offboarding Guard
