@@ -2,12 +2,29 @@ import { fetchWithAuth, ApiClientError } from "@/lib/fetch-with-auth"
 
 export type TransportDirection = "TO_SCHOOL" | "FROM_SCHOOL"
 
+export interface TransportDriver {
+  id: string
+  staffId: string
+  staffName: string
+  status: string
+  account: { email: string; role: string } | null
+  drivenBuses: Array<{ id: string; code: string }>
+  placement?: { jobTitle: string } | null
+}
+
 export interface TransportBus {
   id: string
   code: string
   registrationNumber: string | null
   capacity: number | null
   isActive: boolean
+  driverStaffId?: string | null
+  driver?: {
+    id: string
+    staffId: string
+    staffName: string
+    account?: { email: string; role: string } | null
+  } | null
   _count?: { assignments: number; trips: number; devices: number }
 }
 
@@ -280,4 +297,15 @@ export function getTransportReport(params: { from: string; to: string; busId?: s
   const query = new URLSearchParams({ from: params.from, to: params.to })
   if (params.busId) query.set("busId", params.busId)
   return request<TransportReport>(`/transport/reports/boardings?${query.toString()}`)
+}
+
+export function getTransportDrivers() {
+  return request<TransportDriver[]>("/transport/drivers")
+}
+
+export function assignTransportBusDriver(busId: string, driverStaffId: string | null) {
+  return request<TransportBus>(`/transport/buses/${encodeURIComponent(busId)}/driver`, {
+    method: "PATCH",
+    body: JSON.stringify({ driverStaffId }),
+  })
 }

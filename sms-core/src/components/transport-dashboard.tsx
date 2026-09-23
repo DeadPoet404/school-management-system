@@ -24,10 +24,12 @@ import { cn } from "@/lib/utils"
 import { ApiClientError } from "@/lib/fetch-with-auth"
 import {
   assignTransportStudent,
+  assignTransportBusDriver,
   createTransportBus,
   createTransportRoute,
   createTransportStop,
   getTransportBuses,
+  getTransportDrivers,
   getTransportRoutes,
   getTransportReport,
   getTransportRoster,
@@ -41,6 +43,7 @@ import {
   updateTransportTripStatus,
   type TransportBus,
   type TransportDirection,
+  type TransportDriver,
   type TransportReport,
   type TransportRoster,
   type TransportRoute,
@@ -137,7 +140,7 @@ function readPersisted(): Partial<PersistedSimulator> | null {
 export function TransportDashboard() {
   const persisted = React.useMemo(() => readPersisted(), [])
   const [hydrated, setHydrated] = React.useState(false)
-  const [activeTab, setActiveTab] = React.useState<"control" | "routes" | "scanner" | "reports">("control")
+  const [activeTab, setActiveTab] = React.useState<"control" | "routes" | "drivers" | "scanner" | "reports">("control")
   const [offline, setOffline] = React.useState(persisted?.offline ?? false)
   const [deviceCode, setDeviceCode] = React.useState(persisted?.deviceCode ?? "browser-simulator-01")
   const [serviceDate, setServiceDate] = React.useState(persisted?.serviceDate ?? today())
@@ -164,6 +167,9 @@ export function TransportDashboard() {
   const [newBusRegistration, setNewBusRegistration] = React.useState("")
   const [newBusCapacity, setNewBusCapacity] = React.useState("")
   const [routes, setRoutes] = React.useState<TransportRoute[]>([])
+  const [drivers, setDrivers] = React.useState<TransportDriver[]>([])
+  const [assignDriverBusId, setAssignDriverBusId] = React.useState("")
+  const [assignDriverId, setAssignDriverId] = React.useState("")
   const [selectedRouteId, setSelectedRouteId] = React.useState("")
   const [newRouteCode, setNewRouteCode] = React.useState("")
   const [newRouteName, setNewRouteName] = React.useState("")
@@ -225,16 +231,18 @@ export function TransportDashboard() {
     setBusy("directory")
     setLoadError(null)
     try {
-      const [busData, studentData, tripData, routeData] = await Promise.all([
+      const [busData, studentData, tripData, routeData, driverData] = await Promise.all([
         getTransportBuses(),
         getTransportStudents(studentSearch || undefined),
         getTransportTrips(serviceDate),
         getTransportRoutes(),
+        getTransportDrivers().catch(() => [] as TransportDriver[]),
       ])
       setBuses(busData)
       setStudents(studentData)
       setTrips(tripData)
       setRoutes(routeData)
+      setDrivers(driverData as TransportDriver[])
       setSelectedBusId((current) => current || busData[0]?.id || "")
       if (!tripId) {
         const matchingTrip = tripData.find((trip) => trip.busId === (selectedBusId || busData[0]?.id) && trip.direction === direction)
@@ -357,9 +365,32 @@ export function TransportDashboard() {
     }
   }
 
+  const assignDriver = async () => {
+    if (!assignDriverBusId) {
+      addFeedback({ kind: "error", title: "Choose a bus", detail: "Select a bus to assign a driver to." })
+      return
+    }
+    setBusy("driver")
+    try {
+      const updated = await assignTransportBusDriver(assignDriverBusId, assignDriverId || null)
+      setBuses((prev) => prev.map((b) => (b.id === updated.id ? { ...b, driver: updated.driver, driverStaffId: updated.driverStaffId } : b)))
+      addFeedback({
+        kind: "success",
+        title: assignDriverId ? "Driver assigned" : "Driver unassigned",
+        detail: assignDriverId ? `${updated.code} now driven by ${updated.driver?.staffName ?? "driver"}. Driver will see this bus in their portal.` : `${updated.code} has no driver now.`,
+      })
+    } catch (error) {
+      addFeedback({ kind: "error", title: "Driver assignment failed", detail: error instanceof Error ? error.message : "Try again." })
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const reloadRoutes = React.useCallback(async () => {
     try {
-      setRoutes(await getTransportRoutes())
+      const [routeData, driverData] = await Promise.all([getTransportRoutes(), getTransportDrivers().catch(() => [] as TransportDriver[])])
+      setRoutes(routeData)
+      setDrivers(driverData as TransportDriver[])
     } catch {
       // Non-fatal: the control room still works without the route registry.
     }
@@ -697,9 +728,9 @@ export function TransportDashboard() {
       )}
 
       <div className="flex flex-wrap gap-1 rounded-xl border border-stone-200 bg-stone-50 p-1">
-        {(["control", "routes", "scanner", "reports"] as const).map((tab) => (
+        {(["control", "routes", "drivers", "scanner", "reports"] as const).map((tab) => (
           <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={cn("rounded-lg px-4 py-2 text-xs font-semibold capitalize transition", activeTab === tab ? "bg-white text-stone-950 shadow-sm" : "text-stone-500 hover:text-stone-900")}>
-            {tab === "control" ? "Control room" : tab === "routes" ? "Routes & stops" : tab === "scanner" ? "Scanner simulator" : "Exceptions & reports"}
+            {tab === "control" ? "Control room" : tab === "routes" ? "Routes & stops" : tab === "drivers" ? "Drivers & buses" : tab === "scanner" ? "Scanner simulator" : "Exceptions & reports"}
           </button>
         ))}
       </div>
@@ -831,7 +862,67 @@ export function TransportDashboard() {
         </div>
       )}
 
-      {activeTab === "scanner" && (
+      
+      {activeTab === "drivers" && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div><p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-400">Driver assignment</p><h2 className="mt-1 text-lg font-semibold text-stone-950">Assign a driver to a bus</h2></div>
+              <BusFront className="h-5 w-5 text-stone-400" />
+            </div>
+            <p className="mt-2 text-xs leading-5 text-stone-500">Drivers log in with their own account (role DRIVER). Once assigned, they see only their buses in the driver portal — roster in pickup order, trip open/close, offline scan queue.</p>
+            <div className="mt-4 space-y-3">
+              <label className="block space-y-1.5 text-xs font-semibold text-stone-600">Bus
+                <select value={assignDriverBusId} onChange={(e) => setAssignDriverBusId(e.target.value)} className="h-10 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm font-normal text-stone-900 outline-none focus:border-stone-500">
+                  <option value="">Select bus</option>
+                  {buses.map((bus) => <option key={bus.id} value={bus.id}>{bus.code} {bus.driver ? `· ${bus.driver.staffName}` : "· no driver"} {bus.registrationNumber ? `· ${bus.registrationNumber}` : ""}</option>)}
+                </select>
+              </label>
+              <label className="block space-y-1.5 text-xs font-semibold text-stone-600">Driver (role DRIVER)
+                <select value={assignDriverId} onChange={(e) => setAssignDriverId(e.target.value)} className="h-10 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm font-normal text-stone-900 outline-none focus:border-stone-500">
+                  <option value="">— Unassign (no driver) —</option>
+                  {drivers.map((d) => <option key={d.id} value={d.id}>{d.staffName} · {d.staffId} {d.account ? `· ${d.account.email}` : ""} {d.drivenBuses.length ? `· ${d.drivenBuses.map((b) => b.code).join(", ")}` : ""}</option>)}
+                </select>
+              </label>
+              <button type="button" onClick={() => void assignDriver()} disabled={busy !== null || !assignDriverBusId} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-stone-950 px-3 text-xs font-semibold text-white disabled:opacity-40">
+                <Users className="h-3.5 w-3.5" /> {assignDriverId ? "Assign driver" : "Unassign driver"}
+              </button>
+            </div>
+            {drivers.length === 0 && <div className="mt-4 rounded-xl border border-dashed border-amber-300 bg-amber-50 p-4 text-xs leading-5 text-amber-950"><p className="font-semibold">No drivers found.</p><p className="mt-1">Create a staff account with role DRIVER in Staff &gt; Add staff (set role to DRIVER). They will appear here.</p></div>}
+          </section>
+
+          <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div><p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-400">Fleet overview</p><h2 className="mt-1 text-lg font-semibold text-stone-950">Buses and their drivers</h2></div>
+              <Users className="h-5 w-5 text-stone-400" />
+            </div>
+            <div className="mt-4 space-y-2">
+              {buses.length === 0 && <p className="rounded-xl border border-dashed border-stone-200 p-5 text-center text-xs text-stone-500">No buses yet.</p>}
+              {buses.map((bus) => (
+                <div key={bus.id} className="flex items-center gap-3 rounded-xl border border-stone-200 p-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-stone-950 text-white text-xs font-bold">{bus.code.slice(0, 2).toUpperCase()}</div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-stone-950">{bus.code} {bus.registrationNumber ? `· ${bus.registrationNumber}` : ""}</p>
+                    <p className="text-[11px] text-stone-500">{bus.driver ? `${bus.driver.staffName} · ${bus.driver.account?.email ?? bus.driver.staffId}` : "No driver assigned"} · {bus._count?.assignments ?? 0} students</p>
+                  </div>
+                  <button type="button" onClick={() => { setAssignDriverBusId(bus.id); setAssignDriverId(bus.driverStaffId ?? "") }} className="rounded-md border border-stone-200 bg-white px-2 py-1 text-[10px] font-semibold text-stone-600 hover:text-stone-950">Select</button>
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 rounded-xl bg-stone-50 p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-400">How drivers log in</p>
+              <ul className="mt-2 list-disc space-y-1 pl-4 text-xs leading-5 text-stone-600">
+                <li>Admin creates staff with role <b>DRIVER</b> (Staff → Add staff → role = DRIVER). Same login page, same auth.</li>
+                <li>Assign that driver to a bus here. A driver can drive multiple buses.</li>
+                <li>Driver opens <span className="font-mono text-[11px] bg-white border border-stone-200 px-1 rounded">/dashboard/transport</span> and automatically sees driver portal (restricted).</li>
+                <li>Driver flow: open trip → download roster (once, while online) → offline scan queue → sync when signal.</li>
+              </ul>
+            </div>
+          </section>
+        </div>
+      )}
+
+{activeTab === "scanner" && (
         <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
           <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-400">Browser device emulator</p><h2 className="mt-1 text-xl font-semibold text-stone-950">Capture without a network request</h2><p className="mt-2 max-w-xl text-xs leading-5 text-stone-500">This screen intentionally writes only to the persisted local queue during a scan. Use the sync button separately to send one batch.</p></div><div className={cn("rounded-xl border px-3 py-2 text-right", offline ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50")}><p className="text-[10px] uppercase tracking-wider text-stone-500">mode</p><p className="mt-0.5 text-sm font-bold">{offline ? "OFFLINE" : "ONLINE"}</p></div></div>

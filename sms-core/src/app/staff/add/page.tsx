@@ -71,6 +71,7 @@ function ComprehensiveStaffEnrollmentWizard() {
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
   const [employmentDate, setEmploymentDate] = React.useState("")
+  const [staffRole, setStaffRole] = React.useState("STAFF")
 
   // ── STEP 2: PERSONAL DEMOGRAPHICS & BACKGROUND ──
   const [dateOfBirth, setDateOfBirth] = React.useState("")
@@ -157,7 +158,7 @@ function ComprehensiveStaffEnrollmentWizard() {
         email,
         password,
         employmentDate,
-        role: "STAFF",
+        role: staffRole,
       },
       demographics: {
         dateOfBirth,
@@ -437,6 +438,30 @@ function ComprehensiveStaffEnrollmentWizard() {
                     minLength={6}
                     disabled={isSubmitting}
                   />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor="staff-role"
+                    className="text-sm font-semibold sm:text-xs text-foreground"
+                  >
+                    System Role <span className="text-red-500">*</span>
+                  </Label>
+                  <Select value={staffRole} onValueChange={setStaffRole} disabled={isSubmitting}>
+                    <SelectTrigger id="staff-role" className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800">
+                      <SelectValue placeholder="Select role..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="STAFF" className="text-xs">STAFF — general operations</SelectItem>
+                      <SelectItem value="DRIVER" className="text-xs">DRIVER — bus driver portal only</SelectItem>
+                      <SelectItem value="ADMIN" className="text-xs">ADMIN — full system</SelectItem>
+                      <SelectItem value="ACCOUNTANT" className="text-xs">ACCOUNTANT — finance</SelectItem>
+                      <SelectItem value="FACULTY" className="text-xs">FACULTY — teaching</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-stone-500">DRIVER sees only Transport driver portal (own buses, roster in pickup order, offline scan).</p>
                 </div>
               </div>
             </div>

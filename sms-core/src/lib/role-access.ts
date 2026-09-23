@@ -7,9 +7,9 @@
 // stays the authoritative security boundary; this only mirrors it for UX.
 // Cells are derived from the backend GET permissions, so a shown link never 403s.
 
-export type Role = "ADMIN" | "ACCOUNTANT" | "STAFF" | "FACULTY" | "STUDENT"
+export type Role = "ADMIN" | "ACCOUNTANT" | "STAFF" | "FACULTY" | "STUDENT" | "DRIVER"
 
-export const ALL_ROLES: Role[] = ["ADMIN", "ACCOUNTANT", "STAFF", "FACULTY", "STUDENT"]
+export const ALL_ROLES: Role[] = ["ADMIN", "ACCOUNTANT", "STAFF", "FACULTY", "STUDENT", "DRIVER"]
 
 export type TopLevelModule =
   | "/dashboard"
@@ -27,6 +27,7 @@ const TOP_LEVEL_BY_ROLE: Record<Role, TopLevelModule[]> = {
   STAFF: ["/dashboard", "/students", "/teachers", "/operations"],
   FACULTY: ["/students", "/teachers", "/operations"],
   STUDENT: ["/portal"],
+  DRIVER: ["/dashboard"],
 }
 
 const OPERATIONS_BY_ROLE: Record<Role, string[]> = {
@@ -35,13 +36,15 @@ const OPERATIONS_BY_ROLE: Record<Role, string[]> = {
   STAFF: ["enrollment-workflow", "ca-gradebook", "attendance-registry", "communication-center"],
   FACULTY: ["ca-gradebook", "attendance-registry"],
   STUDENT: [],
+  DRIVER: [],
 }
 
 const SUBPATH_OVERRIDES: { prefix: string; roles: Role[] }[] = [
   { prefix: "/students/gradebook", roles: ["FACULTY", "ADMIN", "STAFF"] },
   // Transport control room is an ADMIN/STAFF workflow. The route lives under
   // dashboard so it shares the shell, but it must not appear for accountants.
-  { prefix: "/dashboard/transport", roles: ["ADMIN", "STAFF"] },
+  // DRIVER gets a dedicated restricted view on the same path.
+  { prefix: "/dashboard/transport", roles: ["ADMIN", "STAFF", "DRIVER"] },
 ]
 
 const LANDING_PRIORITY: TopLevelModule[] = ["/dashboard", "/students", "/teachers", "/staff", "/finance", "/operations"]

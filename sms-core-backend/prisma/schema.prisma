@@ -303,12 +303,16 @@ model TransportBus {
   registrationNumber String?  @unique
   capacity           Int?
   isActive           Boolean  @default(true)
+  driverStaffId      String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
+  driver      Staff?              @relation(fields: [driverStaffId], references: [id], onDelete: SetNull)
   devices     TransportDevice[]
   assignments TransportAssignment[]
   trips       TransportTrip[]
+
+  @@index([driverStaffId])
 }
 
 model TransportDevice {
@@ -719,6 +723,7 @@ model Staff {
   compliance   StaffCompliance?
   payroll      StaffPayroll?
   departures   StaffDeparture[]
+  drivenBuses  TransportBus[]
 }
 
 model StaffDeparture {

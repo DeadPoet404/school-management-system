@@ -108,6 +108,10 @@ export const rosterQuerySchema = z.object({
   knownVersion: z.string().trim().max(128).optional(),
 });
 
+export const busDriverAssignSchema = z.object({
+  driverStaffId: z.string().trim().min(1).nullable(),
+});
+
 export type BusCreateInput = z.infer<typeof busCreateSchema>;
 export type RouteCreateInput = z.infer<typeof routeCreateSchema>;
 export type RouteUpdateInput = z.infer<typeof routeUpdateSchema>;
@@ -118,3 +122,4 @@ export type CardIssueInput = z.infer<typeof cardIssueSchema>;
 export type TripOpenInput = z.infer<typeof tripOpenSchema>;
 export type SyncBatchInput = z.infer<typeof syncBatchSchema>;
 export type SyncEventInput = z.infer<typeof syncEventSchema>;
+export type BusDriverAssignInput = z.infer<typeof busDriverAssignSchema>;

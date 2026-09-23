@@ -127,11 +127,19 @@ function rosterHash(rows: Array<Record<string, unknown>>): string {
 export class TransportService {
   constructor(private readonly db: DbClient = prisma) {}
 
-  async listBuses() {
+  // ── Buses + driver assignment ──
+
+  async listBuses(filter?: { driverStaffId?: string | null; role?: string }) {
+    const where: Record<string, unknown> = { isActive: true };
+    // DRIVER sees only buses assigned to them. ADMIN/STAFF see all.
+    if (filter?.role === "DRIVER" && filter?.driverStaffId) {
+      (where as any).driverStaffId = filter.driverStaffId;
+    }
     return this.db.transportBus.findMany({
-      where: { isActive: true },
+      where,
       orderBy: { code: "asc" },
       include: {
+        driver: { select: { id: true, staffId: true, staffName: true, account: { select: { email: true, role: true } } } },
         _count: {
           select: { assignments: true, trips: true, devices: true },
         },
@@ -146,7 +154,71 @@ export class TransportService {
         registrationNumber: input.registrationNumber ?? null,
         capacity: input.capacity ?? null,
       },
+      include: {
+        driver: { select: { id: true, staffId: true, staffName: true } },
+      },
     });
+  }
+
+  async assignDriverToBus(busId: string, driverStaffId: string | null) {
+    const bus = await this.db.transportBus.findUnique({ where: { id: busId }, select: { id: true, code: true } });
+    if (!bus) throw new AppError(404, "Transport bus not found.");
+
+    if (driverStaffId === null) {
+      return this.db.transportBus.update({
+        where: { id: busId },
+        data: { driverStaffId: null },
+        include: { driver: { select: { id: true, staffId: true, staffName: true, account: { select: { email: true, role: true } } } } },
+      });
+    }
+
+    // Validate driver exists and is ACTIVE and role DRIVER (or STAFF allowed as fallback).
+    const staff = await this.db.staff.findUnique({
+      where: { id: driverStaffId },
+      select: {
+        id: true,
+        staffId: true,
+        staffName: true,
+        status: true,
+        account: { select: { role: true, email: true } },
+      },
+    });
+    if (!staff) throw new AppError(404, "Driver staff not found.");
+    if (staff.status !== "ACTIVE") throw new AppError(400, `Driver ${staff.staffName} is not ACTIVE (status=${staff.status}).`);
+    if (staff.account && !["DRIVER", "STAFF", "ADMIN"].includes(staff.account.role)) {
+      throw new AppError(400, `Staff ${staff.staffName} role is ${staff.account.role}, not DRIVER/STAFF. Create a driver account first.`);
+    }
+
+    return this.db.transportBus.update({
+      where: { id: busId },
+      data: { driverStaffId: staff.id },
+      include: { driver: { select: { id: true, staffId: true, staffName: true, account: { select: { email: true, role: true } } } } },
+    });
+  }
+
+  async listDrivers() {
+    // Staff with account role DRIVER and ACTIVE status. Also include STAFF who are assigned as drivers already.
+    const drivers = await this.db.staff.findMany({
+      where: {
+        status: "ACTIVE",
+        OR: [
+          { account: { role: "DRIVER" } },
+          { drivenBuses: { some: {} } },
+        ],
+      },
+      orderBy: { staffName: "asc" },
+      select: {
+        id: true,
+        staffId: true,
+        staffName: true,
+        status: true,
+        account: { select: { email: true, role: true } },
+        drivenBuses: { select: { id: true, code: true } },
+        placement: { select: { jobTitle: true } },
+      },
+      take: 200,
+    });
+    return drivers;
   }
 
   async listRoutes() {
@@ -441,13 +513,21 @@ export class TransportService {
     });
   }
 
-  async openTrip(input: TripOpenInput) {
+  async openTrip(input: TripOpenInput, actor?: { role?: string; entityInternalId?: string }) {
     const serviceDate = startOfServiceDate(input.serviceDate);
     const bus = await this.db.transportBus.findFirst({
       where: { id: input.busId, isActive: true },
-      select: { id: true, code: true, capacity: true },
+      select: { id: true, code: true, capacity: true, driverStaffId: true },
     });
     if (!bus) throw new AppError(404, "Active transport bus not found.");
+
+    // DRIVER guard: driver can only open trips for buses assigned to them.
+    if (actor?.role === "DRIVER") {
+      if (!actor.entityInternalId) throw new AppError(403, "Driver identity missing.");
+      if (bus.driverStaffId !== actor.entityInternalId) {
+        throw new AppError(403, `You are not assigned to bus ${bus.code}. Contact admin to assign you.`);
+      }
+    }
 
     // `routeId` is tri-state on purpose: absent means "leave whatever is there
     // alone" (important on the reopen path, where a retry must not silently
@@ -470,7 +550,7 @@ export class TransportService {
       },
     };
     const include = {
-      bus: { select: { id: true, code: true, capacity: true } },
+      bus: { select: { id: true, code: true, capacity: true, driverStaffId: true } },
       route: { select: { id: true, code: true, name: true } },
     } as const;
 
@@ -524,30 +604,45 @@ export class TransportService {
     return trip;
   }
 
-  async listTrips(serviceDate?: string) {
-    const where = serviceDate ? { serviceDate: startOfServiceDate(serviceDate) } : undefined;
+  async listTrips(serviceDate?: string, filter?: { driverStaffId?: string; role?: string }) {
+    const where: Record<string, unknown> = {};
+    if (serviceDate) (where as any).serviceDate = startOfServiceDate(serviceDate);
+    if (filter?.role === "DRIVER" && filter?.driverStaffId) {
+      (where as any).bus = { driverStaffId: filter.driverStaffId };
+    }
     return this.db.transportTrip.findMany({
       where,
       orderBy: [{ serviceDate: "desc" }, { direction: "asc" }],
       take: 100,
       include: {
-        bus: { select: { id: true, code: true, capacity: true } },
+        bus: { select: { id: true, code: true, capacity: true, driverStaffId: true } },
         route: { select: { id: true, code: true, name: true } },
         _count: { select: { events: true } },
       },
     });
   }
 
-  async updateTripStatus(tripId: string, status: "OPEN" | "CLOSED" | "CANCELLED") {
-    const existing = await this.db.transportTrip.findUnique({ where: { id: tripId }, select: { id: true } });
+  async updateTripStatus(tripId: string, status: "OPEN" | "CLOSED" | "CANCELLED", actor?: { role?: string; entityInternalId?: string }) {
+    const existing = await this.db.transportTrip.findUnique({
+      where: { id: tripId },
+      select: { id: true, busId: true, bus: { select: { driverStaffId: true, code: true } } },
+    });
     if (!existing) throw new AppError(404, "Trip not found.");
+
+    if (actor?.role === "DRIVER") {
+      if (!actor.entityInternalId) throw new AppError(403, "Driver identity missing.");
+      if (existing.bus.driverStaffId !== actor.entityInternalId) {
+        throw new AppError(403, `You are not assigned to bus ${existing.bus.code}.`);
+      }
+    }
+
     return this.db.transportTrip.update({
       where: { id: tripId },
       data: {
         status,
         endedAt: status === "OPEN" ? null : new Date(),
       },
-      include: { bus: { select: { id: true, code: true, capacity: true } } },
+      include: { bus: { select: { id: true, code: true, capacity: true, driverStaffId: true } } },
     });
   }
 
@@ -592,13 +687,26 @@ export class TransportService {
       .sort((a, b) => a.student.studentName.localeCompare(b.student.studentName));
   }
 
-  async getRoster(input: { busId: string; serviceDate: string; direction: "TO_SCHOOL" | "FROM_SCHOOL"; knownVersion?: string }) {
+  async getRoster(
+    input: { busId: string; serviceDate: string; direction: "TO_SCHOOL" | "FROM_SCHOOL"; knownVersion?: string },
+    actor?: { role?: string; entityInternalId?: string }
+  ) {
     const date = startOfServiceDate(input.serviceDate);
     const [bus, entries] = await Promise.all([
-      this.db.transportBus.findFirst({ where: { id: input.busId, isActive: true }, select: { id: true, code: true, capacity: true } }),
+      this.db.transportBus.findFirst({
+        where: { id: input.busId, isActive: true },
+        select: { id: true, code: true, capacity: true, driverStaffId: true },
+      }),
       this.loadRosterEntries(input.busId, date),
     ]);
     if (!bus) throw new AppError(404, "Active transport bus not found.");
+
+    if (actor?.role === "DRIVER") {
+      if (!actor.entityInternalId) throw new AppError(403, "Driver identity missing.");
+      if (bus.driverStaffId !== actor.entityInternalId) {
+        throw new AppError(403, `You are not assigned to bus ${bus.code}.`);
+      }
+    }
 
     // TO_SCHOOL runs the route in sequence order; FROM_SCHOOL runs it back, so
     // the driver's manifest is the reverse rather than a second stored order
@@ -733,12 +841,19 @@ export class TransportService {
    * this method individually: a native device and the browser simulator both
    * send durable batches, and clientEventId makes retries safe.
    */
-  async syncBatch(input: SyncBatchInput, operatorId?: string) {
+  async syncBatch(input: SyncBatchInput, operatorId?: string, actor?: { role?: string; entityInternalId?: string }) {
     const trip = await this.db.transportTrip.findUnique({
       where: { id: input.tripId },
-      select: { id: true, busId: true, serviceDate: true, direction: true, status: true },
+      select: { id: true, busId: true, serviceDate: true, direction: true, status: true, bus: { select: { driverStaffId: true, code: true } } },
     });
     if (!trip) throw new AppError(404, "Trip not found.");
+
+    if (actor?.role === "DRIVER") {
+      if (!actor.entityInternalId) throw new AppError(403, "Driver identity missing.");
+      if (trip.bus.driverStaffId !== actor.entityInternalId) {
+        throw new AppError(403, `You are not assigned to bus ${trip.bus.code}.`);
+      }
+    }
 
     const existingEvents = await this.db.transportBoardingEvent.findMany({
       where: { clientEventId: { in: input.events.map((event) => event.clientEventId) } },
@@ -799,11 +914,14 @@ export class TransportService {
       ? await this.currentAssignments(candidateStudentIds, trip.serviceDate)
       : new Map<string, { busId: string }>();
     const roster = candidateStudentIds.length > 0
-      ? await this.getRoster({
-          busId: trip.busId,
-          serviceDate: trip.serviceDate.toISOString().slice(0, 10),
-          direction: trip.direction,
-        })
+      ? await this.getRoster(
+          {
+            busId: trip.busId,
+            serviceDate: trip.serviceDate.toISOString().slice(0, 10),
+            direction: trip.direction,
+          },
+          actor
+        )
       : null;
     const existingBoardings = candidateStudentIds.length > 0
       ? await this.db.transportBoardingEvent.findMany({
@@ -936,23 +1054,65 @@ export class TransportService {
     };
   }
 
-  async getReport(query: TransportReportQuery) {
+  async getReport(query: TransportReportQuery, filter?: { driverStaffId?: string; role?: string }) {
+    const busFilter: Record<string, unknown> = {};
+    if (query.busId) (busFilter as any).busId = query.busId;
+    if (filter?.role === "DRIVER" && filter?.driverStaffId) {
+      // Driver can only see their own buses. If they request a specific busId not theirs, force empty.
+      if (query.busId) {
+        const bus = await this.db.transportBus.findUnique({ where: { id: query.busId }, select: { driverStaffId: true } });
+        if (!bus || bus.driverStaffId !== filter.driverStaffId) {
+          // Return empty report rather than 403 to avoid leaking bus existence, but we can also throw 403.
+          // For UX we throw 403 with clear message.
+          throw new AppError(403, "You are not assigned to the requested bus.");
+        }
+      } else {
+        // Restrict to driver's buses
+        (busFilter as any).bus = { driverStaffId: filter.driverStaffId };
+      }
+    }
+
+    // When driver and no busId, we need to find driver busIds first to scope trip filter correctly.
+    let driverBusIds: string[] | null = null;
+    if (filter?.role === "DRIVER" && filter?.driverStaffId && !query.busId) {
+      const driverBuses = await this.db.transportBus.findMany({
+        where: { driverStaffId: filter.driverStaffId, isActive: true },
+        select: { id: true },
+      });
+      driverBusIds = driverBuses.map((b) => b.id);
+      if (driverBusIds.length === 0) {
+        return {
+          from: query.from,
+          to: query.to,
+          summary: { totalBoardings: 0, uniqueStudents: 0, wrongBusOrUnassigned: 0, byBus: {}, byDirection: {} },
+          exceptions: [],
+          events: [],
+        };
+      }
+      (busFilter as any).busId = { in: driverBusIds };
+    }
+
     const events = await this.db.transportBoardingEvent.findMany({
       where: {
         deviceCapturedAt: { gte: query.from, lt: query.to },
-        ...(query.busId || query.direction
+        ...(query.busId || query.direction || driverBusIds
           ? {
               trip: {
-                ...(query.busId ? { busId: query.busId } : {}),
+                ...(query.busId ? { busId: query.busId } : driverBusIds ? { busId: { in: driverBusIds } } : {}),
                 ...(query.direction ? { direction: query.direction } : {}),
+                ...(filter?.role === "DRIVER" && filter?.driverStaffId && !query.busId && !driverBusIds
+                  ? { bus: { driverStaffId: filter.driverStaffId } }
+                  : {}),
               },
             }
+          : filter?.role === "DRIVER" && filter?.driverStaffId
+          ? { trip: { bus: { driverStaffId: filter.driverStaffId } } }
           : {}),
       },
       orderBy: { deviceCapturedAt: "desc" },
       include: {
         student: { select: { id: true, studentId: true, studentName: true } },
-        trip: { select: { id: true, serviceDate: true, direction: true, bus: { select: { id: true, code: true } } } },
+        trip: { select: { id: true, serviceDate: true, direction: true, bus: { select: { id: true, code: true, driverStaffId: true } } } },
       },
     });
 
@@ -980,7 +1140,7 @@ export class TransportService {
         code: "WRONG_BUS_OR_NO_ASSIGNMENT",
         assignmentStatus: event.assignmentStatus,
         student: event.student,
-        bus: event.trip.bus,
+        bus: { id: event.trip.bus.id, code: event.trip.bus.code },
         direction: event.trip.direction,
         serviceDate: event.trip.serviceDate,
         deviceCapturedAt: event.deviceCapturedAt,
