@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ArrowLeft, CheckCircle2, AlertCircle, ShieldCheck, Phone } from "lucide-react"
+import { ArrowLeft, CheckCircle2, AlertCircle, ShieldCheck, Phone, Pencil, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Input } from "@/components/ui/input"
@@ -21,9 +21,6 @@ import { useDepartments } from "@/lib/api/reference"
 
 type FormState = "idle" | "submitting" | "success" | "error"
 
-// D-08: departments were a hardcoded array of invented identifiers
-// that matched no database row, so every submission carried an
-// invalid foreign key. The shape now comes from /api/reference.
 type DepartmentOption = ReferenceDepartment
 
 interface ClearanceOption {
@@ -50,6 +47,43 @@ const MOCK_CLEARANCE_LEVELS: ClearanceOption[] = [
   },
 ]
 
+/**
+ * Auto-generate the staff portal email from the full name:
+ * "SAMUEL OSEI MENSAH" -> samuel.mensah@jocomfy.com
+ * Keeps only alphabetic parts, joins first + last with a dot.
+ * Same system as student enrollment.
+ */
+function generatePortalEmail(fullName: string): string {
+  const parts = fullName
+    .trim()
+    .toLowerCase()
+    .split(/[^a-z]+/)
+    .filter((part) => part.length > 0)
+  if (parts.length === 0) return ""
+  const local =
+    parts.length === 1 ? parts[0]! : `${parts[0]}.${parts[parts.length - 1]!}`
+  return `${local}@jocomfy.com`
+}
+
+/**
+ * Auto-generate the temporary password token.
+ * Unambiguous alphabet only — no 0/O, 1/l/I.
+ * Same as student enrollment.
+ */
+function generateTemporaryToken(): string {
+  const alphabet = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+  if (typeof crypto !== "undefined" && "getRandomValues" in crypto) {
+    const bytes = crypto.getRandomValues(new Uint8Array(10))
+    let secret = ""
+    for (let i = 0; i < bytes.length; i += 1) {
+      secret += alphabet[bytes[i]! % alphabet.length]
+    }
+    return `JCS-${secret}`
+  }
+  // Fallback for SSR (will be replaced on mount)
+  return `JCS-${Math.random().toString(36).slice(2, 12)}`
+}
+
 function ComprehensiveStaffEnrollmentWizard() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -66,12 +100,22 @@ function ComprehensiveStaffEnrollmentWizard() {
   const [formState, setFormState] = React.useState<FormState>("idle")
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null)
 
-  // ── STEP 1: ACCOUNT ACCESS & CORE CREDENTIALS ──
+  // ── STEP 1: ACCOUNT ACCESS & CORE CREDENTIALS (AUTO-GENERATED) ──
+  // Both credential fields are AUTO-GENERATED and read-only by default —
+  // they are not browser inputs on page load, so autofill can never
+  // inject a staff/admin address or a saved password. The pencil icon
+  // unlocks manual entry for genuine edge cases (name collisions).
   const [fullName, setFullName] = React.useState("")
-  const [email, setEmail] = React.useState("")
-  const [password, setPassword] = React.useState("")
+  const [portalOverride, setPortalOverride] = React.useState("")
+  const [portalEditing, setPortalEditing] = React.useState(false)
+  const [securityToken, setSecurityToken] = React.useState(generateTemporaryToken)
+  const [tokenEditing, setTokenEditing] = React.useState(false)
   const [employmentDate, setEmploymentDate] = React.useState("")
   const [staffRole, setStaffRole] = React.useState("STAFF")
+
+  // Computed from the staff's name unless the operator unlocked and
+  // typed an override. "SAMUEL OSEI MENSAH" → samuel.mensah@jocomfy.com
+  const portalEmail = portalOverride.trim() || generatePortalEmail(fullName)
 
   // ── STEP 2: PERSONAL DEMOGRAPHICS & BACKGROUND ──
   const [dateOfBirth, setDateOfBirth] = React.useState("")
@@ -135,7 +179,7 @@ function ComprehensiveStaffEnrollmentWizard() {
   }
 
   const isGhanaCardValid = React.useMemo(() => {
-    return /^GHA-\d{9}-\d$/.test(ghanaCardNumber)
+    return /^GHA-\\d{9}-\\d$/.test(ghanaCardNumber)
   }, [ghanaCardNumber])
 
   // ── STRUCTURAL UNIFIED PAYLOAD ASSEMBLY → REAL BACKEND ──
@@ -143,6 +187,22 @@ function ComprehensiveStaffEnrollmentWizard() {
     e.preventDefault()
     setFormState("submitting")
     setErrorMessage(null)
+
+    if (!fullName.trim()) {
+      setFormState("error")
+      setErrorMessage("Full legal name is required to generate the portal email.")
+      return
+    }
+    if (!portalEmail) {
+      setFormState("error")
+      setErrorMessage("Portal email could not be generated from the name. Tap the pencil to type one.")
+      return
+    }
+    if (!securityToken.trim() || securityToken.trim().length < 6) {
+      setFormState("error")
+      setErrorMessage("Temporary security token is required (auto-generated).")
+      return
+    }
 
     if (ghanaCardNumber && !isGhanaCardValid) {
       setFormState("error")
@@ -155,8 +215,8 @@ function ComprehensiveStaffEnrollmentWizard() {
     const staffPayload = {
       account: {
         fullName,
-        email,
-        password,
+        email: portalEmail,
+        password: securityToken.trim(),
         employmentDate,
         role: staffRole,
       },
@@ -226,6 +286,11 @@ function ComprehensiveStaffEnrollmentWizard() {
           null
       )
       setFormState("success")
+      // Fresh credentials for next enrollment
+      setPortalOverride("")
+      setPortalEditing(false)
+      setTokenEditing(false)
+      setSecurityToken(generateTemporaryToken())
     } catch (err: unknown) {
       setFormState("error")
       setErrorMessage(
@@ -330,7 +395,7 @@ function ComprehensiveStaffEnrollmentWizard() {
             Add staff member
           </h1>
           <p className="mt-1 hidden text-xs text-muted-foreground sm:block sm:text-sm">
-            Add the staff account, personal details, role and payment details.
+            Add the staff account, personal details, role and payment details. Email and password are auto-generated from the name.
           </p>
         </div>
       </div>
@@ -352,7 +417,7 @@ function ComprehensiveStaffEnrollmentWizard() {
           className="space-y-8 pb-28 pr-0 sm:space-y-12 sm:pb-24 sm:pr-4"
         >
           {/* ═══════════════════════════════════════════════════════
-              STEP 1: ACCOUNT ACCESS & CORE CREDENTIALS
+              STEP 1: ACCOUNT ACCESS & CORE CREDENTIALS (AUTO)
               ═══════════════════════════════════════════════════════ */}
           <div className="relative pl-0 group sm:pl-10">
             <StepBadge num={1} />
@@ -401,43 +466,102 @@ function ComprehensiveStaffEnrollmentWizard() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label
-                    htmlFor="staff-email"
-                    className="text-sm font-semibold sm:text-xs text-foreground"
-                  >
-                    Institutional Email Address{" "}
-                    <span className="text-red-500">*</span>
+                  <Label className="text-sm font-semibold sm:text-xs text-foreground">
+                    Portal Access Address <span className="text-red-500">*</span>
                   </Label>
-                  <Input
-                    id="staff-email"
-                    type="email"
-                    placeholder="e.g. s.mensah@institution.edu"
-                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    disabled={isSubmitting}
-                  />
+                  {portalEditing ? (
+                    <div className="flex items-center gap-1.5">
+                      <Input
+                        value={portalOverride}
+                        onChange={(e) => setPortalOverride(e.target.value)}
+                        onFocus={(e) => e.currentTarget.select()}
+                        autoFocus
+                        autoComplete="off"
+                        className="h-11 sm:h-9 flex-1 text-sm sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
+                        disabled={isSubmitting}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setPortalEditing(false)}
+                        title="Lock the computed address"
+                        className="h-11 sm:h-9 w-11 sm:w-9 p-0 shrink-0 border-stone-200 dark:border-stone-800 text-stone-500"
+                        disabled={isSubmitting}
+                      >
+                        <Lock className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="h-11 sm:h-9 flex items-center justify-between gap-2 rounded-md bg-stone-50 dark:bg-zinc-900/40 border border-stone-200 dark:border-stone-800 px-3">
+                      <span aria-live="polite" className="truncate text-sm sm:text-xs font-medium text-stone-700 dark:text-zinc-300">
+                        {portalEmail || "…"}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => {
+                          setPortalOverride(portalEmail)
+                          setPortalEditing(true)
+                        }}
+                        title="Edit portal address (normally computed from the name)"
+                        className="h-7 w-7 p-0 shrink-0 text-stone-400 hover:text-stone-700"
+                        disabled={isSubmitting}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  )}
+                  <p className="text-[11px] leading-snug text-stone-500">
+                    {portalEditing ? "Type the address, then lock it." : "Computed from full name — tap pencil to change."}
+                  </p>
                 </div>
+
                 <div className="space-y-1.5">
-                  <Label
-                    htmlFor="staff-password"
-                    className="text-sm font-semibold sm:text-xs text-foreground"
-                  >
-                    Temporary Credentials Token{" "}
-                    <span className="text-red-500">*</span>
+                  <Label className="text-sm font-semibold sm:text-xs text-foreground">
+                    Temporary Security Token <span className="text-red-500">*</span>
                   </Label>
-                  <Input
-                    id="staff-password"
-                    type="password"
-                    placeholder="Minimum 6 characters"
-                    className="h-11 text-sm sm:h-9 sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    minLength={6}
-                    disabled={isSubmitting}
-                  />
+                  {tokenEditing ? (
+                    <div className="flex items-center gap-1.5">
+                      <Input
+                        value={securityToken}
+                        onChange={(e) => setSecurityToken(e.target.value)}
+                        onFocus={(e) => e.currentTarget.select()}
+                        autoFocus
+                        autoComplete="new-password"
+                        className="h-11 sm:h-9 flex-1 font-mono text-sm sm:text-xs rounded-md bg-background border-stone-200 dark:border-stone-800"
+                        disabled={isSubmitting}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setTokenEditing(false)}
+                        title="Lock the token"
+                        className="h-11 sm:h-9 w-11 sm:w-9 p-0 shrink-0 border-stone-200 dark:border-stone-800 text-stone-500"
+                        disabled={isSubmitting}
+                      >
+                        <Lock className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="h-11 sm:h-9 flex items-center justify-between gap-2 rounded-md bg-stone-50 dark:bg-zinc-900/40 border border-stone-200 dark:border-stone-800 px-3">
+                      <span className="truncate font-mono text-sm sm:text-xs font-semibold tracking-wide text-stone-700">
+                        {securityToken}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setTokenEditing(true)}
+                        title="Set a custom token"
+                        className="h-7 w-7 p-0 shrink-0 text-stone-400 hover:text-stone-700"
+                        disabled={isSubmitting}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  )}
+                  <p className="text-[11px] leading-snug text-stone-500">
+                    {tokenEditing ? "Type the token, then lock it." : "Auto-generated — share with staff, or tap pencil to set your own."}
+                  </p>
                 </div>
               </div>
 
