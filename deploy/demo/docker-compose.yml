@@ -100,6 +100,33 @@ services:
     cpus: 0.5
     logging: *default-logging
 
+  demo-website:
+    image: jocomfy-demo-website:latest
+    build:
+      context: ../../../jocomfy-site
+      args:
+        NEXT_PUBLIC_SMS_API_URL: /api
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ""
+        NEXT_PUBLIC_APP_ENV: demo
+        SMS_BACKEND_URL: http://demo-backend:5200
+    restart: unless-stopped
+    networks: [sms-net]
+    ports:
+      - "127.0.0.1:3201:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+      NEXT_PUBLIC_SMS_API_URL: /api
+      NEXT_PUBLIC_APP_ENV: demo
+      SMS_BACKEND_URL: http://demo-backend:5200
+    depends_on:
+      demo-backend:
+        condition: service_healthy
+    mem_limit: 384m
+    cpus: 0.5
+    logging: *default-logging
+
 networks:
   # The shared reverse-proxy bridge. Caddy (jocomfy-site) is already attached
   # to this network, so it can proxy to the demo containers by their service
