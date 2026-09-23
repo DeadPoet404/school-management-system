@@ -104,9 +104,8 @@ if [[ "$CORS_ORIGINS" != *"https://sms-demo.jocomfy.com"* ]]; then
 fi
 
 # Demo must never have real integrations (same rule as staging).
+# Exception: Paystack TEST keys (fake money) are allowed for investor click-throughs.
 disabled_integrations=(
-  PAYSTACK_SECRET_KEY
-  PAYSTACK_CALLBACK_URL
   GOOGLE_CLIENT_ID
   ARKESEL_API_KEY
   ARKESEL_SENDER_ID
@@ -124,8 +123,25 @@ for variable in "${disabled_integrations[@]}"; do
   fi
 done
 
+# Paystack TEST mode only in demo: sk_test_* moves no real money.
+# A live key (sk_live_*) here fails the gate.
+PAYSTACK_SECRET_KEY_VALUE="$(read_env PAYSTACK_SECRET_KEY)"
+PAYSTACK_CALLBACK_VALUE="$(read_env PAYSTACK_CALLBACK_URL)"
+if [ -n "$PAYSTACK_SECRET_KEY_VALUE" ] && [[ "$PAYSTACK_SECRET_KEY_VALUE" != sk_test_* ]]; then
+  echo "ERROR: Only Paystack TEST keys (sk_test_...) are allowed in demo." >&2
+  exit 1
+fi
+if [ -n "$PAYSTACK_CALLBACK_VALUE" ] && [ -z "$PAYSTACK_SECRET_KEY_VALUE" ]; then
+  echo "ERROR: PAYSTACK_CALLBACK_URL is set without PAYSTACK_SECRET_KEY." >&2
+  exit 1
+fi
+
 echo "Demo environment validation: PASS"
 echo "Project reference: $EXPECTED_PROJECT_REF"
 echo "Runtime pooler: $EXPECTED_HOST:6543"
 echo "Migration pooler: $EXPECTED_HOST:5432"
-echo "External payment and communication integrations: DISABLED"
+if [ -n "$PAYSTACK_SECRET_KEY_VALUE" ]; then
+  echo "Paystack: TEST MODE ENABLED (sk_test_..., fake money)"
+else
+  echo "External payment and communication integrations: DISABLED"
+fi
