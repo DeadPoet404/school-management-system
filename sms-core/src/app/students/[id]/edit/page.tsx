@@ -289,7 +289,7 @@ function EditStudentForm() {
 
   if (isLoading) {
     return (
-      <div className="w-full max-w-3xl flex flex-col space-y-6 bg-transparent mx-auto py-6">
+      <div className="w-full max-w-3xl flex flex-col space-y-6 bg-transparent mx-auto py-6 h-full overflow-y-auto pr-1">
         <div className="flex flex-col gap-2 shrink-0">
           <Link
             href={backHref}
@@ -308,7 +308,7 @@ function EditStudentForm() {
 
   if (formState === "success") {
     return (
-      <div className="w-full max-w-3xl flex flex-col space-y-6 bg-transparent mx-auto py-6">
+      <div className="w-full max-w-3xl flex flex-col space-y-6 bg-transparent mx-auto py-6 h-full overflow-y-auto pr-1">
         <div className="flex flex-col gap-2 shrink-0">
           <Link
             href={backHref}
@@ -342,7 +342,7 @@ function EditStudentForm() {
 
   if (formState === "error" && !studentPublicId) {
     return (
-      <div className="w-full max-w-3xl flex flex-col space-y-6 bg-transparent mx-auto py-6">
+      <div className="w-full max-w-3xl flex flex-col space-y-6 bg-transparent mx-auto py-6 h-full overflow-y-auto pr-1">
         <div className="flex flex-col gap-2 shrink-0">
           <Link
             href={backHref}
@@ -361,7 +361,7 @@ function EditStudentForm() {
   }
 
   return (
-    <div className="w-full max-w-3xl flex flex-col space-y-6 bg-transparent mx-auto py-4">
+    <div className="w-full max-w-3xl flex flex-col space-y-6 bg-transparent mx-auto py-4 h-full overflow-y-auto pr-1">
       <div className="flex flex-col gap-2 shrink-0">
         <Link
           href={backHref}
