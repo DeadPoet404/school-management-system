@@ -186,40 +186,37 @@ describe('SMS-002: registry enrollment account date fields', () => {
       expect(result.success).toBe(true);
     });
 
-    it('reports a clear field-level error when employmentDate is missing or empty', () => {
-      // Missing field: identified by its path (Zod reports the offending key).
+    it('accepts a minimal account WITHOUT employmentDate (driver fast-track made it optional)', () => {
       const missing = staffEnrollmentSchema.safeParse({
         ...STAFF_UI_PAYLOAD,
         account: withoutKey(STAFF_UI_PAYLOAD.account, 'employmentDate'),
       });
-      expect(missing.success).toBe(false);
-      if (!missing.success) {
-        expect(issuePaths(missing.error)).toContain('account.employmentDate');
-      }
+      expect(missing.success).toBe(true);
 
-      // Empty field: identified by path plus a human-readable message.
+      // Empty string is also accepted — the schema is deliberately minimal.
       const empty = staffEnrollmentSchema.safeParse({
         ...STAFF_UI_PAYLOAD,
         account: { ...STAFF_UI_PAYLOAD.account, employmentDate: '' },
       });
-      expect(empty.success).toBe(false);
-      if (!empty.success) {
-        const employmentIssue = empty.error.issues.find(
-          (issue) => issue.path.join('.') === 'account.employmentDate',
-        );
-        expect(employmentIssue).toBeDefined();
-        expect(employmentIssue?.message).toBe('Employment date is required.');
-      }
+      expect(empty.success).toBe(true);
     });
 
-    it('still pins the staff account role to the STAFF literal', () => {
-      const result = staffEnrollmentSchema.safeParse({
+    it('accepts the standard role set and defaults a missing role to STAFF (driver fast-track)', () => {
+      for (const role of ['STAFF', 'DRIVER', 'ADMIN', 'ACCOUNTANT', 'FACULTY', 'TEACHER']) {
+        const result = staffEnrollmentSchema.safeParse({
+          ...STAFF_UI_PAYLOAD,
+          account: { ...STAFF_UI_PAYLOAD.account, role },
+        });
+        expect(result.success).toBe(true);
+      }
+
+      const noRole = staffEnrollmentSchema.safeParse({
         ...STAFF_UI_PAYLOAD,
-        account: { ...STAFF_UI_PAYLOAD.account, role: 'ADMIN' },
+        account: withoutKey(STAFF_UI_PAYLOAD.account, 'role'),
       });
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(issuePaths(result.error)).toContain('account.role');
+      expect(noRole.success).toBe(true);
+      if (noRole.success) {
+        expect(noRole.data.account.role).toBe('STAFF');
       }
     });
   });
