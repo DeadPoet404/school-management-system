@@ -5,7 +5,6 @@ import Link from "next/link"
 import { useRouter, useParams } from "next/navigation"
 import { ArrowLeft, CheckCircle2, AlertCircle, ShieldCheck, Phone, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -389,7 +388,6 @@ function EditStudentForm() {
         </div>
       )}
 
-      <ScrollArea className="h-[700px] w-full rounded-none border-none shadow-none bg-transparent">
         <form onSubmit={handleSubmit} className="space-y-12 pr-4 pb-12 bg-transparent">
           {studentId ? (
             <StudentPhotoControl
@@ -743,7 +741,6 @@ function EditStudentForm() {
             </div>
           </div>
         </form>
-      </ScrollArea>
     </div>
   )
 }

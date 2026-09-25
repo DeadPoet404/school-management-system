@@ -151,9 +151,39 @@ export class StudentRepository implements IStudentRepository {
     async update(id: string, data: Record<string, unknown>, tx = prisma) {
     const updateData: Record<string, unknown> = {};
     if (data.studentName) updateData.studentName = data.studentName;
-    if (data.demographics) updateData.demographics = { update: data.demographics };
-    if (data.placement) updateData.placement = { update: data.placement };
-    if (data.compliance) updateData.compliance = { update: data.compliance };
+    // Upsert (not plain update): students enrolled via import may have no
+    // Demographics / Placement / StudentCompliance row yet. A plain nested
+    // update throws Prisma P2025 (record not found) -> 404 on save.
+    if (data.demographics) {
+      const demo = data.demographics as Record<string, unknown>;
+      updateData.demographics = {
+        upsert: {
+          where: { studentId: id },
+          update: demo,
+          create: { ...demo },
+        },
+      };
+    }
+    if (data.placement) {
+      const pl = data.placement as Record<string, unknown>;
+      updateData.placement = {
+        upsert: {
+          where: { studentId: id },
+          update: pl,
+          create: { academicTrack: 'GENERAL', ...pl },
+        },
+      };
+    }
+    if (data.compliance) {
+      const comp = data.compliance as Record<string, unknown>;
+      updateData.compliance = {
+        upsert: {
+          where: { studentId: id },
+          update: comp,
+          create: { ...comp },
+        },
+      };
+    }
 
     // Primary guardian: upsert the student's existing guardian record
     // (the app maintains one primary guardian per student).

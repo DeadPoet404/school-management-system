@@ -434,7 +434,8 @@ model Demographics {
   id                 String   @id @default(uuid())
   studentId          String   @unique
   student            Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  dateOfBirth        DateTime
+  /// Nullable: many enrolled students have no DOB on record yet.
+  dateOfBirth        DateTime?
   gender             String
   residentialAddress String
   medicalNotes       String?  @db.Text
