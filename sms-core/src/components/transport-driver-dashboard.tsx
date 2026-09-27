@@ -14,6 +14,7 @@ import {
   type TransportRoster,
   type TransportRosterEntry,
 } from "@/lib/api/transport"
+import { QrScanPanel } from "./qr-scan-panel"
 
 const STORAGE_KEY = "sms.transport.driver.mvp.v1"
 
@@ -363,29 +364,34 @@ export function TransportDriverDashboard() {
         </div>
       </div>
 
-      {/* Scan box - big */}
+      {/* Scan box - camera scanner with manual fallback */}
       <div className="px-4">
         <div className="rounded-2xl border-2 border-stone-950 bg-white p-3 shadow-sm">
           <div className="flex items-center gap-2">
             <ScanLine className="h-5 w-5 text-stone-500" />
             <p className="text-sm font-semibold text-stone-900">Scan QR to board</p>
           </div>
-          <div className="mt-3 flex gap-2">
-            <input
-              value={scanValue}
-              onChange={(e) => setScanValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleScan(scanValue)
-              }}
-              placeholder="Tap here and scan card..."
-              className="h-14 flex-1 rounded-xl border border-stone-200 bg-stone-50 px-4 text-lg font-mono outline-none focus:border-stone-950 focus:bg-white"
-              autoFocus
-            />
-            <button onClick={() => handleScan(scanValue)} className="h-14 rounded-xl bg-stone-950 px-6 text-sm font-bold text-white">
-              Board
-            </button>
+          <div className="mt-3">
+            <QrScanPanel onScan={handleScan} disabled={!tripId} />
           </div>
           {feedback && <p className="mt-2 text-center text-sm font-semibold text-emerald-700">{feedback}</p>}
+          <details className="mt-3">
+            <summary className="cursor-pointer text-xs font-semibold text-stone-500">No camera? Type the token manually</summary>
+            <div className="mt-2 flex gap-2">
+              <input
+                value={scanValue}
+                onChange={(e) => setScanValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleScan(scanValue)
+                }}
+                placeholder="Paste QR token (tr1.…)"
+                className="h-11 flex-1 rounded-xl border border-stone-200 bg-stone-50 px-3 font-mono text-xs outline-none focus:border-stone-950 focus:bg-white"
+              />
+              <button onClick={() => handleScan(scanValue)} className="h-11 rounded-xl bg-stone-950 px-4 text-sm font-bold text-white">
+                Board
+              </button>
+            </div>
+          </details>
         </div>
       </div>
 
