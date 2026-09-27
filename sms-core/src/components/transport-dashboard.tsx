@@ -71,7 +71,7 @@ export function TransportDashboard() {
     try {
       // ensure trip open
       const trips = await getTransportTrips(serviceDate).catch(() => [])
-      let trip = trips.find((t) => t.busId === selectedBusId && t.serviceDate.slice(0, 10) === serviceDate)
+      const trip = trips.find((t) => t.busId === selectedBusId && t.serviceDate.slice(0, 10) === serviceDate)
       if (!trip) {
         try {
           await openTransportTrip({ busId: selectedBusId, serviceDate, direction: "TO_SCHOOL" })

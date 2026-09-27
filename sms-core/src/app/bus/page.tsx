@@ -4,7 +4,6 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { BusFront, LoaderCircle, ShieldCheck } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
-import { ApiClientError } from "@/lib/fetch-with-auth"
 import { TransportDriverDashboard } from "@/components/transport-driver-dashboard"
 import { cn } from "@/lib/utils"
 
