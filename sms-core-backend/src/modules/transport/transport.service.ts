@@ -368,7 +368,8 @@ export class TransportService {
 
   async listStudentCandidates(search?: string) {
     const term = search?.trim();
-    return this.db.student.findMany({
+    const now = new Date();
+    const students = await this.db.student.findMany({
       where: {
         status: "ACTIVE",
         ...(term
@@ -393,7 +394,28 @@ export class TransportService {
           take: 1,
           select: { id: true, qrToken: true, issuedAt: true },
         },
+        // The student's currently-effective bus assignment, if any — so the
+        // admin picker can show who already rides which bus.
+        transportAssignments: {
+          where: {
+            effectiveFrom: { lte: now },
+            OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+          },
+          orderBy: { effectiveFrom: "desc" },
+          take: 1,
+          select: { bus: { select: { id: true, code: true, isActive: true } } },
+        },
       },
+    });
+
+    return students.map((student) => {
+      const { transportAssignments, ...rest } = student;
+      const assignment = transportAssignments[0];
+      const bus = assignment?.bus;
+      return {
+        ...rest,
+        activeBus: bus && bus.isActive ? { id: bus.id, code: bus.code } : null,
+      };
     });
   }
 

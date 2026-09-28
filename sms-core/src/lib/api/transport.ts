@@ -64,6 +64,8 @@ export interface TransportStudent {
   studentName: string
   placement?: { classId: string | null; class: { name: string } | null } | null
   transportCards?: Array<{ id: string; qrToken: string; issuedAt: string }>
+  /** The bus this student is currently registered for (active assignment), if any. */
+  activeBus?: { id: string; code: string } | null
 }
 
 export interface TransportRosterEntry {

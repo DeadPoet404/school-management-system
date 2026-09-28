@@ -3,11 +3,11 @@
 import * as React from "react"
 import { BusFront, CheckCircle2, ScanLine, Search, WifiOff } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { fetchWithAuth } from "@/lib/fetch-with-auth"
 import {
   getTransportBuses,
   getTransportRoster,
   getTransportTrips,
-  getTransportReport,
   openTransportTrip,
   syncTransportBatch,
   type TransportBus,
@@ -53,6 +53,9 @@ export function TransportDriverDashboard() {
   })
   const [scanValue, setScanValue] = React.useState("")
   const [search, setSearch] = React.useState("")
+  const [busError, setBusError] = React.useState<string | null>(null)
+  const [rosterError, setRosterError] = React.useState<string | null>(null)
+  const [reloadKey, setReloadKey] = React.useState(0)
   const [loading, setLoading] = React.useState(true)
   const [feedback, setFeedback] = React.useState<string | null>(null)
   const [isOnline, setIsOnline] = React.useState(typeof navigator !== "undefined" ? navigator.onLine : true)
@@ -83,6 +86,7 @@ export function TransportDriverDashboard() {
     let cancelled = false
     async function load() {
       setLoading(true)
+      setBusError(null)
       try {
         const busData = await getTransportBuses()
         if (cancelled) return
@@ -91,7 +95,7 @@ export function TransportDriverDashboard() {
           setSelectedBusId(busData[0].id)
         }
       } catch {
-        // ignore
+        if (!cancelled) setBusError("Couldn't load your bus. Check your internet connection, then try again.")
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -100,7 +104,7 @@ export function TransportDriverDashboard() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [reloadKey])
 
   // load trip + roster + boarded
   React.useEffect(() => {
@@ -108,6 +112,7 @@ export function TransportDriverDashboard() {
     let cancelled = false
     async function loadTripAndRoster() {
       setLoading(true)
+      setRosterError(null)
       try {
         // 1. ensure trip exists for today TO_SCHOOL
         const trips = await getTransportTrips(serviceDate)
@@ -135,31 +140,22 @@ export function TransportDriverDashboard() {
         if (cancelled) return
         setRoster(rosterData)
 
-        // 3. boarded from server report
+        // 3. boarded from server report (cookie auth via fetchWithAuth)
         const from = `${serviceDate}T00:00:00.000Z`
         const to = `${serviceDate}T23:59:59.999Z`
-        const report = await getTransportReport({ from, to, busId: selectedBusId }).catch(() => null)
-        if (cancelled) return
-        if (report) {
-          // report doesn't return boarded list directly, but we can infer from summary? 
-          // Actually we need to fetch events - the report type in API only returns summary + exceptions.
-          // For MVP, we will use boardedIds from local queue + try to get from trips _count? 
-          // Workaround: we have boardedIds from previous syncs stored? Instead, fetch via syncBatch results?
-          // Let's try to use the report events if available (backend returns events in full report, but typed as TransportReport without events - we will parse raw)
-          // For simplicity, we will keep boardedIds as server-known via a separate fetch of boarding events via report API raw
-          try {
-            const rawRes = await fetch(`/api/transport/reports/boardings?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&busId=${encodeURIComponent(selectedBusId)}`, {
-              headers: { Authorization: `Bearer ${localStorage.getItem("access_token") ?? ""}` },
-            }).then((r) => r.json())
+        try {
+          const res = await fetchWithAuth(`/transport/reports/boardings?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&busId=${encodeURIComponent(selectedBusId)}`)
+          if (res.ok) {
+            const rawRes = await res.json()
             const events = rawRes?.data?.events ?? rawRes?.events ?? []
-            const ids = new Set<string>(events.map((e: any) => e.studentId))
-            setBoardedIds(ids)
-          } catch {
-            // fallback keep existing
+            const ids = new Set<string>(events.map((e: { studentId?: string }) => e.studentId))
+            if (!cancelled) setBoardedIds(ids)
           }
+        } catch {
+          // keep local queue as boarded source
         }
-      } catch (e) {
-        console.error(e)
+      } catch {
+        if (!cancelled) setRosterError("Couldn't load the roster. Check your internet connection, then try again.")
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -168,7 +164,7 @@ export function TransportDriverDashboard() {
     return () => {
       cancelled = true
     }
-  }, [selectedBusId, serviceDate])
+  }, [selectedBusId, serviceDate, reloadKey])
 
   // auto sync queue when online
   const syncQueue = React.useCallback(async () => {
@@ -302,12 +298,33 @@ export function TransportDriverDashboard() {
     )
   }
 
+  if (busError) {
+    return (
+      <div className="mx-auto max-w-3xl p-6">
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center">
+          <p className="font-semibold text-red-900">{busError}</p>
+          <div className="mt-4 flex justify-center gap-2">
+            <button onClick={() => setReloadKey((k) => k + 1)} className="h-11 rounded-xl bg-stone-950 px-5 text-sm font-bold text-white">
+              Try again
+            </button>
+          </div>
+          <p className="mt-3 text-xs text-red-700">
+            If it keeps failing: close the page, reopen <span className="font-mono">/bus</span>, and log in again.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   if (!buses.length) {
     return (
       <div className="mx-auto max-w-3xl p-6">
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center">
           <p className="font-semibold text-amber-900">No bus assigned</p>
-          <p className="mt-1 text-sm text-amber-800">Ask admin to assign a bus to your driver account.</p>
+          <p className="mt-1 text-sm text-amber-800">Ask the school office to assign a bus to your driver account.</p>
+          <button onClick={() => setReloadKey((k) => k + 1)} className="mt-4 h-10 rounded-xl border border-amber-300 bg-white px-4 text-sm font-semibold text-amber-900">
+            Try again
+          </button>
         </div>
       </div>
     )
@@ -407,7 +424,20 @@ export function TransportDriverDashboard() {
       <div className="px-4">
         <h2 className="text-sm font-bold text-stone-900">Not boarded ({notBoarded.length})</h2>
         <div className="mt-2 space-y-2">
-          {notBoarded.length === 0 ? (
+          {rosterError ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-center">
+              <p className="text-sm font-semibold text-red-900">{rosterError}</p>
+              <button onClick={() => setReloadKey((k) => k + 1)} className="mt-2 h-10 rounded-xl bg-stone-950 px-4 text-sm font-bold text-white">
+                Try again
+              </button>
+            </div>
+          ) : !roster ? (
+            <div className="rounded-xl border border-dashed border-stone-200 p-6 text-center text-sm text-stone-500">Loading students…</div>
+          ) : roster.roster.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-stone-200 p-6 text-center text-sm text-stone-500">
+              No students are assigned to this bus yet. Ask the school office to add students.
+            </div>
+          ) : notBoarded.length === 0 ? (
             <div className="rounded-xl border border-dashed border-stone-200 p-6 text-center text-sm text-stone-500">All students boarded ✓</div>
           ) : (
             notBoarded.map((entry) => (

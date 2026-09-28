@@ -43,6 +43,16 @@ export function TransportDashboard() {
 
   const selectedBus = buses.find((b) => b.id === selectedBusId) ?? null
   const assignBus = buses.find((b) => b.id === assignDriverBusId) ?? null
+  const selectedBusCode = selectedBus?.code ?? null
+
+  // The assign picker only shows students who can still be registered for the
+  // selected bus — students already riding it are hidden (they're in "Today's
+  // boarding"); students on another bus stay pickable, labelled as a transfer.
+  const assignableStudents = React.useMemo(() => {
+    if (!selectedBusId) return students
+    return students.filter((s) => s.activeBus?.id !== selectedBusId)
+  }, [students, selectedBusId])
+  const assignableStudent = assignableStudents.find((s) => s.id === selectedStudentId) ?? null
 
   const loadAll = React.useCallback(async () => {
     try {
@@ -249,7 +259,11 @@ export function TransportDashboard() {
       {/* Assign students */}
       <section className="rounded-2xl border border-stone-200 bg-white p-5">
         <h2 className="text-sm font-bold text-stone-900">Assign students to bus</h2>
-        <p className="mt-1 text-xs text-stone-500">Search active student, assign to selected bus, issue QR card.</p>
+        <p className="mt-1 text-xs text-stone-500">
+          {selectedBusCode
+            ? `Shows students who can still be registered for ${selectedBusCode}. Students already riding ${selectedBusCode} appear under “Today's boarding”.`
+            : "Select a bus, search the student, assign, then issue the QR card."}
+        </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <select value={selectedBusId} onChange={(e) => setSelectedBusId(e.target.value)} className="h-10 rounded-lg border border-stone-200 px-3 text-sm">
             <option value="">Select bus</option>
@@ -260,12 +274,14 @@ export function TransportDashboard() {
           <div className="flex flex-1 gap-2">
             <select value={selectedStudentId} onChange={(e) => setSelectedStudentId(e.target.value)} className="h-10 min-w-0 flex-1 rounded-lg border border-stone-200 px-3 text-sm">
               <option value="">Choose student</option>
-              {students.map((s) => (
-                <option key={s.id} value={s.id}>{s.studentName} · {s.studentId}</option>
+              {assignableStudents.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.studentName} · {s.studentId}{s.activeBus && s.activeBus.id !== selectedBusId ? ` (on ${s.activeBus.code})` : ""}
+                </option>
               ))}
             </select>
-            <button onClick={() => void assignStudent()} disabled={!selectedStudentId || !selectedBusId || busy === "assign"} className="h-10 rounded-lg border border-stone-200 bg-white px-4 text-sm font-semibold disabled:opacity-40">Assign</button>
-            <button onClick={() => void issueCard()} disabled={!selectedStudentId || busy === "card"} className="inline-flex h-10 items-center gap-1 rounded-lg bg-stone-950 px-4 text-sm font-semibold text-white disabled:opacity-40"><QrCode className="h-4 w-4" /> QR</button>
+            <button onClick={() => void assignStudent()} disabled={!selectedStudentId || !selectedBusId || !assignableStudent || busy === "assign"} className="h-10 rounded-lg border border-stone-200 bg-white px-4 text-sm font-semibold disabled:opacity-40">Assign</button>
+            <button onClick={() => void issueCard()} disabled={!selectedStudentId || !assignableStudent || busy === "card"} className="inline-flex h-10 items-center gap-1 rounded-lg bg-stone-950 px-4 text-sm font-semibold text-white disabled:opacity-40"><QrCode className="h-4 w-4" /> QR</button>
           </div>
         </div>
         <div className="mt-3 flex gap-2">
