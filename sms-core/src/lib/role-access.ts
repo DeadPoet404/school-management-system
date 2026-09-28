@@ -27,7 +27,8 @@ const TOP_LEVEL_BY_ROLE: Record<Role, TopLevelModule[]> = {
   STAFF: ["/dashboard", "/students", "/teachers", "/operations"],
   FACULTY: ["/students", "/teachers", "/operations"],
   STUDENT: ["/portal"],
-  DRIVER: ["/dashboard"],
+  // Drivers live entirely on the /bus scan screen — no admin modules at all.
+  DRIVER: [],
 }
 
 const OPERATIONS_BY_ROLE: Record<Role, string[]> = {
@@ -43,8 +44,8 @@ const SUBPATH_OVERRIDES: { prefix: string; roles: Role[] }[] = [
   { prefix: "/students/gradebook", roles: ["FACULTY", "ADMIN", "STAFF"] },
   // Transport control room is an ADMIN/STAFF workflow. The route lives under
   // dashboard so it shares the shell, but it must not appear for accountants.
-  // DRIVER gets a dedicated restricted view on the same path.
-  { prefix: "/dashboard/transport", roles: ["ADMIN", "STAFF", "DRIVER"] },
+  // Drivers use the standalone /bus scan screen instead.
+  { prefix: "/dashboard/transport", roles: ["ADMIN", "STAFF"] },
 ]
 
 const LANDING_PRIORITY: TopLevelModule[] = ["/dashboard", "/students", "/teachers", "/staff", "/finance", "/operations"]
@@ -80,6 +81,9 @@ export function isPathAllowedForRole(role: string | null | undefined, pathname: 
 export function landingPathForRole(role: string | null | undefined, requested?: string | null): string {
   const r = normalizeRole(role)
   if (!r) return FALLBACK_LANDING
+  // A driver's entire app is the /bus scan screen — always land there, and
+  // never honour a ?from= link into an admin area.
+  if (r === "DRIVER") return "/bus"
   const safeRequested =
     typeof requested === "string" &&
     requested.startsWith("/") &&

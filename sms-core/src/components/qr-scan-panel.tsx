@@ -73,7 +73,11 @@ export function QrScanPanel({ onScan, disabled = false }: { onScan: (text: strin
 
   return (
     <div>
-      <video ref={videoRef} muted playsInline className={cn("h-full w-full rounded-xl bg-stone-950 object-cover", !on && "hidden")} />
+      {/* Fixed 16:9 frame: the camera feed can't change size, so the header,
+          boarded counter and list below never shift while scanning. */}
+      <div className={cn("relative aspect-video w-full overflow-hidden rounded-xl bg-stone-950", !on && "hidden")}>
+        <video ref={videoRef} muted playsInline className="h-full w-full object-cover" />
+      </div>
       {on ? (
         <div className="mt-2 flex items-center justify-between gap-2">
           <p className="flex items-center gap-2 text-sm font-semibold text-emerald-700">

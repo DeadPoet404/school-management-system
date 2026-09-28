@@ -11,6 +11,7 @@ export function AccessDeniedPanel({
 }) {
   const hasModules = role !== null && roleHasAnyModule(role)
   const landing = defaultLandingForRole(role)
+  const isDriver = role === "DRIVER"
 
   return (
     <div className="flex h-full w-full flex-col items-center justify-center px-6 text-center">
@@ -19,22 +20,31 @@ export function AccessDeniedPanel({
           403
         </div>
         <h1 className="text-xl font-semibold tracking-tight">
-          {hasModules ? "Access denied for this area" : "No portal access for your account"}
+          {isDriver ? "Drivers use the bus scan screen" : hasModules ? "Access denied for this area" : "No portal access for your account"}
         </h1>
         <p className="text-sm leading-6 text-muted-foreground">
-          {hasModules
-            ? "Your role is not permitted to open this page. Use the menu or the button below to return to your workspace."
-            : "Your account role has no workspace modules in this version of the platform. Please contact your school administrator or sign out."}
+          {isDriver
+            ? "Your driver account only opens the bus scan screen. Use the button below to get there."
+            : hasModules
+              ? "Your role is not permitted to open this page. Use the menu or the button below to return to your workspace."
+              : "Your account role has no workspace modules in this version of the platform. Please contact your school administrator or sign out."}
         </p>
         <div className="flex items-center justify-center gap-3 pt-2">
-          {hasModules && (
+          {isDriver ? (
+            <a
+              href="/bus"
+              className="flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              Open bus scan screen
+            </a>
+          ) : hasModules ? (
             <a
               href={landing}
               className="flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
               Go to my workspace
             </a>
-          )}
+          ) : null}
           <button
             type="button"
             onClick={onLogout}
