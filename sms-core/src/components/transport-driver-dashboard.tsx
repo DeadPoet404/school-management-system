@@ -46,7 +46,12 @@ export function TransportDriverDashboard() {
     if (typeof window === "undefined") return []
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY)
-      return raw ? JSON.parse(raw).queue ?? [] : []
+      if (!raw) return []
+      const q: QueueItem[] = JSON.parse(raw).queue ?? []
+      // Drop scans older than 48h — they belong to trips that can no longer
+      // accept boardings, and leaving them would stick the "pending" counter.
+      const cutoff = Date.now() - 48 * 3600 * 1000
+      return q.filter((it) => new Date(it.deviceCapturedAt).getTime() > cutoff)
     } catch {
       return []
     }
@@ -352,7 +357,7 @@ export function TransportDriverDashboard() {
               {isOnline ? <div className="h-2 w-2 rounded-full bg-emerald-500" /> : <WifiOff className="h-3 w-3" />}
               {isOnline ? "Online" : "Offline"}
             </div>
-            {queue.length > 0 && <p className="mt-1 text-[11px] text-stone-500">{queue.length} syncing…</p>}
+            {queue.length > 0 && <p className="mt-1 text-[11px] text-stone-500">{queue.length} {isOnline ? "syncing…" : "pending (offline)"}</p>}
           </div>
         </div>
 
