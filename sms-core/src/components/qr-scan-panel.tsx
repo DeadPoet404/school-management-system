@@ -74,9 +74,11 @@ export function QrScanPanel({ onScan, disabled = false }: { onScan: (text: strin
   return (
     <div>
       {/* Fixed 16:9 frame: the camera feed can't change size, so the header,
-          boarded counter and list below never shift while scanning. */}
+          boarded counter and list below never shift while scanning.
+          translateZ(0) puts the moving video on its own GPU layer so the
+          rest of the page doesn't repaint with every camera frame. */}
       <div className={cn("relative aspect-video w-full overflow-hidden rounded-xl bg-stone-950", !on && "hidden")}>
-        <video ref={videoRef} muted playsInline className="h-full w-full object-cover" />
+        <video ref={videoRef} muted playsInline className="h-full w-full object-cover" style={{ transform: "translateZ(0)" }} />
       </div>
       {on ? (
         <div className="mt-2 flex items-center justify-between gap-2">

@@ -332,8 +332,10 @@ export function TransportDriverDashboard() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 pb-20">
-      {/* Header - tablet friendly */}
-      <div className="sticky top-0 z-10 border-b border-stone-200 bg-white/95 px-4 py-3 backdrop-blur">
+      {/* Header - tablet friendly.
+          Solid background on purpose: backdrop-blur over the live camera feed
+          caused the whole bar to flicker/repaint on the tablet's GPU. */}
+      <div className="sticky top-0 z-10 border-b border-stone-200 bg-white px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-stone-950 text-white">
