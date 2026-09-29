@@ -1,9 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { useMemo, useState, useCallback, useEffect } from "react"
+import { useMemo, useState, useCallback, useEffect, useRef } from "react"
+import { createPortal } from "react-dom"
 import {
-  Banknote,
   User,
   CreditCard,
   FileText,
@@ -12,17 +12,18 @@ import {
   CheckCircle,
   ArrowRight,
   History,
-  Wallet
+  Search,
+  X,
+  Users,
 } from "lucide-react"
 import { fetchWithAuth } from "@/lib/fetch-with-auth"
 import { printReceiptInPage } from "@/lib/print-receipt"
-import { useClasses } from "@/lib/api/reference"
-import { ClassTabStrip } from "@/components/class-tab-strip"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import {
   Combobox,
   ComboboxContent,
@@ -31,127 +32,279 @@ import {
   ComboboxItem,
   ComboboxList,
 } from "@/components/ui/combobox"
+import { canonicalizeFeeName } from "@/lib/fee-names"
 
-// --- TYPES & SCHEMA CONTRACTS ---
 export interface ReceiptRecord {
   id: string
   receiptNumber: string
   sectionId: string
   studentName: string
+  receiptName?: string | null
   amountPaid: string
   paymentMethod: string
   referenceNo: string
   allocationTarget: string
   dateProcessed: string
-  studentInternalId?: string
+  studentInternalId?: string | null
+  className?: string | null
+  shares?: Array<{ studentName: string; className?: string | null; amount: string }>
 }
 
-export interface IntakeFormState {
-  studentName: string
-  amountPaid: string
-  paymentMethod: string
-  referenceNo: string
-  allocationTarget: string
-}
-
-interface DbStudent {
+interface StudentHit {
   id: string
   studentId: string
   studentName: string
-  billing: {
-    currentBalance: string
-    creditBalance: string
-  }
+  classId: string
+  className: string
+  currentBalance: string
+  creditBalance: string
 }
 
-// Umbrella allocation for NEW enrollees (first-term bundle). The same label
-// is used by the enrollment deposit receipt; receipts generated for a
-// collection allocated to it render the class fee breakdown.
 const ENROLLMENT_UMBRELLA = "First Term Enrollment (Admission + Uniform + Tuition)"
+const SHOW_BALANCE_KEY = "jocomfy.collections.showOutstanding"
+const MAX_PAYERS = 8
 
-import { canonicalizeFeeName } from "@/lib/fee-names"
-
-// Used ONLY for classes that have no saved fee structure yet.
 const ALLOCATION_FALLBACKS = [
   "Tuition Baseline Core",
   "Midday Catering & Snacks",
   "Computer Laboratory Access",
   "Science Lab Equipment Levy",
   "Stationery Kit Pack",
-  "Outstanding Arrears Portfolio"
+  "Outstanding Arrears Portfolio",
 ] as const
 
-const DEFAULT_FORM_STATE = (): IntakeFormState => ({
-  studentName: "",
-  amountPaid: "",
-  paymentMethod: "CASH",
-  referenceNo: "",
-  allocationTarget: "Termly Tuition"
-})
-
 interface PaymentInflowCollectionLogProps {
-  /** See FeeStructureInvoiceConfig — the action sheet supplies its own title. */
   showIntro?: boolean
-  /** Module name from the Operations shell — rendered on mobile only. */
   title?: string
+}
+
+function money(value: string | number | null | undefined): string {
+  const n = typeof value === "number" ? value : parseFloat(String(value ?? ""))
+  return Number.isFinite(n) ? n.toFixed(2) : "0.00"
+}
+
+function toCents(value: string | number): number {
+  const n = typeof value === "number" ? value : Number(value)
+  if (!Number.isFinite(n)) return 0
+  return Math.round(n * 100)
+}
+
+function equalShares(total: number, ids: string[]): Record<string, string> {
+  const cents = Math.round(total * 100)
+  if (ids.length === 0 || cents <= 0) {
+    return Object.fromEntries(ids.map((id) => [id, ""]))
+  }
+  const base = Math.floor(cents / ids.length)
+  let extra = cents - base * ids.length
+  const out: Record<string, string> = {}
+  for (const id of ids) {
+    const share = base + (extra > 0 ? 1 : 0)
+    if (extra > 0) extra -= 1
+    out[id] = (share / 100).toFixed(2)
+  }
+  return out
+}
+
+function suggestReceiptName(payers: Array<{ studentName: string }>): string {
+  const lasts = payers
+    .map((payer) => {
+      const parts = payer.studentName.trim().split(/\s+/).filter(Boolean)
+      return (parts[parts.length - 1] ?? "").toUpperCase()
+    })
+    .filter(Boolean)
+  if (lasts.length >= 2 && lasts.every((last) => last === lasts[0])) {
+    return `${lasts[0]} family`
+  }
+  return ""
+}
+
+function StudentSearch({
+  placeholder,
+  excludeIds,
+  showBalance,
+  onSelect,
+}: {
+  placeholder: string
+  excludeIds: string[]
+  showBalance: boolean
+  onSelect: (student: StudentHit) => void
+}) {
+  const [query, setQuery] = useState("")
+  const [open, setOpen] = useState(false)
+  const [results, setResults] = useState<StudentHit[]>([])
+  const [resultQuery, setResultQuery] = useState("")
+  const boxRef = useRef<HTMLDivElement>(null)
+  const [rect, setRect] = useState<DOMRect | null>(null)
+  const trimmed = query.trim()
+  const searching = trimmed.length >= 2 && resultQuery !== trimmed
+  const matches = trimmed.length >= 2 && resultQuery === trimmed ? results : []
+
+  useEffect(() => {
+    const q = query.trim()
+    if (q.length < 2) return
+    let cancelled = false
+    const handle = window.setTimeout(() => {
+      fetchWithAuth(`/finance/students/search?q=${encodeURIComponent(q)}`)
+        .then(async (res) => res.json())
+        .then((payload) => {
+          if (cancelled) return
+          setResults(payload.success && Array.isArray(payload.data) ? payload.data : [])
+          setResultQuery(q)
+        })
+        .catch(() => {
+          if (cancelled) return
+          setResults([])
+          setResultQuery(q)
+        })
+    }, 180)
+    return () => {
+      cancelled = true
+      window.clearTimeout(handle)
+    }
+  }, [query])
+
+  useEffect(() => {
+    if (!open) return
+    const update = () => {
+      if (boxRef.current) setRect(boxRef.current.getBoundingClientRect())
+    }
+    update()
+    window.addEventListener("scroll", update, true)
+    window.addEventListener("resize", update)
+    const onDoc = (event: MouseEvent) => {
+      if (!boxRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", onDoc)
+    return () => {
+      window.removeEventListener("scroll", update, true)
+      window.removeEventListener("resize", update)
+      document.removeEventListener("mousedown", onDoc)
+    }
+  }, [open, results.length])
+
+  const visible = matches.filter((student) => !excludeIds.includes(student.id))
+  const showMenu = open && query.trim().length >= 2 && rect
+
+  return (
+    <div ref={boxRef} className="relative">
+      <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-stone-400 sm:top-2.5 sm:h-3.5 sm:w-3.5" />
+      <Input
+        value={query}
+        onChange={(event) => {
+          setQuery(event.target.value)
+          setOpen(true)
+        }}
+        onFocus={() => setOpen(true)}
+        placeholder={placeholder}
+        autoComplete="off"
+        role="combobox"
+        aria-expanded={open}
+        aria-autocomplete="list"
+        className="h-11 rounded-md border-stone-200 bg-background pl-9 text-sm dark:border-zinc-800 sm:h-9 sm:text-xs"
+      />
+      {showMenu && createPortal(
+        <div
+          role="listbox"
+          style={{
+            position: "fixed",
+            top: rect.bottom + 4,
+            left: rect.left,
+            width: Math.max(rect.width, 280),
+            zIndex: 80,
+          }}
+          className="max-h-72 overflow-y-auto rounded-lg border border-stone-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-950"
+        >
+          {searching && visible.length === 0 ? (
+            <p className="px-3 py-3 text-xs text-stone-500">Searching…</p>
+          ) : null}
+          {!searching && visible.length === 0 ? (
+            <p className="px-3 py-3 text-xs text-stone-500">No student matches that name or ID.</p>
+          ) : null}
+          {visible.map((student) => (
+            <button
+              key={student.id}
+              type="button"
+              role="option"
+              aria-selected={false}
+              onMouseDown={(event) => {
+                event.preventDefault()
+                onSelect(student)
+                setQuery("")
+                setOpen(false)
+                setResults([])
+              }}
+              className="flex w-full items-start justify-between gap-3 px-3 py-2.5 text-left hover:bg-stone-100 dark:hover:bg-zinc-900"
+            >
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-semibold text-stone-900 dark:text-zinc-100">
+                  {student.studentName}
+                </span>
+                <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-stone-500">
+                  <span className="rounded bg-stone-200 px-1.5 py-0.5 font-semibold text-stone-700 dark:bg-zinc-800 dark:text-zinc-300">
+                    {student.className}
+                  </span>
+                  <span>{student.studentId}</span>
+                </span>
+              </span>
+              {showBalance ? (
+                <span className="shrink-0 text-right text-[11px] font-semibold text-stone-700 dark:text-zinc-300">
+                  ₵{money(student.currentBalance)}
+                  <span className="block font-medium text-stone-400">outstanding</span>
+                </span>
+              ) : null}
+            </button>
+          ))}
+        </div>,
+        document.body,
+      )}
+    </div>
+  )
 }
 
 export function PaymentInflowCollectionLog({
   showIntro = true,
   title: moduleTitle,
 }: PaymentInflowCollectionLogProps) {
-  const { data: classes = [], isLoading: classesLoading } = useClasses()
-  const academicSections = useMemo(
-    () => classes.filter((c) => c.isActive !== false).map((c) => ({ id: c.id, label: c.name })),
-    [classes],
-  )
-  const [activeSection, setActiveSection] = useState<string>("")
+  const [payers, setPayers] = useState<StudentHit[]>([])
+  const [amountPaid, setAmountPaid] = useState("")
+  const [referenceNo, setReferenceNo] = useState("")
+  const [allocationChoice, setAllocationChoice] = useState<string | null>(null)
+  const [receiptNameDraft, setReceiptNameDraft] = useState("")
+  const [receiptNameTouched, setReceiptNameTouched] = useState(false)
+  const [splitMode, setSplitMode] = useState<"equal" | "custom">("equal")
+  const [customShares, setCustomShares] = useState<Record<string, string>>({})
+  const [showOutstanding, setShowOutstanding] = useState(() => {
+    if (typeof window === "undefined") return true
+    try {
+      return window.localStorage.getItem(SHOW_BALANCE_KEY) !== "0"
+    } catch {
+      return true
+    }
+  })
+
   const [history, setHistory] = useState<ReceiptRecord[]>([])
-  const [dbStudents, setDbStudents] = useState<DbStudent[]>([])
-  const [loading, setLoading] = useState<boolean>(false)
-  const [submitting, setSubmitting] = useState<boolean>(false)
+  const [historyLoading, setHistoryLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [feeMatrix, setFeeMatrix] = useState<Record<string, { components: { name: string }[] }> | null>(null)
 
-  const [formState, setFormState] = useState<IntakeFormState>(DEFAULT_FORM_STATE())
+  const primary = payers[0] ?? null
+  const isSplit = payers.length > 1
 
   useEffect(() => {
-    if (academicSections.length === 0) return
-    setActiveSection((current) => {
-      if (current && academicSections.some((s) => s.id === current)) return current
-      return academicSections[0]!.id
-    })
-  }, [academicSections])
-
-
-  // Memoized System Partitions
-  const targetSectionStudents = useMemo(() => {
-    return dbStudents.map(s => s.studentName)
-  }, [dbStudents])
-
-  const selectedStudentData = useMemo(() => {
-    return dbStudents.find(s => s.studentName === formState.studentName)
-  }, [dbStudents, formState.studentName])
-
-  const activeSectionLabel = useMemo(
-    () => academicSections.find(s => s.id === activeSection)?.label || "",
-    [activeSection, academicSections],
-  )
-
-  // ── ALLOCATION OPTIONS from the class fee structure ──────────────────────
-  // The "What does this payment cover?" list is built from the selected
-  // class's saved fee structure: the enrollment umbrella first (for new
-  // students), then the class fee rows — rows 1-3 under their fixed
-  // canonical names, row 4+ exactly as entered in Fee Structure &
-  // Invoicing (e.g. extra levies). Continuing students default to
-  // "Termly Tuition".
-  const [feeMatrix, setFeeMatrix] = useState<Record<string, { components: { name: string }[] }> | null>(null)
+    try {
+      window.localStorage.setItem(SHOW_BALANCE_KEY, showOutstanding ? "1" : "0")
+    } catch {
+      // Preference is convenience only.
+    }
+  }, [showOutstanding])
 
   useEffect(() => {
     let cancelled = false
     fetchWithAuth("/finance/fee-structures")
-      .then(async (res) => {
-        const payload = await res.json()
+      .then(async (res) => res.json())
+      .then((payload) => {
         if (!cancelled && payload.success && payload.data) setFeeMatrix(payload.data)
       })
       .catch(() => {
@@ -162,12 +315,40 @@ export function PaymentInflowCollectionLog({
     }
   }, [])
 
+  const fetchHistory = useCallback(async () => {
+    try {
+      const res = await fetchWithAuth("/finance/collections?limit=20")
+      const payload = await res.json()
+      if (payload.success && Array.isArray(payload.data)) setHistory(payload.data)
+    } catch (err) {
+      console.error("[Collections history]:", err)
+    } finally {
+      setHistoryLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    fetchWithAuth("/finance/collections?limit=20")
+      .then(async (res) => res.json())
+      .then((payload) => {
+        if (!cancelled && payload.success && Array.isArray(payload.data)) setHistory(payload.data)
+      })
+      .catch((err) => {
+        console.error("[Collections history]:", err)
+      })
+      .finally(() => {
+        if (!cancelled) setHistoryLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const allocationOptions = useMemo(() => {
-    const section = activeSection ? feeMatrix?.[activeSection] : undefined
-    // Core rows (Admission/Uniform/Tuition) show their fixed canonical
-    // names — matched by meaning, so row position never matters.
+    const section = primary ? feeMatrix?.[primary.classId] : undefined
     const names = (section?.components ?? [])
-      .map((c) => canonicalizeFeeName(c.name || "") ?? (c.name || "").trim())
+      .map((component) => canonicalizeFeeName(component.name || "") ?? (component.name || "").trim())
       .filter(Boolean)
     const base = names.length > 0 ? names : [...ALLOCATION_FALLBACKS]
     const list: string[] = []
@@ -175,292 +356,368 @@ export function PaymentInflowCollectionLog({
       if (!list.includes(candidate)) list.push(candidate)
     }
     return list
-  }, [feeMatrix, activeSection])
+  }, [feeMatrix, primary])
 
   const defaultAllocation = allocationOptions.includes("Termly Tuition")
     ? "Termly Tuition"
     : allocationOptions[0] ?? ""
+  const allocationTarget = allocationChoice && allocationOptions.includes(allocationChoice)
+    ? allocationChoice
+    : defaultAllocation
+  const receiptName = !isSplit
+    ? ""
+    : receiptNameTouched
+      ? receiptNameDraft
+      : suggestReceiptName(payers)
+  const equalShareAmounts = useMemo(() => {
+    if (!isSplit) return {}
+    const total = Number(amountPaid)
+    if (!(total > 0)) return {}
+    return equalShares(total, payers.map((payer) => payer.id))
+  }, [isSplit, amountPaid, payers])
+  const shareAmounts = splitMode === "equal" ? equalShareAmounts : customShares
 
-  // Keep the selected allocation valid as the class (and its fee rows) change.
-  useEffect(() => {
-    setFormState((prev) =>
-      prev.allocationTarget && allocationOptions.includes(prev.allocationTarget)
-        ? prev
-        : { ...prev, allocationTarget: defaultAllocation },
-    )
-  }, [allocationOptions, defaultAllocation])
+  const allocatedCents = payers.reduce((sum, payer) => sum + toCents(shareAmounts[payer.id] ?? "0"), 0)
+  const totalCents = toCents(amountPaid)
+  const splitGap = isSplit && totalCents > 0 ? totalCents - allocatedCents : 0
+  const zeroShare = isSplit && totalCents > 0 && payers.some((payer) => toCents(shareAmounts[payer.id] ?? "0") <= 0)
+  const receiptNameMissing = isSplit && receiptName.trim().length < 2
+  const canSubmit = Boolean(
+    primary
+    && totalCents > 0
+    && allocationTarget
+    && !submitting
+    && !receiptNameMissing
+    && !zeroShare
+    && splitGap === 0,
+  )
 
-
-  // --- UNIFIED DATA RECOVERY MATRIX ---
-  const fetchSectionData = useCallback(async (sectionId: string) => {
-    if (!sectionId) return
-    setLoading(true)
-    try {
-      const [studentRes, ledgerRes] = await Promise.all([
-        fetchWithAuth(`/finance/students-by-section/${sectionId}`),
-        fetchWithAuth(`/finance/collections/${sectionId}`)
-      ])
-
-      const studentPayload = await studentRes.json()
-      const ledgerPayload = await ledgerRes.json()
-
-      if (studentPayload.success) setDbStudents(studentPayload.data)
-      if (ledgerPayload.success) setHistory(ledgerPayload.data)
-    } catch (error) {
-      console.error("[Data Sync Failure]:", error)
-    } finally {
-      setLoading(false)
+  const addStudent = (student: StudentHit) => {
+    if (payers.some((payer) => payer.id === student.id)) return
+    if (payers.length >= MAX_PAYERS) {
+      setError(`A receipt can cover at most ${MAX_PAYERS} students.`)
+      return
     }
-  }, [])
+    setError(null)
+    setPayers((current) => current.some((payer) => payer.id === student.id) ? current : [...current, student])
+  }
 
-  useEffect(() => {
-    fetchSectionData(activeSection)
-    setFormState(DEFAULT_FORM_STATE())
-  }, [activeSection, fetchSectionData])
+  const removeStudent = (id: string) => {
+    setPayers((current) => current.filter((payer) => payer.id !== id))
+    setCustomShares((current) => {
+      const next = { ...current }
+      delete next[id]
+      return next
+    })
+  }
 
-  const updateFormField = useCallback((field: keyof IntakeFormState, value: string) => {
-    setFormState(prev => ({
-      ...prev,
-      [field]: value
-    }))
-  }, [])
+  const clearStudents = () => {
+    setPayers([])
+    setCustomShares({})
+    setReceiptNameDraft("")
+    setReceiptNameTouched(false)
+    setSplitMode("equal")
+  }
 
-  const handleProcessCollection = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!formState.studentName || !formState.amountPaid || submitting) return
+  const resetForm = () => {
+    clearStudents()
+    setAmountPaid("")
+    setReferenceNo("")
+  }
 
-    const selectedStudent = dbStudents.find(s => s.studentName === formState.studentName)
+  const handleProcessCollection = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!primary || !canSubmit) return
 
     setError(null)
     setSuccessMessage(null)
     setSubmitting(true)
-
     try {
-      // ✅ FIXED: removed the outer fetch() wrapper — fetchWithAuth IS the fetch
       const response = await fetchWithAuth("/finance/collections", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
         body: JSON.stringify({
-          sectionId: activeSection,
-          ...formState,
+          sectionId: primary.classId,
+          studentName: primary.studentName,
+          studentInternalId: primary.id,
+          amountPaid: totalCents / 100,
           paymentMethod: "CASH",
-          studentInternalId: selectedStudent?.id || undefined
-        })
+          referenceNo,
+          allocationTarget,
+          showOutstanding,
+          ...(isSplit
+            ? {
+                receiptName: receiptName.trim(),
+                shares: payers.map((payer) => ({
+                  studentInternalId: payer.id,
+                  amount: toCents(shareAmounts[payer.id] ?? "0") / 100,
+                })),
+              }
+            : {}),
+        }),
       })
-
       const payload = await response.json()
       if (payload.success) {
-        setHistory(prev => [payload.data, ...prev])
-        setFormState(DEFAULT_FORM_STATE())
-        fetchSectionData(activeSection)
-        setSuccessMessage(payload.message || "Payment collection recorded successfully.")
-        // SMS-007: trigger the print dialog IN PLACE — the A5 receipt is
-        // rendered in a hidden iframe and its own script opens the native
-        // print dialog. No new tab, no navigation away from the console.
+        resetForm()
+        setSuccessMessage("Payment recorded. The receipt is opening.")
+        void fetchHistory()
         printReceiptInPage(payload.data.id).catch((err) => {
           console.error("[Receipt Print Trigger Error]:", err)
         })
       } else {
-        setError(payload.message || "Failed to process collection inflow.")
+        const detail = Array.isArray(payload.errors)
+          ? payload.errors.map((item: { message?: string }) => item.message).filter(Boolean).join(" ")
+          : ""
+        setError(detail || payload.message || "Failed to process collection inflow.")
       }
-    } catch (error) {
-      console.error("[Collection Pipeline Ingress Write Error]:", error)
-      setError(error instanceof Error ? error.message : "Network error while processing collection inflow.")
+    } catch (err) {
+      console.error("[Collection Pipeline Ingress Write Error]:", err)
+      setError(err instanceof Error ? err.message : "Network error while processing collection inflow.")
     } finally {
       setSubmitting(false)
     }
   }
 
   return (
-    <main className="flex-1 h-full min-h-0 flex flex-col overflow-hidden bg-transparent px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
-
+    <main className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-transparent px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       {moduleTitle ? (
-        <h1 className="text-xl tracking-tight font-semibold text-foreground sm:text-3xl md:hidden">
+        <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-3xl md:hidden">
           {moduleTitle}
         </h1>
       ) : null}
 
       {showIntro ? (
-        <div className="flex flex-col gap-1.5 shrink-0 sm:gap-2">
-          <div className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground tracking-wide uppercase font-bold text-stone-400 sm:text-xs">
+        <div className="flex shrink-0 flex-col gap-1.5 sm:gap-2">
+          <div className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-stone-400 sm:text-xs">
             Finance operations
           </div>
-
           <p className="hidden max-w-2xl text-xs text-muted-foreground sm:block sm:text-sm">
-            Record a verified cash payment, then open the official A5 receipt.
+            Search for a student, record the cash received, and print the receipt. Add other students to split one payment, and put a family name on the receipt.
           </p>
         </div>
       ) : null}
 
-      {/* DUAL LAYER COHORT TRACK HUD FRAME */}
-      <ClassTabStrip
-        sections={academicSections}
-        activeSection={activeSection}
-        onSelect={setActiveSection}
-        label="Choose class"
-        className="max-w-5xl"
-      />
-
-      <hr className="border-stone-200 dark:border-zinc-800 shrink-0 mt-4 mb-5 sm:mt-5 sm:mb-6" />
-      {error && (
-        <div className="mb-4 flex items-start justify-between gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-600 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">
+      {error ? (
+        <div className="mb-4 mt-4 flex items-start justify-between gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-600 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">
           <span>{error}</span>
-          <button type="button" onClick={() => setError(null)} className="-mr-1 -mt-1 flex h-7 w-7 shrink-0 items-center justify-center text-base font-bold text-red-500 hover:text-red-700" aria-label="Dismiss error">×</button>
+          <button type="button" onClick={() => setError(null)} className="-mr-1 -mt-1 flex h-7 w-7 shrink-0 items-center justify-center text-base font-bold" aria-label="Dismiss error">×</button>
         </div>
-      )}
-      {successMessage && (
-        <div className="mb-4 flex items-start justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs font-medium text-emerald-600 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400">
+      ) : null}
+      {successMessage ? (
+        <div className="mb-4 mt-4 flex items-start justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs font-medium text-emerald-600 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400">
           <span>{successMessage}</span>
-          <button type="button" onClick={() => setSuccessMessage(null)} className="-mr-1 -mt-1 flex h-7 w-7 shrink-0 items-center justify-center text-base font-bold text-emerald-500 hover:text-emerald-700" aria-label="Dismiss success message">×</button>
+          <button type="button" onClick={() => setSuccessMessage(null)} className="-mr-1 -mt-1 flex h-7 w-7 shrink-0 items-center justify-center text-base font-bold" aria-label="Dismiss success message">×</button>
         </div>
-      )}
+      ) : null}
 
-      {/* Core Ledger Processing Workspace */}
-      <ScrollArea className="flex-1 min-h-0 w-full max-w-3xl rounded-none border-none bg-transparent shadow-none">
+      <ScrollArea className="min-h-0 w-full max-w-3xl flex-1 rounded-none border-none bg-transparent shadow-none">
         <form onSubmit={handleProcessCollection} className="space-y-8 pb-28 pr-0 sm:space-y-12 sm:pb-12 sm:pr-4">
-
-          {/* TRACK STEP 1: TRANSACTION INTAKE METRICS NODE */}
-          <div className="relative pl-0 sm:pl-10 group">
+          <div className="relative pl-0 sm:pl-10">
             <div className="absolute left-0 top-0 hidden h-full flex-col items-center sm:flex">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full border border-stone-200 dark:border-zinc-700 bg-background text-xs font-medium text-stone-500 dark:text-zinc-400">
-                1
-              </div>
-              <div className="w-[1px] flex-1 bg-stone-200 dark:bg-zinc-800 mt-2" />
+              <div className="flex h-7 w-7 items-center justify-center rounded-full border border-stone-200 bg-background text-xs font-medium text-stone-500 dark:border-zinc-700 dark:text-zinc-400">1</div>
+              <div className="mt-2 w-px flex-1 bg-stone-200 dark:bg-zinc-800" />
             </div>
 
             <div className="space-y-5">
-              <div>
-                <h3 className="text-base font-semibold text-foreground tracking-tight">
-                  Payment details <span className="text-stone-400 font-normal text-xs">({activeSectionLabel})</span>
-                </h3>
-                <p className="mt-0.5 text-xs text-stone-400 dark:text-zinc-500">Choose the student and the verified cash amount received.</p>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold tracking-tight text-foreground">Payment details</h3>
+                  <p className="mt-0.5 text-xs text-stone-400 dark:text-zinc-500">Search by name or ID. The class is shown with each suggestion.</p>
+                </div>
+                <label className="flex items-center gap-2 text-xs font-semibold text-stone-600 dark:text-zinc-300">
+                  <Switch
+                    checked={showOutstanding}
+                    onCheckedChange={setShowOutstanding}
+                    aria-label="Show outstanding balance"
+                  />
+                  Show outstanding balance
+                </label>
               </div>
 
-              <div className="grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
-                {/* Combobox Student Roster Target */}
+              <div className="max-w-2xl space-y-4">
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-stone-700 dark:text-zinc-300 flex items-center gap-1">
-                    <User className="h-3 w-3 text-stone-400 dark:text-zinc-500" /> Student <span className="text-red-500">*</span>
+                  <Label className="flex items-center gap-1 text-xs font-semibold text-stone-700 dark:text-zinc-300">
+                    <User className="h-3 w-3 text-stone-400" /> {primary ? "Add another student" : "Student"} <span className="text-red-500">*</span>
                   </Label>
-                  <Combobox
-                    items={targetSectionStudents}
-                    value={formState.studentName}
-                    onValueChange={(val) => updateFormField("studentName", val ?? "")}
-                  >
-                    <ComboboxInput
-                      placeholder={loading ? "Loading students..." : "Select a student"}
-                      className="h-11 w-full rounded-md border border-stone-200 bg-background px-3 text-sm outline-none dark:border-zinc-800 sm:h-9 sm:text-xs"
-                    />
-                    <ComboboxContent>
-                      <ComboboxEmpty>No student profiles found in this tier.</ComboboxEmpty>
-                      <ComboboxList>
-                        {(student) => (
-                          <ComboboxItem key={student} value={student} className="text-xs">
-                            {student}
-                          </ComboboxItem>
-                        )}
-                      </ComboboxList>
-                    </ComboboxContent>
-                  </Combobox>
-                  {/* LIVE BALANCE INDICATOR */}
-                  {selectedStudentData && (
-                    <div className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-md bg-stone-100 px-2 py-1.5 text-xs font-medium text-stone-600 dark:bg-zinc-900 dark:text-zinc-400 sm:w-fit sm:text-[10px] sm:py-1">
-                      <span className="inline-flex items-center gap-1.5">
-                        <Wallet className="h-3 w-3" />
-                        Outstanding: <span className="font-bold text-stone-900 dark:text-zinc-100">₵{parseFloat(selectedStudentData.billing.currentBalance).toFixed(2)}</span>
-                      </span>
-                      {parseFloat(selectedStudentData.billing.creditBalance) > 0 && (
-                        <span className="font-semibold text-sky-700 dark:text-sky-400">
-                          Credit: ₵{parseFloat(selectedStudentData.billing.creditBalance).toFixed(2)}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Amount Paid Field */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="amount-paid" className="text-xs font-semibold text-stone-700 dark:text-zinc-300 flex items-center gap-1">
-                    <span className="text-[11px] font-bold text-stone-400 dark:text-zinc-500">₵</span> Amount paid <span className="text-red-500">*</span>
-                  </Label>
-                  <div className="relative w-full">
-                    <span className="absolute left-3 top-3.5 text-[13px] font-bold leading-none text-stone-400 dark:text-zinc-500 sm:left-2.5 sm:top-3 sm:text-[11px]">₵</span>
-                    <Input
-                      id="amount-paid"
-                      type="number"
-                      min="1"
-                      required
-                      value={formState.amountPaid}
-                      onChange={(e) => updateFormField("amountPaid", e.target.value)}
-                      placeholder="0.00"
-                      className="h-11 rounded-md border-stone-200 bg-background pl-9 text-sm dark:border-zinc-800 sm:h-9 sm:pl-7 sm:text-xs"
-                    />
-                  </div>
-                </div>
-
-                {/* SMS-002: manual counter collections are cash-only. Digital channels
-                    (MoMo / card / bank transfer) enter via Paystack reconciliation only. */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-stone-700 dark:text-zinc-300 flex items-center gap-1">
-                    <CreditCard className="h-3 w-3 text-stone-400 dark:text-zinc-500" /> Payment method
-                  </Label>
-                  <div className="flex h-11 w-full items-center rounded-md border border-stone-200 bg-stone-100 px-3 text-sm font-semibold text-stone-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 sm:h-9 sm:text-xs">
-                    Cash (Counter Collection)
-                  </div>
-                </div>
-
-                {/* Reference ID Field */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="reference-no" className="text-xs font-semibold text-stone-700 dark:text-zinc-300 flex items-center gap-1">
-                    <FileText className="h-3 w-3 text-stone-400 dark:text-zinc-500" /> Reference / note
-                  </Label>
-                  <Input
-                    id="reference-no"
-                    type="text"
-                    value={formState.referenceNo}
-                    onChange={(e) => updateFormField("referenceNo", e.target.value)}
-                    placeholder="Optional transaction reference"
-                    className="h-11 rounded-md border-stone-200 bg-background text-sm dark:border-zinc-800 sm:h-9 sm:text-xs"
+                  <StudentSearch
+                    placeholder={primary ? "Add another student — optional" : "Search student name or ID"}
+                    excludeIds={payers.map((payer) => payer.id)}
+                    showBalance={showOutstanding}
+                    onSelect={addStudent}
                   />
+                  {payers.length >= MAX_PAYERS ? (
+                    <p className="text-[11px] text-stone-500">A receipt can cover at most {MAX_PAYERS} students.</p>
+                  ) : null}
+                </div>
+
+                {payers.length > 0 ? (
+                  <div className="overflow-hidden rounded-xl border border-stone-200 dark:border-zinc-800">
+                    {payers.map((payer, index) => (
+                      <div key={payer.id} className="flex flex-wrap items-center gap-3 border-b border-stone-100 px-3 py-2.5 last:border-0 dark:border-zinc-800">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-stone-900 dark:text-zinc-100">
+                            {payer.studentName}
+                            {index === 0 ? <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-stone-400">First</span> : null}
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-stone-500">
+                            <span className="font-semibold text-stone-700 dark:text-zinc-300">{payer.className}</span>
+                            {" · "}{payer.studentId}
+                            {showOutstanding ? ` · Outstanding ₵${money(payer.currentBalance)}` : ""}
+                            {showOutstanding && parseFloat(payer.creditBalance) > 0 ? ` · Credit ₵${money(payer.creditBalance)}` : ""}
+                          </p>
+                        </div>
+                        {isSplit ? (
+                          <div className="relative w-28">
+                            <span className="absolute left-2 top-2.5 text-[11px] font-bold text-stone-400">₵</span>
+                            <Input
+                              type="number"
+                              min="0.01"
+                              step="0.01"
+                              inputMode="decimal"
+                              aria-label={`Amount for ${payer.studentName}`}
+                              value={shareAmounts[payer.id] ?? ""}
+                              onChange={(event) => {
+                                setSplitMode("custom")
+                                setCustomShares((current) => ({
+                                  ...(splitMode === "equal" ? equalShareAmounts : current),
+                                  [payer.id]: event.target.value,
+                                }))
+                              }}
+                              className="h-9 pl-6 text-right text-xs"
+                            />
+                          </div>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => index === 0 ? clearStudents() : removeStudent(payer.id)}
+                          className="flex h-8 w-8 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 dark:hover:bg-zinc-900"
+                          aria-label={index === 0 ? "Clear students" : `Remove ${payer.studentName}`}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {isSplit ? (
+                  <div className="space-y-3 rounded-xl border border-stone-200 bg-stone-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-900/30">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="flex items-center gap-1.5 text-xs font-semibold text-stone-700 dark:text-zinc-300">
+                        <Users className="h-3.5 w-3.5" /> Split across {payers.length} students
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-8 px-2 text-xs"
+                        onClick={() => {
+                          setSplitMode("equal")
+                          setCustomShares({})
+                        }}
+                      >
+                        Split equally
+                      </Button>
+                    </div>
+                    <p className="text-[11px] text-stone-500">
+                      The cash received is split below. Each student&apos;s balance is reduced by their share only — not the full amount.
+                      {splitGap === 0 && !zeroShare ? " Shares match the amount received." : ""}
+                      {splitGap > 0 ? ` ₵${money(splitGap / 100)} still to assign.` : ""}
+                      {splitGap < 0 ? ` ₵${money(Math.abs(splitGap) / 100)} over the amount received.` : ""}
+                      {zeroShare ? " Every student needs an amount above zero." : ""}
+                    </p>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="receipt-name" className="text-xs font-semibold text-stone-700 dark:text-zinc-300">
+                        Name on the receipt <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="receipt-name"
+                        value={receiptName}
+                        onChange={(event) => {
+                          setReceiptNameTouched(true)
+                          setReceiptNameDraft(event.target.value)
+                        }}
+                        maxLength={80}
+                        placeholder="e.g. MENSAH family"
+                        className="h-11 bg-background text-sm sm:h-9 sm:text-xs"
+                      />
+                      <p className="text-[11px] text-stone-400">This is what prints at the top, instead of one child&apos;s name.</p>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="amount-paid" className="flex items-center gap-1 text-xs font-semibold text-stone-700 dark:text-zinc-300">
+                      <span className="text-[11px] font-bold text-stone-400">₵</span> Amount received <span className="text-red-500">*</span>
+                    </Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-3.5 text-[13px] font-bold leading-none text-stone-400 sm:left-2.5 sm:top-3 sm:text-[11px]">₵</span>
+                      <Input
+                        id="amount-paid"
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        inputMode="decimal"
+                        required
+                        value={amountPaid}
+                        onChange={(event) => setAmountPaid(event.target.value)}
+                        placeholder="0.00"
+                        className="h-11 rounded-md border-stone-200 bg-background pl-9 text-sm dark:border-zinc-800 sm:h-9 sm:pl-7 sm:text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="flex items-center gap-1 text-xs font-semibold text-stone-700 dark:text-zinc-300">
+                      <CreditCard className="h-3 w-3 text-stone-400" /> Payment method
+                    </Label>
+                    <div className="flex h-11 w-full items-center rounded-md border border-stone-200 bg-stone-100 px-3 text-sm font-semibold text-stone-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 sm:h-9 sm:text-xs">
+                      Cash (Counter Collection)
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label htmlFor="reference-no" className="flex items-center gap-1 text-xs font-semibold text-stone-700 dark:text-zinc-300">
+                      <FileText className="h-3 w-3 text-stone-400" /> Reference / note
+                    </Label>
+                    <Input
+                      id="reference-no"
+                      value={referenceNo}
+                      onChange={(event) => setReferenceNo(event.target.value)}
+                      placeholder="Optional transaction reference"
+                      className="h-11 rounded-md border-stone-200 bg-background text-sm dark:border-zinc-800 sm:h-9 sm:text-xs"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* TRACK STEP 2: REVENUE TARGET BALANCE ALLOCATION MATRIX */}
-          <div className="relative pl-0 sm:pl-10 group">
+          <div className="relative pl-0 sm:pl-10">
             <div className="absolute left-0 top-0 hidden h-full flex-col items-center sm:flex">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full border border-stone-200 dark:border-zinc-700 bg-background text-xs font-medium text-stone-500 dark:text-zinc-400">
-                2
-              </div>
-              <div className="w-[1px] flex-1 bg-stone-200 dark:bg-zinc-800 mt-2" />
+              <div className="flex h-7 w-7 items-center justify-center rounded-full border border-stone-200 bg-background text-xs font-medium text-stone-500 dark:border-zinc-700 dark:text-zinc-400">2</div>
+              <div className="mt-2 w-px flex-1 bg-stone-200 dark:bg-zinc-800" />
             </div>
-
             <div className="space-y-5">
               <div>
-                <h3 className="text-base font-semibold text-foreground tracking-tight">
-                  What does this payment cover?
-                </h3>
-                <p className="mt-0.5 text-xs text-stone-400 dark:text-zinc-500">Choose the ledger category before recording the payment.</p>
+                <h3 className="text-base font-semibold tracking-tight text-foreground">What does this payment cover?</h3>
+                <p className="mt-0.5 text-xs text-stone-400">Taken from {primary ? `${primary.studentName}'s class` : "the student's class"}. The same purpose is recorded for every student on this receipt.</p>
               </div>
-
               <div className="max-w-md space-y-2 rounded-xl border border-stone-100 bg-stone-50/50 p-3 dark:border-zinc-800/50 dark:bg-zinc-900/20 sm:p-4">
-                <Label className="text-xs font-semibold text-stone-700 dark:text-zinc-300 flex items-center gap-1">
-                  <ArrowRight className="h-3 w-3 text-stone-400 dark:text-zinc-500" /> Allocation
+                <Label className="flex items-center gap-1 text-xs font-semibold text-stone-700 dark:text-zinc-300">
+                  <ArrowRight className="h-3 w-3 text-stone-400" /> Allocation
                 </Label>
                 <Combobox
                   items={allocationOptions}
-                  value={formState.allocationTarget}
-                  onValueChange={(val) => updateFormField("allocationTarget", val ?? defaultAllocation)}
+                  value={allocationTarget}
+                  onValueChange={(value) => setAllocationChoice(value ?? defaultAllocation)}
                 >
                   <ComboboxInput
-                    placeholder="Route Allocation Target"
+                    placeholder={primary ? "What this payment covers" : "Choose a student first"}
+                    disabled={!primary}
                     className="h-11 w-full rounded-md border border-stone-200 bg-background px-3 text-sm outline-none dark:border-zinc-800 sm:h-9 sm:text-xs"
                   />
                   <ComboboxContent>
-                    <ComboboxEmpty>Ledger field target mismatch.</ComboboxEmpty>
+                    <ComboboxEmpty>No matching fee.</ComboboxEmpty>
                     <ComboboxList>
                       {(target) => (
                         <ComboboxItem key={target} value={target} className="text-xs">
@@ -470,101 +727,69 @@ export function PaymentInflowCollectionLog({
                     </ComboboxList>
                   </ComboboxContent>
                 </Combobox>
-                <p className="text-[10px] text-stone-400 dark:text-zinc-500 mt-1">
-                  Recording this payment updates the student&apos;s balance immediately.
-                </p>
               </div>
             </div>
           </div>
 
-          {/* TRACK STEP 3: TRANSACTION ARCHIVE MATRIX */}
-          <div className="relative pl-0 sm:pl-10 group">
-            <div className="absolute left-0 top-0 hidden h-full flex-col items-center sm:flex">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full border border-stone-200 dark:border-zinc-700 bg-background text-xs font-medium text-stone-500 dark:text-zinc-400">
-                3
-              </div>
+          <div className="relative pl-0 sm:pl-10">
+            <div className="absolute left-0 top-0 hidden sm:flex">
+              <div className="flex h-7 w-7 items-center justify-center rounded-full border border-stone-200 bg-background text-xs font-medium text-stone-500 dark:border-zinc-700 dark:text-zinc-400">3</div>
             </div>
-
             <div className="space-y-5">
               <div>
-                <h3 className="text-base font-semibold text-foreground tracking-tight flex items-center gap-1.5">
-                  <History className="h-4 w-4 text-stone-400 dark:text-zinc-500" /> Recent receipts
+                <h3 className="flex items-center gap-1.5 text-base font-semibold tracking-tight text-foreground">
+                  <History className="h-4 w-4 text-stone-400" /> Recent receipts
                 </h3>
-                <p className="mt-0.5 text-xs text-stone-400 dark:text-zinc-500">Review payments already recorded for this class.</p>
+                <p className="mt-0.5 text-xs text-stone-400">Latest payments recorded at the counter, across every class.</p>
               </div>
-
-              <div className="space-y-2.5 max-w-2xl">
-                {loading ? (
-                  // Receipt-shaped skeletons mirroring the real cards,
-                  // revealed with a 60ms stagger (motion system).
+              <div className="max-w-2xl space-y-2.5">
+                {historyLoading ? (
                   <div className="space-y-2.5" aria-busy="true" aria-label="Loading receipts">
-                    {Array.from({ length: 4 }).map((_, i) => (
-                      <div
-                        key={i}
-                        className="rounded-xl border border-stone-200/60 bg-stone-50 p-3.5 animate-fade-in-soft dark:border-zinc-800/60 dark:bg-zinc-950"
-                        style={{ animationDelay: `${i * 60}ms` }}
-                      >
-                        <div className="flex items-start gap-3">
-                          <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
-                          <div className="min-w-0 flex-1 space-y-2 pt-0.5">
-                            <div className="flex items-center gap-2">
-                              <Skeleton className="h-3.5 w-36" />
-                              <Skeleton className="h-4 w-24 rounded" />
-                            </div>
-                            <Skeleton className="h-3 w-48" />
-                          </div>
-                        </div>
-                        <div className="mt-3 flex items-center justify-between border-t border-stone-200/70 pt-3 dark:border-zinc-800/70">
-                          <Skeleton className="h-4 w-16" />
-                          <Skeleton className="h-8 w-28 rounded-lg" />
-                        </div>
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} className="rounded-xl border border-stone-200/60 bg-stone-50 p-3.5 dark:border-zinc-800/60 dark:bg-zinc-950">
+                        <Skeleton className="h-4 w-40" />
+                        <Skeleton className="mt-2 h-3 w-56" />
                       </div>
                     ))}
                   </div>
-                ) : history.map((rcpt) => (
-                  <article
-                    key={rcpt.id}
-                    className="animate-fade-in rounded-xl border border-stone-200/60 bg-stone-50 p-3.5 dark:border-zinc-800/60 dark:bg-zinc-950"
-                  >
-                    <div className="flex min-w-0 items-start gap-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-stone-200/50 dark:bg-zinc-800">
-                        <CheckCircle className="h-4 w-4 text-stone-600 dark:text-zinc-400" />
+                ) : history.map((receipt) => {
+                  const title = receipt.receiptName?.trim() || receipt.studentName
+                  const shareLabel = (receipt.shares?.length ?? 0) > 1
+                    ? receipt.shares!.map((share) => share.studentName).join(", ")
+                    : null
+                  return (
+                    <article key={receipt.id} className="rounded-xl border border-stone-200/60 bg-stone-50 p-3.5 dark:border-zinc-800/60 dark:bg-zinc-950">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-stone-200/50 dark:bg-zinc-800">
+                          <CheckCircle className="h-4 w-4 text-stone-600 dark:text-zinc-400" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-sm font-semibold text-stone-900 dark:text-zinc-100 sm:text-xs">{title}</span>
+                            <span className="rounded bg-stone-200 px-1.5 py-0.5 text-[10px] font-bold text-stone-700 dark:bg-zinc-800 dark:text-zinc-300">{receipt.receiptNumber}</span>
+                            {!shareLabel && receipt.className ? (
+                              <span className="text-[10px] font-semibold text-stone-500">{receipt.className}</span>
+                            ) : null}
+                          </div>
+                          <p className="mt-1 text-xs text-stone-500 sm:text-[11px]">
+                            {shareLabel ? `Split: ${shareLabel} · ` : ""}
+                            {receipt.allocationTarget} · {receipt.paymentMethod}
+                          </p>
+                        </div>
                       </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                          <span className="text-sm font-semibold text-stone-900 dark:text-zinc-100 sm:text-xs">
-                            {rcpt.studentName}
-                          </span>
-                          <span className="shrink-0 rounded bg-stone-200 px-1.5 py-0.5 text-[10px] font-bold tracking-tight text-stone-700 dark:bg-zinc-800 dark:text-zinc-300">
-                            {rcpt.receiptNumber}
+                      <div className="mt-3 flex items-center justify-between gap-3 border-t border-stone-200/70 pt-3 dark:border-zinc-800/70">
+                        <div>
+                          <span className="block text-sm font-bold text-stone-900 dark:text-zinc-50 sm:text-xs">₵{money(receipt.amountPaid)}</span>
+                          <span className="block text-[11px] text-stone-400">
+                            {new Date(receipt.dateProcessed).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
                           </span>
                         </div>
-
-                        <p className="mt-1 text-xs leading-5 text-stone-500 dark:text-zinc-400 sm:truncate sm:text-[11px]">
-                          {rcpt.allocationTarget} · {rcpt.paymentMethod}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mt-3 flex items-center justify-between gap-3 border-t border-stone-200/70 pt-3 dark:border-zinc-800/70 sm:mt-2 sm:gap-4 sm:border-0 sm:pt-0">
-                      <div>
-                        <span className="block text-sm font-bold text-stone-900 dark:text-zinc-50 sm:text-xs">
-                          ₵{parseFloat(rcpt.amountPaid).toFixed(2)}
-                        </span>
-                        <span className="block text-[11px] font-medium tracking-tight text-stone-400 dark:text-zinc-500 sm:text-[10px]">
-                          {new Date(rcpt.dateProcessed).toISOString().split('T')[0]}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2">
                         <Button
                           type="button"
                           variant="outline"
-                          className="h-9 gap-1.5 border-stone-200 px-3 text-xs text-stone-600 hover:bg-stone-100 hover:text-stone-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-50 sm:h-8 sm:px-2"
-                          title="Print A5 receipt (opens the print dialog in place)"
+                          className="h-9 gap-1.5 px-3 text-xs sm:h-8"
                           onClick={() => {
-                            printReceiptInPage(rcpt.id).catch((err) => {
+                            printReceiptInPage(receipt.id).catch((err) => {
                               console.error("[Receipt Print Trigger Error]:", err)
                             })
                           }}
@@ -573,29 +798,26 @@ export function PaymentInflowCollectionLog({
                           <span>Print A5</span>
                         </Button>
                       </div>
-                    </div>
-                  </article>
-                ))}
-
-                {!loading && history.length === 0 && (
-                  <p className="py-3 text-xs italic text-stone-400 dark:text-zinc-500">No receipts recorded for this class yet.</p>
-                )}
+                    </article>
+                  )
+                })}
+                {!historyLoading && history.length === 0 ? (
+                  <p className="py-3 text-xs italic text-stone-400">No receipts recorded yet.</p>
+                ) : null}
               </div>
             </div>
           </div>
 
-          {/* Processing and Dispatch Action Controls */}
-          <div className="sticky bottom-0 z-10 -mx-4 flex items-center border-t border-stone-200 bg-background/95 px-4 py-3 backdrop-blur dark:border-zinc-800 dark:bg-background/95 sm:static sm:mx-0 sm:justify-end sm:bg-transparent sm:px-0 sm:pt-5 sm:pb-0 sm:backdrop-blur-none">
+          <div className="sticky bottom-0 z-10 -mx-4 flex items-center border-t border-stone-200 bg-background/95 px-4 py-3 backdrop-blur dark:border-zinc-800 dark:bg-background/95 sm:static sm:mx-0 sm:justify-end sm:bg-transparent sm:px-0 sm:pb-0 sm:pt-5 sm:backdrop-blur-none">
             <Button
               type="submit"
-              disabled={!formState.studentName || !formState.amountPaid || submitting}
-              className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-stone-900 px-4 text-sm font-medium text-white shadow-none hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-950 dark:hover:bg-zinc-200 sm:h-9 sm:w-auto sm:text-xs"
+              disabled={!canSubmit}
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-stone-900 px-4 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-950 sm:h-9 sm:w-auto sm:text-xs"
             >
               <Plus className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
               {submitting ? "Recording payment..." : "Record payment & print A5 receipt"}
             </Button>
           </div>
-
         </form>
       </ScrollArea>
     </main>

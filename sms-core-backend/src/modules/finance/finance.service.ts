@@ -28,6 +28,7 @@ type CollectionsForPrintRow = Prisma.PaymentCollectionGetPayload<{
   include: {
     class: { select: { name: true; section: true } };
     student: { select: { studentId: true } };
+    shares: { select: { studentName: true } };
   };
 }>;
 
@@ -347,8 +348,13 @@ export class FinanceService {
     referenceNo?: string;
     allocationTarget: string;
     studentInternalId?: string;
+    receiptName?: string;
+    showOutstanding?: boolean;
+    shares?: Array<{ studentInternalId: string; amount: number | string }>;
   }, options: { tx?: TransactionClient; paymentIntentId?: string } = {}) {
     const process = async (tx: TransactionClient) => {
+      const splitShares = await this.resolveSplitShares(data, tx);
+
       const count = await this.repo.countCollections(tx);
       const uniqueSerial = generateSerial(`REC-${new Date().getFullYear()}`, count);
 
@@ -360,29 +366,52 @@ export class FinanceService {
         paymentMethod: data.paymentMethod,
         referenceNo: data.referenceNo || 'N/A (Direct)',
         allocationTarget: data.allocationTarget,
+        receiptName: splitShares ? (data.receiptName?.trim() || null) : null,
+        showOutstanding: data.showOutstanding !== false,
         ...(data.studentInternalId ? { studentInternalId: data.studentInternalId } : {}),
         ...(options.paymentIntentId ? { paymentIntentId: options.paymentIntentId } : {}),
       }, tx);
 
-      if (data.studentInternalId) {
+      if (splitShares) {
+        // One receipt, but each child's balance moves by their share only.
+        // A payment-intent id is unique, so it stays on the receipt row and
+        // is not copied onto every share (counter splits are cash anyway).
+        await this.repo.createCollectionShares(splitShares.map((share) => ({
+          collectionId: collectionRecord.id,
+          studentId: share.studentId,
+          studentName: share.studentName,
+          className: share.className,
+          amount: share.amount.toFixed(2),
+          sortOrder: share.sortOrder,
+        })), tx);
+
+        for (const share of splitShares) {
+          await this.recordStudentPayment(tx, {
+            studentId: share.studentId,
+            amount: share.amount,
+            description: `${data.allocationTarget} - ${data.paymentMethod} (split)`,
+            paymentType: data.paymentMethod,
+          });
+        }
+      } else if (data.studentInternalId) {
         const numericAmount = parseDecimal(data.amountPaid);
-        await this.repo.allocatePayment(data.studentInternalId, numericAmount, tx);
-
-        const paymentCount = await this.repo.countStudentPayments(tx);
-        const paymentReceiptNo = generateSerial(`PAY-${new Date().getFullYear()}`, paymentCount);
-
-        await this.repo.createStudentPayment({
-          receiptNo: paymentReceiptNo,
+        await this.recordStudentPayment(tx, {
           studentId: data.studentInternalId,
-          description: `${data.allocationTarget} - ${data.paymentMethod}`,
           amount: numericAmount,
+          description: `${data.allocationTarget} - ${data.paymentMethod}`,
           paymentType: data.paymentMethod,
-          ...(options.paymentIntentId ? { paymentIntentId: options.paymentIntentId } : {}),
-        }, tx);
-
+          paymentIntentId: options.paymentIntentId,
+        });
       }
 
-      return collectionRecord;
+      return {
+        ...collectionRecord,
+        shares: splitShares?.map((share) => ({
+          studentName: share.studentName,
+          className: share.className,
+          amount: share.amount.toFixed(2),
+        })) ?? [],
+      };
     };
 
     // Existing manual collections keep their own transaction. Digital
@@ -404,6 +433,103 @@ export class FinanceService {
     return committed;
   }
 
+  // Loads and checks the students on a split receipt. Returns null when this
+  // payment is a normal one-student collection, so enrollment deposits and
+  // Paystack reconciliation keep the original path.
+  private async resolveSplitShares(data: {
+    sectionId: string;
+    studentInternalId?: string;
+    amountPaid: string | number;
+    receiptName?: string;
+    shares?: Array<{ studentInternalId: string; amount: number | string }>;
+  }, tx: TransactionClient): Promise<Array<{
+    studentId: string;
+    studentName: string;
+    className: string | null;
+    amount: number;
+    sortOrder: number;
+  }> | null> {
+    const requested = data.shares ?? [];
+    if (requested.length === 0) return null;
+    if (requested.length < 2) {
+      throw new AppError(400, 'A split payment needs at least two students.');
+    }
+    if (!data.studentInternalId) {
+      throw new AppError(400, 'Choose the first student before splitting a payment.');
+    }
+    if ((data.receiptName?.trim().length ?? 0) < 2) {
+      throw new AppError(400, 'Enter the name to print on the receipt.');
+    }
+
+    const ids = requested.map((share) => share.studentInternalId);
+    if (new Set(ids).size !== ids.length) {
+      throw new AppError(400, 'Each student can only appear once on a receipt.');
+    }
+    if (!ids.includes(data.studentInternalId)) {
+      throw new AppError(400, 'The first student must be included in the split.');
+    }
+
+    const students = await this.repo.findStudentsForCollection(ids, tx) as Array<{
+      id: string;
+      studentName: string;
+      status: string;
+      placement: { classId: string | null; class: { name: string } | null } | null;
+    }>;
+    const byId = new Map(students.map((student) => [student.id, student]));
+
+    const resolved = requested.map((share, index) => {
+      const student = byId.get(share.studentInternalId);
+      if (!student) throw new AppError(400, 'One of the students on this payment could not be found.');
+      if (student.status !== 'ACTIVE') {
+        throw new AppError(400, `${student.studentName} is not an active student.`);
+      }
+      const classId = student.placement?.classId ?? null;
+      if (!classId) {
+        throw new AppError(400, `${student.studentName} has no class, so a receipt cannot be recorded.`);
+      }
+      if (student.id === data.studentInternalId && classId !== data.sectionId) {
+        throw new AppError(400, `${student.studentName}'s class has changed. Search again and re-select them.`);
+      }
+      const amount = parseDecimal(share.amount);
+      if (!(amount > 0)) throw new AppError(400, `Enter an amount for ${student.studentName}.`);
+      return {
+        studentId: student.id,
+        studentName: student.studentName,
+        className: student.placement?.class?.name ?? null,
+        amount,
+        sortOrder: index,
+      };
+    });
+
+    const paidCents = Math.round(parseDecimal(data.amountPaid) * 100);
+    const splitCents = resolved.reduce((sum, share) => sum + Math.round(share.amount * 100), 0);
+    if (paidCents !== splitCents) {
+      throw new AppError(400, 'The split amounts must add up to the amount received.');
+    }
+
+    return resolved;
+  }
+
+  private async recordStudentPayment(tx: TransactionClient, input: {
+    studentId: string;
+    amount: number;
+    description: string;
+    paymentType: string;
+    paymentIntentId?: string;
+  }) {
+    await this.repo.allocatePayment(input.studentId, input.amount, tx);
+    const paymentCount = await this.repo.countStudentPayments(tx);
+    const paymentReceiptNo = generateSerial(`PAY-${new Date().getFullYear()}`, paymentCount);
+    await this.repo.createStudentPayment({
+      receiptNo: paymentReceiptNo,
+      studentId: input.studentId,
+      description: input.description,
+      amount: input.amount,
+      paymentType: input.paymentType,
+      ...(input.paymentIntentId ? { paymentIntentId: input.paymentIntentId } : {}),
+    }, tx);
+  }
+
   private async getReceiptBaseData(collectionId: string): Promise<{
     data: ReceiptPdfData;
     studentPhotoKey: string | null;
@@ -415,26 +541,59 @@ export class FinanceService {
     }
 
     const institution = await this.repo.findReceiptInstitution();
+    const shareRows = Array.isArray(record.shares) ? record.shares : [];
+    const shares = shareRows.map((share: {
+      studentName: string;
+      className?: string | null;
+      amount: { toString(): string } | number | string;
+      student?: { studentId?: string | null; billing?: { currentBalance?: unknown } | null } | null;
+    }) => ({
+      studentName: share.studentName,
+      studentCode: share.student?.studentId ?? null,
+      className: share.className ?? null,
+      amount: parseDecimal(share.amount),
+      outstandingBalance: share.student?.billing
+        ? parseDecimal(share.student.billing.currentBalance)
+        : null,
+    }));
+    const isSplit = shares.length > 1;
+    const showOutstanding = record.showOutstanding !== false;
+    const receiptName = typeof record.receiptName === 'string' ? record.receiptName.trim() : '';
 
     return {
       data: {
         receiptNumber: record.receiptNumber,
         dateProcessed: record.dateProcessed,
-        studentName: record.studentName,
-        studentCode: record.student?.studentId ?? null,
-        className: record.class
-          ? `${record.class.name}${record.class.section ? ` — Section ${record.class.section}` : ''}`
-          : null,
+        studentName: receiptName || record.studentName,
+        studentCode: isSplit ? null : record.student?.studentId ?? null,
+        className: isSplit
+          ? null
+          : record.class
+            ? `${record.class.name}${record.class.section ? ` — Section ${record.class.section}` : ''}`
+            : null,
         amountPaid: parseDecimal(record.amountPaid),
         paymentMethod: record.paymentMethod,
         referenceNo: record.referenceNo,
         allocationTarget: record.allocationTarget,
-        outstandingBalance: record.student?.billing ? parseDecimal(record.student.billing.currentBalance) : null,
-        creditBalance: record.student?.billing ? parseDecimal(record.student.billing.creditBalance) : 0,
+        outstandingBalance: !showOutstanding || isSplit
+          ? null
+          : record.student?.billing
+            ? parseDecimal(record.student.billing.currentBalance)
+            : null,
+        creditBalance: !showOutstanding || isSplit
+          ? 0
+          : record.student?.billing
+            ? parseDecimal(record.student.billing.creditBalance)
+            : 0,
+        showOutstanding,
+        identityNote: isSplit ? `Split across ${shares.length} students` : null,
+        shares: isSplit ? shares : undefined,
         institution,
       },
-      studentPhotoKey:
-        typeof record.student?.photoKey === 'string' && record.student.photoKey.trim()
+      // A family receipt must not wear one child's photo.
+      studentPhotoKey: isSplit
+        ? null
+        : typeof record.student?.photoKey === 'string' && record.student.photoKey.trim()
           ? record.student.photoKey
           : null,
     };
@@ -479,6 +638,28 @@ export class FinanceService {
 
   async getStudentsBySection(sectionId: string) {
     return await this.repo.findStudentsBySection(sectionId);
+  }
+
+  async searchReceivableStudents(query: string, limit = 12) {
+    const rows = await this.repo.searchReceivableStudents(query, Math.min(Math.max(limit, 1), 20)) as Array<{
+      id: string;
+      studentId: string;
+      studentName: string;
+      placement: { classId: string | null; class: { name: string } | null } | null;
+      billing: { currentBalance: { toString(): string } | string | number; creditBalance: { toString(): string } | string | number } | null;
+    }>;
+
+    return rows
+      .map((row) => ({
+        id: row.id,
+        studentId: row.studentId,
+        studentName: row.studentName,
+        classId: row.placement?.classId ?? '',
+        className: row.placement?.class?.name ?? '',
+        currentBalance: String(row.billing?.currentBalance ?? '0'),
+        creditBalance: String(row.billing?.creditBalance ?? '0'),
+      }))
+      .filter((row) => row.classId && row.className);
   }
 
   async generateInvoicesForSection(sectionId: string) {
@@ -634,10 +815,43 @@ export class FinanceService {
   }
 
   async getPaginatedCollections(skip: number, take: number) {
-    const [data, total] = await Promise.all([
-      this.repo.findAllCollections(skip, take),
+    const [rows, total] = await Promise.all([
+      this.repo.findRecentCollections(skip, take),
       this.repo.countAllCollections(),
     ]);
+    const data = (rows as Array<{
+      id: string;
+      receiptNumber: string;
+      sectionId: string;
+      studentName: string;
+      receiptName: string | null;
+      amountPaid: { toString(): string } | string | number;
+      paymentMethod: string;
+      referenceNo: string;
+      allocationTarget: string;
+      dateProcessed: Date;
+      studentInternalId: string | null;
+      class: { name: string } | null;
+      shares: Array<{ studentName: string; className: string | null; amount: { toString(): string } | string | number }>;
+    }>).map((row) => ({
+      id: row.id,
+      receiptNumber: row.receiptNumber,
+      sectionId: row.sectionId,
+      studentName: row.studentName,
+      receiptName: row.receiptName,
+      amountPaid: String(row.amountPaid),
+      paymentMethod: row.paymentMethod,
+      referenceNo: row.referenceNo,
+      allocationTarget: row.allocationTarget,
+      dateProcessed: row.dateProcessed,
+      studentInternalId: row.studentInternalId,
+      className: row.class?.name ?? null,
+      shares: (row.shares ?? []).map((share) => ({
+        studentName: share.studentName,
+        className: share.className,
+        amount: String(share.amount),
+      })),
+    }));
     return { data, total };
   }
 
@@ -651,17 +865,21 @@ export class FinanceService {
     endDate: Date,
   ): Promise<CollectionsPrintData> {
     const records = await this.repo.findCollectionsForDateRange(startDate, endDate) as CollectionsForPrintRow[];
-    const payments = records.map((record) => ({
-      receiptNumber: record.receiptNumber,
-      studentName: record.studentName,
-      studentCode: record.student?.studentId ?? null,
-      className: record.class?.name ?? '—',
-      amountPaid: parseDecimal(record.amountPaid),
-      paymentMethod: record.paymentMethod,
-      referenceNo: record.referenceNo,
-      allocationTarget: record.allocationTarget,
-      dateProcessed: record.dateProcessed,
-    }));
+    const payments = records.map((record) => {
+      const shareNames = (record.shares ?? []).map((share) => share.studentName);
+      const printedName = record.receiptName?.trim() || record.studentName;
+      return {
+        receiptNumber: record.receiptNumber,
+        studentName: shareNames.length > 1 ? `${printedName} (${shareNames.join(', ')})` : printedName,
+        studentCode: record.student?.studentId ?? null,
+        className: record.class?.name ?? '—',
+        amountPaid: parseDecimal(record.amountPaid),
+        paymentMethod: record.paymentMethod,
+        referenceNo: record.referenceNo,
+        allocationTarget: record.allocationTarget,
+        dateProcessed: record.dateProcessed,
+      };
+    });
 
     return {
       date,

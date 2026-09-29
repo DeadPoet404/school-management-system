@@ -47,6 +47,17 @@ export interface CollectionCreateData {
   allocationTarget: string;
   studentInternalId?: string;
   paymentIntentId?: string;
+  receiptName?: string | null;
+  showOutstanding?: boolean;
+}
+
+export interface CollectionShareCreateData {
+  collectionId: string;
+  studentId: string;
+  studentName: string;
+  className: string | null;
+  amount: string;
+  sortOrder: number;
 }
 
 export interface InvoiceCreateData {
@@ -153,6 +164,10 @@ export interface IFinanceRepository {
   findCollectionsForDateRange(startDate: Date, endDate: Date, tx?: TransactionClient): Promise<any>;
   countAllCollections(tx?: TransactionClient): Promise<number>;
   createCollection(data: CollectionCreateData, tx?: TransactionClient): Promise<any>;
+  createCollectionShares(rows: CollectionShareCreateData[], tx?: TransactionClient): Promise<any>;
+  findRecentCollections(skip: number, take: number, tx?: TransactionClient): Promise<any>;
+  searchReceivableStudents(query: string, limit: number, tx?: TransactionClient): Promise<any>;
+  findStudentsForCollection(ids: string[], tx?: TransactionClient): Promise<any>;
   // SMS-007: receipt rendering reads
   findReceiptCollectionById(collectionId: string, tx?: TransactionClient): Promise<any>;
   findReceiptInstitution(tx?: TransactionClient): Promise<{

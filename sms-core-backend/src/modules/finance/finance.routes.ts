@@ -23,6 +23,7 @@ router.get('/collections.print', financeAccess, controller.getCollectionsPrint);
 router.get('/collections/:sectionId', financeAccess, controller.getSectionLedger);
 router.post('/collections', financeAccess, validate(commitInflowSchema), controller.commitInflow);
 
+router.get('/students/search', financeAccess, controller.searchStudents);
 router.get('/students-by-section/:sectionId', financeAccess, controller.getStudentsBySection);
 router.post('/generate-invoices', financeAccess, validate(generateInvoicesSchema), controller.generateInvoices);
 

@@ -42,6 +42,19 @@ export interface ReceiptPdfData {
   outstandingBalance: number | null;
   creditBalance?: number;
   institution?: ReceiptInstitution | null;
+  /** Counter toggle. Undefined keeps the historical "always show" receipt. */
+  showOutstanding?: boolean;
+  /** Replaces the student-id line when one receipt covers several students. */
+  identityNote?: string | null;
+  shares?: ReceiptShareLine[];
+}
+
+export interface ReceiptShareLine {
+  studentName: string;
+  studentCode: string | null;
+  className: string | null;
+  amount: number;
+  outstandingBalance: number | null;
 }
 
 export interface RenderOptions {
@@ -250,11 +263,17 @@ export function renderReceiptPdf(
     studentY +=
       doc.heightOfString(data.studentName, { width: identityWidth }) + 8;
 
-    const studentDetails = [
-      `Student ID  ${data.studentCode ?? 'Walk-in collection'}`,
-      `Class  ${data.className ?? 'Not linked to a class'}`,
-      `Payment date  ${formatDate(data.dateProcessed)}`,
-    ];
+    const isSplit = (data.shares?.length ?? 0) > 1;
+    const studentDetails = isSplit
+      ? [
+          data.identityNote ?? `Split across ${data.shares!.length} students`,
+          `Payment date  ${formatDate(data.dateProcessed)}`,
+        ]
+      : [
+          `Student ID  ${data.studentCode ?? 'Walk-in collection'}`,
+          `Class  ${data.className ?? 'Not linked to a class'}`,
+          `Payment date  ${formatDate(data.dateProcessed)}`,
+        ];
 
     doc
       .font('Helvetica')
@@ -345,32 +364,77 @@ export function renderReceiptPdf(
     const allocationY = detailsRuleY + 12;
     const allocationWidth = width * 0.66;
     const amountWidth = width - allocationWidth - 12;
+    const shares = data.shares ?? [];
+    let allocationBottom = allocationY;
 
-    doc
-      .font('Helvetica')
-      .fontSize(layout.bodySize)
-      .fillColor('#171717')
-      .text(data.allocationTarget, left, allocationY, {
-        width: allocationWidth,
-      });
+    if (shares.length > 1) {
+      doc
+        .font('Helvetica')
+        .fontSize(layout.smallSize)
+        .fillColor('#4A4A4A')
+        .text(data.allocationTarget, left, allocationY, { width });
+      let cursor = allocationY + doc.heightOfString(data.allocationTarget, { width }) + 8;
 
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(layout.bodySize)
-      .fillColor('#171717')
-      .text(`GHS ${formatMoney(data.amountPaid)}`, right - amountWidth, allocationY, {
-        width: amountWidth,
-        align: 'right',
-      });
+      for (const share of shares) {
+        const label = [share.studentName, share.className].filter(Boolean).join(' · ');
+        const amountLabel = `GHS ${formatMoney(share.amount)}`;
+        doc
+          .font('Helvetica')
+          .fontSize(layout.bodySize)
+          .fillColor('#171717')
+          .text(label, left, cursor, { width: allocationWidth });
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(layout.bodySize)
+          .fillColor('#171717')
+          .text(amountLabel, right - amountWidth, cursor, {
+            width: amountWidth,
+            align: 'right',
+          });
+        cursor += Math.max(
+          doc.heightOfString(label, { width: allocationWidth }),
+          doc.heightOfString(amountLabel, { width: amountWidth }),
+        ) + 2;
+        if (data.showOutstanding !== false && share.outstandingBalance !== null) {
+          const balanceLine = `Outstanding  GHS ${formatMoney(share.outstandingBalance)}`;
+          doc
+            .font('Helvetica')
+            .fontSize(layout.smallSize)
+            .fillColor('#4A4A4A')
+            .text(balanceLine, left, cursor, { width: allocationWidth });
+          cursor += doc.heightOfString(balanceLine, { width: allocationWidth }) + 4;
+        } else {
+          cursor += 4;
+        }
+      }
+      allocationBottom = cursor + 4;
+    } else {
+      doc
+        .font('Helvetica')
+        .fontSize(layout.bodySize)
+        .fillColor('#171717')
+        .text(data.allocationTarget, left, allocationY, {
+          width: allocationWidth,
+        });
 
-    const allocationHeight = Math.max(
-      doc.heightOfString(data.allocationTarget, { width: allocationWidth }),
-      doc.heightOfString(`GHS ${formatMoney(data.amountPaid)}`, {
-        width: amountWidth,
-      }),
-    );
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(layout.bodySize)
+        .fillColor('#171717')
+        .text(`GHS ${formatMoney(data.amountPaid)}`, right - amountWidth, allocationY, {
+          width: amountWidth,
+          align: 'right',
+        });
 
-    const allocationBottom = allocationY + allocationHeight + 10;
+      const allocationHeight = Math.max(
+        doc.heightOfString(data.allocationTarget, { width: allocationWidth }),
+        doc.heightOfString(`GHS ${formatMoney(data.amountPaid)}`, {
+          width: amountWidth,
+        }),
+      );
+
+      allocationBottom = allocationY + allocationHeight + 10;
+    }
     drawRule(doc, left, allocationBottom, width, 0.4, '#8A8A8A');
 
     const paymentMetaY = allocationBottom + 10;
@@ -425,44 +489,46 @@ export function renderReceiptPdf(
 
     drawRule(doc, summaryX, summaryY, summaryWidth, 0.55);
 
-    drawSummaryRow(
-      doc,
-      summaryX,
-      summaryY + 8,
-      summaryWidth,
-      'AMOUNT RECEIVED',
-      `GHS ${formatMoney(data.amountPaid)}`,
-      layout.bodySize,
-      true,
-    );
-
-    drawSummaryRow(
-      doc,
-      summaryX,
-      summaryY + 8 + layout.summaryRowHeight,
-      summaryWidth,
-      'OUTSTANDING BALANCE',
-      data.outstandingBalance === null
-        ? 'N/A'
-        : `GHS ${formatMoney(data.outstandingBalance)}`,
-      layout.bodySize,
-      false,
-    );
-
-    const receiptCredit = Math.max(data.creditBalance ?? 0, 0);
-    const summaryRowCount = receiptCredit > 0 ? 3 : 2;
-    if (receiptCredit > 0) {
+    let summaryRows = 0;
+    const drawNextSummary = (label: string, value: string, emphasize: boolean) => {
       drawSummaryRow(
         doc,
         summaryX,
-        summaryY + 8 + layout.summaryRowHeight * 2,
+        summaryY + 8 + layout.summaryRowHeight * summaryRows,
         summaryWidth,
-        'AVAILABLE CREDIT',
-        `GHS ${formatMoney(receiptCredit)}`,
+        label,
+        value,
         layout.bodySize,
+        emphasize,
+      );
+      summaryRows += 1;
+    };
+
+    drawNextSummary('AMOUNT RECEIVED', `GHS ${formatMoney(data.amountPaid)}`, true);
+
+    const showOutstandingTotal = data.showOutstanding !== false && (data.shares?.length ?? 0) < 2;
+    if (showOutstandingTotal) {
+      drawNextSummary(
+        'OUTSTANDING BALANCE',
+        data.outstandingBalance === null
+          ? 'N/A'
+          : `GHS ${formatMoney(data.outstandingBalance)}`,
         false,
       );
     }
+
+    const receiptCredit = (data.shares?.length ?? 0) > 1
+      ? 0
+      : Math.max(data.creditBalance ?? 0, 0);
+    if (receiptCredit > 0) {
+      drawNextSummary(
+        'AVAILABLE CREDIT',
+        `GHS ${formatMoney(receiptCredit)}`,
+        false,
+      );
+    }
+
+    const summaryRowCount = summaryRows;
 
     const summaryBottom = summaryY + 8 + layout.summaryRowHeight * summaryRowCount + 5;
     drawRule(doc, summaryX, summaryBottom, summaryWidth, 0.7);

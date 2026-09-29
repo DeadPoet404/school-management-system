@@ -51,6 +51,73 @@ export class FinanceRepository implements IFinanceRepository {
     return tx.paymentCollection.create({ data });
   }
 
+  async createCollectionShares(
+    rows: Array<{
+      collectionId: string;
+      studentId: string;
+      studentName: string;
+      className: string | null;
+      amount: string;
+      sortOrder: number;
+    }>,
+    tx: TransactionClient = prisma,
+  ) {
+    if (rows.length === 0) return { count: 0 };
+    return tx.paymentCollectionShare.createMany({ data: rows });
+  }
+
+  async findRecentCollections(skip: number, take: number, tx: TransactionClient = prisma) {
+    return tx.paymentCollection.findMany({
+      where: { deletedAt: null },
+      skip,
+      take,
+      orderBy: { dateProcessed: 'desc' },
+      include: {
+        class: { select: { name: true } },
+        shares: {
+          select: { studentName: true, className: true, amount: true },
+          orderBy: { sortOrder: 'asc' },
+        },
+      },
+    });
+  }
+
+  async searchReceivableStudents(query: string, limit: number, tx: TransactionClient = prisma) {
+    const q = query.trim();
+    return tx.student.findMany({
+      where: {
+        status: 'ACTIVE',
+        placement: { is: { classId: { not: null } } },
+        OR: [
+          { studentName: { contains: q, mode: 'insensitive' } },
+          { studentId: { contains: q, mode: 'insensitive' } },
+        ],
+      },
+      select: {
+        id: true,
+        studentId: true,
+        studentName: true,
+        placement: { select: { classId: true, class: { select: { name: true } } } },
+        billing: { select: { currentBalance: true, creditBalance: true } },
+      },
+      orderBy: [{ studentName: 'asc' }, { studentId: 'asc' }],
+      take: limit,
+    });
+  }
+
+  async findStudentsForCollection(ids: string[], tx: TransactionClient = prisma) {
+    return tx.student.findMany({
+      where: { id: { in: ids } },
+      select: {
+        id: true,
+        studentId: true,
+        studentName: true,
+        status: true,
+        placement: { select: { classId: true, class: { select: { name: true } } } },
+      },
+    });
+  }
+
   // SMS-007: full receipt projection (class + linked student + live balance)
   async findReceiptCollectionById(collectionId: string, tx: TransactionClient = prisma) {
     return tx.paymentCollection.findUnique({
@@ -58,6 +125,12 @@ export class FinanceRepository implements IFinanceRepository {
       include: {
         class: { select: { id: true, name: true, section: true } },
         student: { select: { studentId: true, photoKey: true, billing: { select: { currentBalance: true, creditBalance: true } } } },
+        shares: {
+          orderBy: { sortOrder: 'asc' },
+          include: {
+            student: { select: { studentId: true, billing: { select: { currentBalance: true, creditBalance: true } } } },
+          },
+        },
       },
     });
   }
@@ -326,6 +399,7 @@ export class FinanceRepository implements IFinanceRepository {
       include: {
         class: { select: { name: true, section: true } },
         student: { select: { studentId: true } },
+        shares: { select: { studentName: true }, orderBy: { sortOrder: 'asc' } },
       },
       orderBy: [
         { dateProcessed: 'asc' },

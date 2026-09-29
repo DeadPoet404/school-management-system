@@ -224,6 +224,7 @@ model Student {
   payments          Payment[]
   paymentIntents    PaymentIntent[]
   paymentLogs       PaymentCollection[]
+  collectionShares  PaymentCollectionShare[]
   attendanceRecords          AttendanceRecord[]
   grades                     GradeRecord[]
   familyDiscountApplications FamilyDiscountApplication[]
@@ -892,15 +893,38 @@ model PaymentCollection {
   referenceNo      String    @default("N/A (Direct)")
   allocationTarget String
   dateProcessed    DateTime  @default(now())
+  /// Printed on a split receipt instead of a single student name. Null otherwise.
+  receiptName      String?
+  /// When false, printed receipts omit outstanding balances.
+  showOutstanding  Boolean   @default(true)
 
   // ── NEW: SMART PAYMENT ROUTING ──
   studentInternalId String?
+  shares            PaymentCollectionShare[]
   student           Student?        @relation(fields: [studentInternalId], references: [id], onDelete: SetNull)
   paymentIntentId   String?         @unique
   paymentIntent     PaymentIntent?  @relation(fields: [paymentIntentId], references: [id], onDelete: SetNull)
 
   @@index([sectionId])
   @@index([studentInternalId])
+}
+
+/// One student's share of a counter payment that was split across a family.
+/// The parent PaymentCollection is the single receipt; each share is what
+/// actually reduces that student's balance.
+model PaymentCollectionShare {
+  id           String            @id @default(uuid())
+  collectionId String
+  collection   PaymentCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  studentId    String
+  student      Student           @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  studentName  String
+  className    String?
+  amount       Decimal           @db.Decimal(10, 2)
+  sortOrder    Int               @default(0)
+
+  @@index([collectionId])
+  @@index([studentId])
 }
 
 model LedgerAccount {

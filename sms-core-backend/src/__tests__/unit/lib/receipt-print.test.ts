@@ -172,4 +172,57 @@ describe('renderReceiptPrintHtml', () => {
     expect(html).toContain('Fees &amp; &lt;arrears&gt;');
     expect(html).not.toContain('<img src=x onerror=alert(1)>');
   });
+
+  it('hides the outstanding balance when the counter toggle is off', () => {
+    const html = renderReceiptPrintHtml({
+      ...receipt,
+      showOutstanding: false,
+    });
+
+    expect(html).not.toContain('Outstanding balance');
+    expect(html).toContain('Amount received');
+    expect(html).toContain('Student payment record');
+  });
+
+  it('prints a family name and one row per student, without one child outstanding total', () => {
+    const html = renderReceiptPrintHtml({
+      ...receipt,
+      studentName: 'Mensah family',
+      studentCode: null,
+      className: null,
+      identityNote: 'Split across 2 students',
+      amountPaid: 300,
+      showOutstanding: true,
+      shares: [
+        { studentName: 'Kwame Mensah', studentCode: 'JCS-1', className: '3A', amount: 200, outstandingBalance: 50 },
+        { studentName: 'Ama Mensah', studentCode: 'JCS-2', className: '1B', amount: 100, outstandingBalance: 80 },
+      ],
+    });
+
+    expect(html).toContain('Family payment');
+    expect(html).toContain('Mensah family');
+    expect(html).toContain('Split across 2 students');
+    expect(html).toContain('Kwame Mensah');
+    expect(html).toContain('Ama Mensah');
+    expect(html).toContain('Outstanding GHS 50.00');
+    expect(html).toContain('Outstanding GHS 80.00');
+    expect(html).not.toContain('Outstanding balance');
+    expect(html).not.toContain('Walk-in collection');
+  });
+
+  it('omits per-student balances on a split receipt when the toggle is off', () => {
+    const html = renderReceiptPrintHtml({
+      ...receipt,
+      studentName: 'Mensah family',
+      showOutstanding: false,
+      shares: [
+        { studentName: 'Kwame Mensah', studentCode: 'JCS-1', className: '3A', amount: 200, outstandingBalance: 50 },
+        { studentName: 'Ama Mensah', studentCode: 'JCS-2', className: '1B', amount: 100, outstandingBalance: 80 },
+      ],
+    });
+
+    expect(html).not.toContain('Outstanding');
+    expect(html).toContain('GHS 200.00');
+    expect(html).toContain('GHS 100.00');
+  });
 });

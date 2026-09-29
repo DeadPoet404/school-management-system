@@ -21,6 +21,15 @@ export const saveFeeMatrixSchema = z.object({
 // parseFloat("abc") returns NaN, silently falling back to 0 — recording
 // a zero-value payment. Now uses z.coerce.number() which rejects non-numeric
 // strings at the validation boundary.
+const collectionShareSchema = z.object({
+  studentInternalId: z.string().min(1, "Each share needs a student"),
+  amount: z.coerce.number({ message: "Each share must be a valid amount" }).positive("Each share must be greater than zero"),
+});
+
+function toCents(value: number): number {
+  return Math.round(value * 100);
+}
+
 export const commitInflowSchema = z.object({
   sectionId: z.string().min(1, "Section ID is required"),
   studentName: z.string().min(1, "Student name is required"),
@@ -31,6 +40,57 @@ export const commitInflowSchema = z.object({
   referenceNo: z.string().optional(),
   allocationTarget: z.string().min(1, "Allocation target is required"),
   studentInternalId: z.string().optional(),
+  // Printed in place of a single student name when one cash payment is split.
+  receiptName: z.string().max(80, "Receipt name must be 80 characters or less").optional(),
+  // Counter choice: print outstanding balances, or leave them off the receipt.
+  showOutstanding: z.boolean().optional(),
+  shares: z.array(collectionShareSchema).min(2, "A split payment needs at least two students").max(8, "A receipt can cover at most 8 students").optional(),
+}).superRefine((value, ctx) => {
+  if (!value.shares) return;
+
+  const receiptName = value.receiptName?.trim() ?? "";
+  if (receiptName.length < 2) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["receiptName"],
+      message: "Enter the name to print on the receipt",
+    });
+  }
+
+  if (!value.studentInternalId) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["studentInternalId"],
+      message: "Choose the first student before splitting a payment",
+    });
+  }
+
+  const ids = value.shares.map((share) => share.studentInternalId);
+  if (new Set(ids).size !== ids.length) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["shares"],
+      message: "Each student can only appear once on a receipt",
+    });
+  }
+
+  if (value.studentInternalId && !ids.includes(value.studentInternalId)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["shares"],
+      message: "The first student must be included in the split",
+    });
+  }
+
+  const paid = toCents(value.amountPaid);
+  const split = value.shares.reduce((sum, share) => sum + toCents(share.amount), 0);
+  if (paid !== split) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["shares"],
+      message: "The split amounts must add up to the amount received",
+    });
+  }
 });
 
 export const generateInvoicesSchema = z.object({

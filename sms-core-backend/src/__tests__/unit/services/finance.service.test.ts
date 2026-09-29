@@ -323,6 +323,78 @@ describe('FinanceService', () => {
       expect(m(repo, 'createInvoice')).not.toHaveBeenCalled();
     });
   });
+
+  describe('processInflowCollection splits', () => {
+    it('credits each student their share and does not apply the full amount to one child', async () => {
+      m(repo, 'findStudentsForCollection').mockResolvedValue([
+        {
+          id: 's1',
+          studentName: 'Kwame Mensah',
+          status: 'ACTIVE',
+          placement: { classId: 'c1', class: { name: '3A' } },
+        },
+        {
+          id: 's2',
+          studentName: 'Ama Mensah',
+          status: 'ACTIVE',
+          placement: { classId: 'c2', class: { name: '1B' } },
+        },
+      ]);
+      m(repo, 'countCollections').mockResolvedValue(4);
+      m(repo, 'createCollection').mockImplementation(async (data: { id?: string }) => ({ id: 'col-1', ...data }));
+      m(repo, 'createCollectionShares').mockResolvedValue({ count: 2 });
+      m(repo, 'countStudentPayments').mockResolvedValueOnce(10).mockResolvedValueOnce(11);
+
+      await service.processInflowCollection({
+        sectionId: 'c1',
+        studentName: 'Kwame Mensah',
+        amountPaid: 300,
+        paymentMethod: 'CASH',
+        allocationTarget: 'Termly Tuition',
+        studentInternalId: 's1',
+        receiptName: 'Mensah family',
+        showOutstanding: false,
+        shares: [
+          { studentInternalId: 's1', amount: 200 },
+          { studentInternalId: 's2', amount: 100 },
+        ],
+      }, { tx: {} as never });
+
+      expect(m(repo, 'allocatePayment')).toHaveBeenCalledWith('s1', 200, expect.anything());
+      expect(m(repo, 'allocatePayment')).toHaveBeenCalledWith('s2', 100, expect.anything());
+      expect(m(repo, 'allocatePayment')).not.toHaveBeenCalledWith('s1', 300, expect.anything());
+      expect(m(repo, 'createCollection')).toHaveBeenCalledWith(expect.objectContaining({
+        studentName: 'Kwame Mensah',
+        receiptName: 'Mensah family',
+        showOutstanding: false,
+        amountPaid: '300',
+      }), expect.anything());
+      expect(m(repo, 'createStudentPayment')).toHaveBeenCalledTimes(2);
+    });
+
+    it('keeps a one-student payment on the original path', async () => {
+      m(repo, 'countCollections').mockResolvedValue(1);
+      m(repo, 'createCollection').mockResolvedValue({ id: 'col-2' });
+      m(repo, 'countStudentPayments').mockResolvedValue(3);
+
+      await service.processInflowCollection({
+        sectionId: 'c1',
+        studentName: 'Ama Serwaa',
+        amountPaid: 50,
+        paymentMethod: 'CASH',
+        allocationTarget: 'Termly Tuition',
+        studentInternalId: 's9',
+        showOutstanding: false,
+      }, { tx: {} as never });
+
+      expect(m(repo, 'findStudentsForCollection')).not.toHaveBeenCalled();
+      expect(m(repo, 'allocatePayment')).toHaveBeenCalledWith('s9', 50, expect.anything());
+      expect(m(repo, 'createCollection')).toHaveBeenCalledWith(expect.objectContaining({
+        receiptName: null,
+        showOutstanding: false,
+      }), expect.anything());
+    });
+  });
 });
 
 // ── SMS-002: cash-only manual collection contract ──
@@ -354,5 +426,47 @@ describe('commitInflowSchema (SMS-002 cash-only contract)', () => {
       expect(result.success).toBe(false);
     },
   );
+
+  it('accepts a split when the shares add up and a receipt name is set', () => {
+    const result = commitInflowSchema.safeParse({
+      ...basePayload,
+      amountPaid: 300,
+      studentInternalId: 'stu-1',
+      receiptName: 'Mensah family',
+      showOutstanding: false,
+      shares: [
+        { studentInternalId: 'stu-1', amount: 200 },
+        { studentInternalId: 'stu-2', amount: 100 },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects a split that does not add up to the amount received', () => {
+    const result = commitInflowSchema.safeParse({
+      ...basePayload,
+      amountPaid: 300,
+      studentInternalId: 'stu-1',
+      receiptName: 'Mensah family',
+      shares: [
+        { studentInternalId: 'stu-1', amount: 200 },
+        { studentInternalId: 'stu-2', amount: 50 },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects a split with no name to print on the receipt', () => {
+    const result = commitInflowSchema.safeParse({
+      ...basePayload,
+      amountPaid: 300,
+      studentInternalId: 'stu-1',
+      shares: [
+        { studentInternalId: 'stu-1', amount: 200 },
+        { studentInternalId: 'stu-2', amount: 100 },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
 });
 

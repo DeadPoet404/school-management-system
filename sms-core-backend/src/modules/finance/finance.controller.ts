@@ -107,6 +107,17 @@ export class FinanceController {
     } catch (error) { next(error); }
   };
 
+  // School-wide name/ID search for the counter. Class tabs are gone; the
+  // suggestion list carries the class instead.
+  searchStudents = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const q = String(req.query.q ?? '').trim();
+      if (q.length < 2) return res.status(200).json({ success: true, data: [] });
+      const students = await this.financeService.searchReceivableStudents(q);
+      return res.status(200).json({ success: true, data: students });
+    } catch (error) { next(error); }
+  };
+
   generateInvoices = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { sectionId } = req.body;

@@ -111,6 +111,36 @@ export function renderReceiptPrintHtml(data: ReceiptPrintData): string {
       ? 'Not linked'
       : `${currency} ${formatMoney(data.outstandingBalance)}`;
   const creditBalance = Math.max(data.creditBalance ?? 0, 0);
+  const shares = data.shares ?? [];
+  const isSplit = shares.length > 1;
+  const showOutstandingTotal = data.showOutstanding !== false && !isSplit;
+  const showShareBalances = data.showOutstanding !== false;
+  const identityLabel = isSplit ? 'Family payment' : 'Student payment record';
+  const identityLine = isSplit
+    ? escapeHtml(data.identityNote ?? `Split across ${shares.length} students`)
+    : `Index: ${escapeHtml(data.studentCode ?? 'Walk-in collection')}${data.className ? `&nbsp;&nbsp;•&nbsp;&nbsp;${escapeHtml(data.className)}` : ''}`;
+  const paymentRowsHtml = isSplit
+    ? shares.map((share, index) => {
+        const meta = [share.className, share.studentCode].filter(Boolean).join(' · ');
+        const balanceLine = showShareBalances && share.outstandingBalance !== null
+          ? `<br>Outstanding ${escapeHtml(currency)} ${escapeHtml(formatMoney(share.outstandingBalance))}`
+          : '';
+        const metaHtml = meta || balanceLine
+          ? `<small class="share-meta">${escapeHtml(meta)}${balanceLine}</small>`
+          : '';
+        return `<div class="payment-row body" role="row">
+          <span>${String(index + 1).padStart(2, '0')}</span>
+          <span>${escapeHtml(share.studentName)}${metaHtml}</span>
+          <span>${escapeHtml(data.paymentMethod)}</span>
+          <span>${escapeHtml(currency)} ${escapeHtml(formatMoney(share.amount))}</span>
+        </div>`;
+      }).join('\n')
+    : `<div class="payment-row body" role="row">
+          <span>01</span>
+          <span>${escapeHtml(data.allocationTarget)}</span>
+          <span>${escapeHtml(data.paymentMethod)}</span>
+          <span>${escapeHtml(currency)} ${escapeHtml(formatMoney(data.amountPaid))}</span>
+        </div>`;
 
   const studentPhotoMarkup = studentPhotoUrl
     ? `<img
@@ -425,6 +455,22 @@ export function renderReceiptPrintHtml(data: ReceiptPrintData): string {
       overflow-wrap: anywhere;
     }
 
+    .share-purpose {
+      margin: 0 0 1.6mm;
+      color: var(--navy);
+      font-size: 7pt;
+      font-weight: 700;
+    }
+
+    .share-meta {
+      display: block;
+      margin-top: 0.3mm;
+      color: var(--muted);
+      font-size: 6.3pt;
+      font-weight: 500;
+      line-height: 1.3;
+    }
+
     .payment-row.body > :nth-child(4) {
       color: var(--navy);
       font-size: 8.3pt;
@@ -667,11 +713,10 @@ export function renderReceiptPrintHtml(data: ReceiptPrintData): string {
       </div>
 
       <section class="student-summary">
-        <span class="student-summary-label">Student payment record</span>
+        <span class="student-summary-label">${identityLabel}</span>
         <h1 class="student-name">${escapeHtml(data.studentName)}</h1>
         <span class="student-index">
-          Index: ${escapeHtml(data.studentCode ?? 'Walk-in collection')}
-          ${data.className ? `&nbsp;&nbsp;•&nbsp;&nbsp;${escapeHtml(data.className)}` : ''}
+          ${identityLine}
         </span>
       </section>
 
@@ -713,20 +758,16 @@ export function renderReceiptPrintHtml(data: ReceiptPrintData): string {
 
     <section class="payment-section">
       <h2 class="payment-heading">What this payment covers</h2>
+      ${isSplit ? `<p class="share-purpose">${escapeHtml(data.allocationTarget)}</p>` : ''}
 
       <div class="payment-table" role="table" aria-label="Payment allocation">
         <div class="payment-row header" role="row">
           <span>No.</span>
-          <span>Fee allocation</span>
+          <span>${isSplit ? 'Student' : 'Fee allocation'}</span>
           <span>Method</span>
           <span>Amount</span>
         </div>
-        <div class="payment-row body" role="row">
-          <span>01</span>
-          <span>${escapeHtml(data.allocationTarget)}</span>
-          <span>${escapeHtml(data.paymentMethod)}</span>
-          <span>${escapeHtml(currency)} ${escapeHtml(formatMoney(data.amountPaid))}</span>
-        </div>
+        ${paymentRowsHtml}
       </div>
     </section>
 
@@ -737,10 +778,10 @@ export function renderReceiptPrintHtml(data: ReceiptPrintData): string {
       </div>
 
       <div class="totals">
-        <div class="total-line">
+        ${showOutstandingTotal ? `<div class="total-line">
           <span>Outstanding balance</span>
           <strong>${escapeHtml(outstandingBalance)}</strong>
-        </div>
+        </div>` : ''}
         ${creditBalance > 0 ? `<div class="total-line">
           <span>Available credit</span>
           <strong>${escapeHtml(currency)} ${escapeHtml(formatMoney(creditBalance))}</strong>
