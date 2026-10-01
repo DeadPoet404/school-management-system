@@ -374,24 +374,7 @@ export class StudentService {
     const data = await (this.repo as any).findAllFilteredLight
       ? (this.repo as any).findAllFilteredLight(where)
       : this.repo.findAllFiltered(where);
-    // Compute feesStatus efficiently via aggregates
-    const ids = (data as any[]).map((s: any) => s.id);
-    if (ids.length === 0) return data;
-    const [invAgg, payAgg] = await Promise.all([
-      prisma.invoice.groupBy({ by: ['studentId'], where: { studentId: { in: ids } }, _sum: { amount: true } }),
-      prisma.payment.groupBy({ by: ['studentId'], where: { studentId: { in: ids }, deletedAt: null }, _sum: { amount: true } }),
-    ]);
-    const invMap = new Map(invAgg.map((i: any) => [i.studentId, Number(i._sum.amount || 0)]));
-    const payMap = new Map(payAgg.map((p: any) => [p.studentId, Number(p._sum.amount || 0)]));
-    return (data as any[]).map((s: any) => {
-      const totalInvoiced = invMap.get(s.id) || 0;
-      const totalPaid = payMap.get(s.id) || 0;
-      const balance = Math.max(0, totalInvoiced - totalPaid);
-      let feesStatus: 'Paid' | 'Partial' | 'Unpaid' = 'Unpaid';
-      if (balance <= 0 && totalPaid > 0) feesStatus = 'Paid';
-      else if (totalPaid > 0 && balance > 0) feesStatus = 'Partial';
-      return { ...s, feesStatus, totalInvoiced, totalPaid, balanceRemaining: balance };
-    });
+    return this.enrichLightRows(data as any[]);
   }
 
   async getFilteredPaginated(
@@ -419,24 +402,51 @@ export class StudentService {
         : this.repo.findAllFiltered(where, skip, take),
       this.repo.countFiltered(where),
     ]);
-    const ids = (data as any[]).map((s: any) => s.id);
-    if (ids.length === 0) return { data, total };
-    const [invAgg, payAgg] = await Promise.all([
+    return { data: await this.enrichLightRows(data as any[]), total };
+  }
+
+  /**
+   * Registry light view does not load payment rows. Attach the latest receipt
+   * so the financial tab does not fall back to the admission date.
+   */
+  private async enrichLightRows(data: any[]) {
+    const ids = data.map((s) => s.id).filter(Boolean);
+    if (ids.length === 0) return data;
+    const [invAgg, payAgg, latest] = await Promise.all([
       prisma.invoice.groupBy({ by: ['studentId'], where: { studentId: { in: ids } }, _sum: { amount: true } }),
-      prisma.payment.groupBy({ by: ['studentId'], where: { studentId: { in: ids }, deletedAt: null }, _sum: { amount: true } }),
+      prisma.payment.groupBy({ by: ['studentId'], where: { studentId: { in: ids }, deletedAt: null }, _sum: { amount: true }, _count: { _all: true } }),
+      prisma.$queryRaw<Array<{ studentId: string; receiptNo: string; createdAt: Date; amount: unknown; paymentType: string }>>`
+        SELECT DISTINCT ON ("studentId") "studentId", "receiptNo", "createdAt", amount, "paymentType"
+        FROM "Payment"
+        WHERE "deletedAt" IS NULL AND "studentId" IN (${Prisma.join(ids)})
+        ORDER BY "studentId", "createdAt" DESC, "receiptNo" DESC
+      `,
     ]);
     const invMap = new Map(invAgg.map((i: any) => [i.studentId, Number(i._sum.amount || 0)]));
     const payMap = new Map(payAgg.map((p: any) => [p.studentId, Number(p._sum.amount || 0)]));
-    const enriched = (data as any[]).map((s: any) => {
+    const countMap = new Map(payAgg.map((p: any) => [p.studentId, Number(p._count?._all || 0)]));
+    const latestMap = new Map(latest.map((p) => [p.studentId, p]));
+    return data.map((s) => {
       const totalInvoiced = invMap.get(s.id) || 0;
       const totalPaid = payMap.get(s.id) || 0;
       const balance = Math.max(0, totalInvoiced - totalPaid);
       let feesStatus: 'Paid' | 'Partial' | 'Unpaid' = 'Unpaid';
       if (balance <= 0 && totalPaid > 0) feesStatus = 'Paid';
       else if (totalPaid > 0 && balance > 0) feesStatus = 'Partial';
-      return { ...s, feesStatus, totalInvoiced, totalPaid, balanceRemaining: balance };
+      const last = latestMap.get(s.id);
+      return {
+        ...s,
+        feesStatus,
+        totalInvoiced,
+        totalPaid,
+        balanceRemaining: balance,
+        paymentCount: countMap.get(s.id) || 0,
+        lastPaymentDate: last?.createdAt ?? null,
+        lastReceiptNo: last?.receiptNo ?? null,
+        lastPaymentType: last?.paymentType ?? null,
+        lastPaymentAmount: last ? Number(last.amount) : 0,
+      };
     });
-    return { data: enriched, total };
   }
 
   /**

@@ -106,11 +106,23 @@ export function StudentFinancialTable({ data: rawStudents, pagination, onPageCha
         const totalInvoiced = Number(item.totalInvoiced || 0)
         const totalPaid = Number(item.totalPaid || 0)
         rollingOutstandingBalance = Number(item.balanceRemaining ?? Math.max(0, totalInvoiced - totalPaid))
-        rawTransId = totalPaid > 0 ? `Paid ₵${totalPaid.toFixed(2)}` : totalInvoiced > 0 ? `Inv ₵${totalInvoiced.toFixed(2)}` : "—"
-        rawPaymentType = item.feesStatus || "—"
-        formattedAmountPaid = totalPaid > 0 ? `₵ ${totalPaid.toFixed(2)}` : "—"
-        formattedDate = item.enrollmentDate
-          ? new Date(item.enrollmentDate).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+        const receiptCount = Number(item.paymentCount || 0)
+        rawTransId = item.lastReceiptNo
+          ? receiptCount > 1
+            ? `${item.lastReceiptNo} · ${receiptCount} receipts`
+            : item.lastReceiptNo
+          : totalPaid > 0
+            ? `Paid ₵${totalPaid.toFixed(2)}`
+            : totalInvoiced > 0
+              ? `Inv ₵${totalInvoiced.toFixed(2)}`
+              : "—"
+        rawPaymentType = item.lastPaymentType || item.feesStatus || "—"
+        const lastAmount = Number(item.lastPaymentAmount || 0)
+        formattedAmountPaid = lastAmount > 0 ? `₵ ${lastAmount.toFixed(2)}` : totalPaid > 0 ? `₵ ${totalPaid.toFixed(2)}` : "—"
+        // Never use the admission date here. That made every unpaid-looking
+        // row show the enrollment date as if it were a receipt.
+        formattedDate = item.lastPaymentDate
+          ? new Date(item.lastPaymentDate).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
           : "—"
       }
 
