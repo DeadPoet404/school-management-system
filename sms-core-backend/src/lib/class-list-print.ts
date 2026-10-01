@@ -70,6 +70,7 @@ export function normalizeClassListColumns(
 
 function formatMoney(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return '—';
+  if (value <= 0) return 'GHS 0.00';
   return `GHS ${value.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 }
 

@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { capStringFields } from "@/lib/capitalize";
 import type { ClassListPdfData, TranscriptPdfData, TranscriptTermSection } from "@/lib/pdf";
 import { titleCaseTerm } from "@/lib/pdf";
-import { Prisma, EntityStatus, DepartureType, TreasuryClearanceStatus, FamilyDiscountRule } from "@prisma/client";
+import { Prisma, EntityStatus, InvoiceStatus, DepartureType, TreasuryClearanceStatus, FamilyDiscountRule } from "@prisma/client";
+import type { FeesOwedPrintData } from "@/lib/fees-owed-print";
 import { IStudentRepository } from "@/types/repositories";
 import { StudentRepository } from "./student.repository";
 import { formatInstitutionalId } from "@/utils";
@@ -270,6 +271,8 @@ export class StudentService {
       orderBy: { studentName: 'asc' },
     });
 
+    const invoiceOwed = await this.invoiceOutstandingByStudent(students.map((s) => s.id));
+
     const term = await prisma.term.findFirst({
       where: { isActive: true, deletedAt: null },
       select: { name: true, academicYear: true },
@@ -287,8 +290,83 @@ export class StudentService {
         dob: s.demographics?.dateOfBirth ? s.demographics.dateOfBirth.toISOString() : null,
         guardian: s.guardians[0]?.name?.trim() || null,
         guardianPhone: s.guardians[0]?.phone?.trim() || null,
-        feesOwed: s.billing ? Number(s.billing.currentBalance) : null,
+        feesOwed: Math.max(
+          0,
+          s.billing ? Number(s.billing.currentBalance) : 0,
+          invoiceOwed.get(s.id) || 0,
+        ),
       })),
+    };
+  }
+
+  /**
+   * Outstanding on live invoices: amount minus paidAmount. Used so a student
+   * who has never paid still prints the amount they owe, even if the ledger
+   * row is missing.
+   */
+  private async invoiceOutstandingByStudent(studentIds: string[]): Promise<Map<string, number>> {
+    if (studentIds.length === 0) return new Map();
+    const sums = await prisma.invoice.groupBy({
+      by: ['studentId'],
+      where: { studentId: { in: studentIds }, deletedAt: null },
+      _sum: { amount: true, paidAmount: true },
+    });
+    return new Map(sums.map((row) => [
+      row.studentId,
+      Math.max(0, Number(row._sum.amount || 0) - Number(row._sum.paidAmount || 0)),
+    ]));
+  }
+
+  /**
+   * Every student with a positive fee balance, for the debtor print.
+   * Active and inactive students are included. The amount is the larger of
+   * the ledger balance and unpaid invoices, so a never-paid student is not
+   * omitted and is never printed as a dash.
+   */
+  async getFeesOwedForPrint(): Promise<FeesOwedPrintData> {
+    const students = await prisma.student.findMany({
+      where: {
+        OR: [
+          { billing: { currentBalance: { gt: 0 } } },
+          { invoices: { some: { deletedAt: null, status: { in: [InvoiceStatus.UNPAID, InvoiceStatus.PARTIAL] } } } },
+        ],
+      },
+      select: {
+        id: true,
+        studentId: true,
+        studentName: true,
+        status: true,
+        billing: { select: { currentBalance: true } },
+        placement: { select: { class: { select: { name: true } } } },
+        guardians: { select: { phone: true }, take: 1 },
+      },
+      orderBy: { studentName: 'asc' },
+    });
+
+    const invoiceOwed = await this.invoiceOutstandingByStudent(students.map((s) => s.id));
+    const rows = students
+      .map((s) => {
+        const owed = Math.max(
+          0,
+          s.billing ? Number(s.billing.currentBalance) : 0,
+          invoiceOwed.get(s.id) || 0,
+        );
+        return {
+          studentId: s.studentId,
+          studentName: s.studentName,
+          className: s.placement?.class?.name?.trim() || 'Unassigned',
+          guardianPhone: s.guardians[0]?.phone?.trim() || null,
+          status: s.status,
+          owed,
+        };
+      })
+      .filter((row) => row.owed > 0)
+      .sort((a, b) => a.className.localeCompare(b.className) || a.studentName.localeCompare(b.studentName));
+
+    return {
+      dateOfIssue: new Date(),
+      students: rows,
+      totalOwed: rows.reduce((sum, row) => sum + row.owed, 0),
     };
   }
 

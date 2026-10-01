@@ -127,6 +127,29 @@ export function StudentFinancialTable({ data: rawStudents, pagination, onPageCha
       }
 
       const availableCredit = Number(item.billing?.creditBalance) || 0
+      const owed = Math.max(
+        0,
+        rollingOutstandingBalance,
+        Math.max(0, Number(item.totalInvoiced || 0) - Number(item.totalPaid || 0)),
+        Number(item.billing?.currentBalance || 0),
+      )
+      const hasPaid = Number(item.totalPaid || 0) > 0 || (item.payments?.length ?? 0) > 0
+      // A student who has never paid still owes the balance. Do not print a
+      // dash in that case — the fees list is what the school prints.
+      const balanceLabel = availableCredit > 0
+        ? `Credit ₵ ${availableCredit.toFixed(2)}`
+        : owed > 0
+          ? `₵ ${owed.toFixed(2)}`
+          : hasPaid
+            ? "Settled"
+            : "₵ 0.00"
+      // Amount Paid is a dash when there is no receipt. That is the cell the
+      // school sees when printing someone who still owes, so show the debt.
+      if (formattedAmountPaid === "—" && owed > 0) {
+        formattedAmountPaid = `Owes ₵ ${owed.toFixed(2)}`
+      } else if (formattedAmountPaid === "—") {
+        formattedAmountPaid = "₵ 0.00"
+      }
 
       return {
         id: fallbackId,
@@ -143,17 +166,11 @@ export function StudentFinancialTable({ data: rawStudents, pagination, onPageCha
           <span className={`font-mono font-semibold text-xs ${
             availableCredit > 0
               ? "text-sky-700 dark:text-sky-400"
-              : rollingOutstandingBalance > 0
+              : owed > 0
                 ? "text-red-600 dark:text-red-400"
                 : "text-emerald-600 dark:text-emerald-400"
           }`}>
-            {availableCredit > 0
-              ? `Credit ₵ ${availableCredit.toFixed(2)}`
-              : rollingOutstandingBalance <= 0
-                ? rollingOutstandingBalance === 0 && (item.totalPaid > 0 || item.payments?.length > 0)
-                  ? "Settled"
-                  : "—"
-                : `₵ ${rollingOutstandingBalance.toFixed(2)}`}
+            {balanceLabel}
           </span>
         ),
         status: (
@@ -219,13 +236,13 @@ export function StudentFinancialTable({ data: rawStudents, pagination, onPageCha
   {
     key: "amountPaid",
     header: "Amount Paid",
-    className: "w-[85px]",
+    className: "w-[120px]",
     cellClassName:
       "font-mono text-xs text-right whitespace-nowrap",
   },
   {
     key: "balanceRemaining",
-    header: "Balance / Credit",
+    header: "Fees Owed",
     className: "w-[85px]",
     cellClassName:
       "font-mono text-xs text-right whitespace-nowrap",

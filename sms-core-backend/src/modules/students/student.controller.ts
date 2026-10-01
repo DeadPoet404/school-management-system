@@ -11,6 +11,7 @@ import { resolveSessionStudentId } from "@/middleware/self-access";
 import { AppError } from "@/middleware/error.handler";
 import { renderClassListPdf, renderTranscriptPdf } from "@/lib/pdf";
 import { renderClassListPrintHtml, normalizeClassListColumns } from "@/lib/class-list-print";
+import { renderFeesOwedPrintHtml } from "@/lib/fees-owed-print";
 
 type UploadedStudentImportFile = {
   buffer: Buffer;
@@ -141,6 +142,20 @@ export class StudentController {
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader('Cache-Control', 'no-store');
       return res.send(renderClassListPrintHtml(data, columns));
+    } catch (error) { next(error); }
+  };
+
+  /**
+   * GET /api/students/fees-owed.print
+   * Full debtor list. The fees-owed column is always an amount, including
+   * students who have never made a payment.
+   */
+  public streamFeesOwedPrint = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
+    try {
+      const data = await this.studentService.getFeesOwedForPrint();
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-store');
+      return res.send(renderFeesOwedPrintHtml(data));
     } catch (error) { next(error); }
   };
 

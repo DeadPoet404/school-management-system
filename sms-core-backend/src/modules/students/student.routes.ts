@@ -89,6 +89,7 @@ router.get("/:id/transcript.pdf", requireRole(ROLES.ADMIN, ROLES.STAFF), control
 router.get("/class-list.pdf", requireRole(ROLES.ADMIN, ROLES.STAFF), controller.streamClassListPdf);
 // SMS-009b: print-ready class roster HTML (native print dialog on load).
 router.get("/class-list.print", requireRole(ROLES.ADMIN, ROLES.STAFF), controller.streamClassListPrint);
+router.get("/fees-owed.print", requireRole(ROLES.ADMIN, ROLES.STAFF, ROLES.ACCOUNTANT), controller.streamFeesOwedPrint);
 
 // Private student photos are never returned in generic student DTOs.
 // The image endpoint issues a short-lived Storage redirect for authorized viewers.

@@ -3,7 +3,7 @@
 import { useAuth } from "@/lib/auth-context"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { FileSpreadsheet, LogOut, Plus, RefreshCw } from "lucide-react"
+import { FileSpreadsheet, LogOut, Plus, Printer, RefreshCw } from "lucide-react"
 
 import { ModuleTabs } from "@/components/module-tabs"
 import { UniversalSearch } from "@/components/universal-search"
@@ -19,6 +19,7 @@ import { StudentPersonalInfoTable } from "@/components/student-personal-info-tab
 import { StudentFinancialTable } from "@/components/student-financial-table"
 
 import { fetchWithAuth } from "@/lib/fetch-with-auth"
+import { printFeesOwedInPage } from "@/lib/print-fees-owed"
 
 const studentTabs = [
   {
@@ -69,6 +70,7 @@ type ClassReferenceResponse = {
 const StudentsPage = () => {
   const { user } = useAuth()
   const canWrite = user?.role === "ADMIN" || user?.role === "STAFF"
+  const canPrintFees = canWrite || user?.role === "ACCOUNTANT"
 
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -84,6 +86,7 @@ const StudentsPage = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
+  const [printingFees, setPrintingFees] = useState(false)
 
   // Pagination — previously loaded ALL pages in parallel (7×100 = 668 rows with full relations)
   // Now loads only current page with lightweight backend projection
@@ -293,6 +296,26 @@ const StudentsPage = () => {
             classes={classOptions}
             onApplyFilters={setAdvancedFilters}
           />
+
+          {canPrintFees ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={printingFees}
+              onClick={() => {
+                setPrintingFees(true)
+                void printFeesOwedInPage()
+                  .catch((err: unknown) => {
+                    window.alert(err instanceof Error ? err.message : "Could not print the fees owed list.")
+                  })
+                  .finally(() => setPrintingFees(false))
+              }}
+              className="h-11 lg:h-9 gap-1.5 border-zinc-200 px-3 text-xs font-medium tracking-wide text-zinc-700 shadow-none transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900/60"
+            >
+              <Printer className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
+              <span>{printingFees ? "Preparing…" : "Print who owe"}</span>
+            </Button>
+          ) : null}
 
           {canWrite ? (
             <>
