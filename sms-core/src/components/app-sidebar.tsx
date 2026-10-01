@@ -59,7 +59,7 @@ export function AppSidebar({ user, initials = "??", onLogout }: AppSidebarProps)
   const visibleItems = coreNavigationItems.filter((item) => isPathAllowedForRole(user?.role ?? null, item.url))
 
   return (
-    <Sidebar variant="inset" collapsible="icon">
+    <Sidebar variant="inset" collapsible="icon" className="print:hidden">
       {/* 1. STICKY HEADER - Workspace / Branding Selector */}
       <SidebarHeader className="p-4">
         <SidebarMenu>

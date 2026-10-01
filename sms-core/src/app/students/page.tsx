@@ -262,7 +262,7 @@ const StudentsPage = () => {
   }
 
   return (
-    <div className="flex h-screen min-h-0 w-full flex-col space-y-3 overflow-hidden px-4 pt-4 pb-4 sm:space-y-4 sm:px-6 sm:pt-6">
+    <div className="flex h-screen min-h-0 w-full flex-col space-y-3 overflow-hidden px-4 pt-4 pb-4 print:h-auto print:overflow-visible sm:space-y-4 sm:px-6 sm:pt-6">
       <input
         ref={fileInputRef}
         type="file"
@@ -303,9 +303,15 @@ const StudentsPage = () => {
               variant="outline"
               disabled={printingFees}
               onClick={() => {
+                const popup = window.open("about:blank", "_blank")
+                if (!popup) {
+                  window.alert("Allow pop-ups for this site, then click Print who owe again.")
+                  return
+                }
                 setPrintingFees(true)
-                void printFeesOwedInPage()
+                void printFeesOwedInPage(popup)
                   .catch((err: unknown) => {
+                    popup.close()
                     window.alert(err instanceof Error ? err.message : "Could not print the fees owed list.")
                   })
                   .finally(() => setPrintingFees(false))
@@ -386,8 +392,8 @@ const StudentsPage = () => {
         ) : (
           <>
             {/* ── Desktop: wide data tables ── */}
-            <div className="hidden h-full w-full overflow-x-auto lg:block">
-              <div className="min-w-max pr-4">
+            <div className="hidden h-full w-full overflow-x-auto print:block print:h-auto print:overflow-visible lg:block">
+              <div className="min-w-max pr-4 print:min-w-0">
                 {activeTab === "overview" && (
                   <StudentOverviewTable data={students} pagination={pagination} onPageChange={setCurrentPage} />
                 )}

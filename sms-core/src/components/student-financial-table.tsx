@@ -198,21 +198,22 @@ export function StudentFinancialTable({ data: rawStudents, pagination, onPageCha
   {
     key: "lastTransactionId",
     header: "Last Trans ID",
-    className: "w-[220px]",
+    className: "w-[220px] print:hidden",
     cellClassName:
-      "font-mono text-xs text-zinc-600 dark:text-zinc-400 truncate overflow-hidden select-all",
+      "font-mono text-xs text-zinc-600 dark:text-zinc-400 truncate overflow-hidden select-all print:hidden",
   },
   {
     key: "lastTransactionDate",
     header: "Transaction Date",
-    className: "w-[120px]",
+    className: "w-[120px] print:hidden",
     cellClassName:
-      "font-mono text-xs text-zinc-600 dark:text-zinc-400 whitespace-nowrap",
+      "font-mono text-xs text-zinc-600 dark:text-zinc-400 whitespace-nowrap print:hidden",
   },
   {
     key: "paymentType",
     header: "Type",
-    className: "w-[90px]",
+    className: "w-[90px] print:hidden",
+    cellClassName: "print:hidden",
     cell: (row) => {
       if (row.paymentType === "—") {
         return <span className="text-zinc-400">—</span>
@@ -250,7 +251,8 @@ export function StudentFinancialTable({ data: rawStudents, pagination, onPageCha
   {
     key: "status",
     header: "Status",
-    className: "w-[90px]",
+    className: "w-[90px] print:hidden",
+    cellClassName: "print:hidden",
   },
 ], [])
 

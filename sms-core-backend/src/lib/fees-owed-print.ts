@@ -177,9 +177,44 @@ export function renderFeesOwedPrintHtml(data: FeesOwedPrintData): string {
       font-weight: 700;
       color: #082a70;
     }
+    .signatures {
+      margin-top: 10mm;
+      page-break-inside: avoid;
+      break-inside: avoid;
+      font-size: 8.5pt;
+      color: #3c4256;
+    }
+    .sig-row { display: flex; justify-content: space-between; margin-bottom: 8mm; }
+    .screen-actions {
+      position: sticky;
+      top: 0;
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 0 6px;
+      background: #ffffff;
+      z-index: 10;
+    }
+    .screen-actions button {
+      border: 0;
+      border-radius: 6px;
+      background: #082a70;
+      color: #fff;
+      font: 500 13px/1 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      padding: 9px 16px;
+      cursor: pointer;
+    }
+    .screen-actions button.secondary { background: #e5e7eb; color: #172341; }
+    @media print {
+      .screen-actions { display: none !important; }
+    }
   </style>
 </head>
 <body>
+  <div class="screen-actions" aria-label="Fees owed print controls">
+    <button type="button" onclick="window.print()">Print</button>
+    <button type="button" class="secondary" onclick="window.close()">Close</button>
+  </div>
   <div class="topline"><span class="generated">${generatedLabel}</span></div>
   <div class="logo-frame" id="school-logo-frame">
     <img id="school-logo" src="/branding/jocomfy-school-logo.png" alt="" width="82" height="82" />
@@ -218,6 +253,18 @@ export function renderFeesOwedPrintHtml(data: FeesOwedPrintData): string {
       </tr>
     </tbody>
   </table>
+
+  <div class="signatures">
+    <div class="sig-row">
+      <span>Accountant's Signature: ....................................................</span>
+      <span>Date: ..................</span>
+    </div>
+    <div class="sig-row">
+      <span>Head's Signature: ..............................................................</span>
+      <span>Date: ..................</span>
+    </div>
+  </div>
+
   <script>
     (function () {
       function startPrintFlow() {

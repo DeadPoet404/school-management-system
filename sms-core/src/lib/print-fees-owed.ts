@@ -4,14 +4,25 @@ import { fetchWithAuth } from "@/lib/fetch-with-auth"
  * Print every student who owes fees, without leaving the current page.
  * The printed amount is never a dash, including students who have not paid.
  */
-export async function printFeesOwedInPage(): Promise<void> {
+export async function printFeesOwedInPage(popup?: Window | null): Promise<void> {
   if (typeof window === "undefined") return
 
   const response = await fetchWithAuth("/students/fees-owed.print")
   if (!response.ok) {
+    popup?.close()
     throw new Error("Could not load the list of students who owe fees.")
   }
   const html = await response.text()
+
+  // A real window can be closed when printing is finished. A hidden iframe
+  // cannot, so the print never had an ending the school could dismiss.
+  if (popup && !popup.closed) {
+    popup.document.open()
+    popup.document.write(html)
+    popup.document.close()
+    popup.focus()
+    return
+  }
 
   const iframe = document.createElement("iframe")
   iframe.setAttribute("aria-hidden", "true")
