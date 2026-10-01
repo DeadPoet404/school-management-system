@@ -365,7 +365,9 @@ export function renderReceiptPdf(
     const allocationWidth = width * 0.66;
     const amountWidth = width - allocationWidth - 12;
     const shares = data.shares ?? [];
-    let allocationBottom = allocationY;
+    // Both branches assign this before it is read. An initial value is a
+    // useless assignment and fails lint (no-useless-assignment).
+    let allocationBottom: number;
 
     if (shares.length > 1) {
       doc

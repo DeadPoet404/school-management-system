@@ -145,11 +145,19 @@ export function StudentFinancialTable({ data: rawStudents, pagination, onPageCha
             : "₵ 0.00"
       // Amount Paid is a dash when there is no receipt. That is the cell the
       // school sees when printing someone who still owes, so show the debt.
-      if (formattedAmountPaid === "—" && owed > 0) {
-        formattedAmountPaid = `Owes ₵ ${owed.toFixed(2)}`
+      if (owed > 0) {
+        const owedLabel = `₵ ${owed.toFixed(2)}`
+        // A student who has not paid used to print a dash in every empty
+        // cell. The school prints this row, so the amount has to be in it.
+        if (!hasPaid || formattedAmountPaid === "—") formattedAmountPaid = owedLabel
+        if (formattedDate === "—") formattedDate = owedLabel
+        if (rawTransId === "—") rawTransId = owedLabel
+        if (rawPaymentType === "—") rawPaymentType = "Unpaid"
       } else if (formattedAmountPaid === "—") {
         formattedAmountPaid = "₵ 0.00"
       }
+      if (formattedDate === "—") formattedDate = hasPaid ? "—" : "₵ 0.00"
+      if (rawTransId === "—") rawTransId = "₵ 0.00"
 
       return {
         id: fallbackId,
@@ -196,6 +204,12 @@ export function StudentFinancialTable({ data: rawStudents, pagination, onPageCha
     cellClassName: "truncate",
   },
   {
+    key: "balanceRemaining",
+    header: "Fees Owed",
+    className: "w-[120px]",
+    cellClassName: "font-mono text-xs text-right whitespace-nowrap",
+  },
+  {
     key: "lastTransactionId",
     header: "Last Trans ID",
     className: "w-[220px] print:hidden",
@@ -238,13 +252,6 @@ export function StudentFinancialTable({ data: rawStudents, pagination, onPageCha
     key: "amountPaid",
     header: "Amount Paid",
     className: "w-[120px]",
-    cellClassName:
-      "font-mono text-xs text-right whitespace-nowrap",
-  },
-  {
-    key: "balanceRemaining",
-    header: "Fees Owed",
-    className: "w-[85px]",
     cellClassName:
       "font-mono text-xs text-right whitespace-nowrap",
   },

@@ -507,7 +507,10 @@ export class StudentService {
     return data.map((s) => {
       const totalInvoiced = invMap.get(s.id) || 0;
       const totalPaid = payMap.get(s.id) || 0;
-      const balance = Math.max(0, totalInvoiced - totalPaid);
+      const ledgerBalance = Number(s.billing?.currentBalance || 0);
+      // A student who has never paid still owes the ledger balance. Do not
+      // leave that as zero just because the invoice aggregate is missing.
+      const balance = Math.max(0, totalInvoiced - totalPaid, ledgerBalance);
       let feesStatus: 'Paid' | 'Partial' | 'Unpaid' = 'Unpaid';
       if (balance <= 0 && totalPaid > 0) feesStatus = 'Paid';
       else if (totalPaid > 0 && balance > 0) feesStatus = 'Partial';

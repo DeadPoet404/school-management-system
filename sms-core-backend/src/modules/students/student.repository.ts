@@ -82,6 +82,7 @@ export class StudentRepository implements IStudentRepository {
         placement: { select: { class: { select: { name: true } } } },
         compliance: { select: { nationalId: true, emergencyPhone: true } },
         guardians: { select: { name: true, phone: true } },
+        billing: { select: { currentBalance: true, creditBalance: true } },
       },
       orderBy: {
         createdAt: "desc",
