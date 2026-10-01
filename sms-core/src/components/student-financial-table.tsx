@@ -152,7 +152,7 @@ export function StudentFinancialTable({ data: rawStudents, pagination, onPageCha
         if (!hasPaid || formattedAmountPaid === "—") formattedAmountPaid = owedLabel
         if (formattedDate === "—") formattedDate = owedLabel
         if (rawTransId === "—") rawTransId = owedLabel
-        if (rawPaymentType === "—") rawPaymentType = "Unpaid"
+        if (rawPaymentType === "—" || !hasPaid) rawPaymentType = owedLabel
       } else if (formattedAmountPaid === "—") {
         formattedAmountPaid = "₵ 0.00"
       }
@@ -164,6 +164,11 @@ export function StudentFinancialTable({ data: rawStudents, pagination, onPageCha
         studentMeta: (
           <span className="text-zinc-900 dark:text-zinc-100 font-medium tracking-tight block truncate">
             {rawName}
+            {owed > 0 && !hasPaid ? (
+              <span className="ml-2 font-mono text-xs font-semibold text-red-600 dark:text-red-400">
+                {`₵ ${owed.toFixed(2)}`}
+              </span>
+            ) : null}
           </span>
         ),
         lastTransactionId: rawTransId,
@@ -230,7 +235,7 @@ export function StudentFinancialTable({ data: rawStudents, pagination, onPageCha
     cellClassName: "print:hidden",
     cell: (row) => {
       if (row.paymentType === "—") {
-        return <span className="text-zinc-400">—</span>
+        return <span className="font-mono text-xs font-semibold text-red-600 dark:text-red-400">₵ 0.00</span>
       }
 
       const isInvoice = row.paymentType === "Invoice"

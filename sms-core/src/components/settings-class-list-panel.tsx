@@ -41,7 +41,7 @@ export default function ClassListPanel() {
   const [classId, setClassId] = React.useState("")
   const [generating, setGenerating] = React.useState(false)
   // Default matches the historical print layout (Student ID + Gender).
-  const [columns, setColumns] = React.useState<string[]>(["studentId", "gender"])
+  const [columns, setColumns] = React.useState<string[]>(["studentId", "feesOwed"])
 
   const activeClasses = React.useMemo(
     () =>

@@ -26,6 +26,7 @@ export type StudentOverviewRow = {
   attendanceRate: string
   status: string
   feesStatus: "Paid" | "Partial" | "Unpaid"
+  feesLabel: string
   enrollmentDate: string
   attendanceLink: React.ReactNode
   actions: React.ReactNode
@@ -102,6 +103,13 @@ export function StudentOverviewTable({ data: initialData, pagination, onPageChan
     let financialStatus: "Paid" | "Partial" | "Unpaid" = "Unpaid"
     if (student.feesStatus === "Paid") financialStatus = "Paid"
     else if (student.feesStatus === "Partial") financialStatus = "Partial"
+    const feesOwed = Math.max(
+      0,
+      Number(student.balanceRemaining || 0),
+      Number(student.billing?.currentBalance || 0),
+      Math.max(0, Number(student.totalInvoiced || 0) - Number(student.totalPaid || 0)),
+    )
+    const feesLabel = feesOwed > 0 ? `₵ ${feesOwed.toFixed(2)}` : financialStatus
 
     const rawGender = student.demographics?.gender || student.gender
     let cleanGender = "—"
@@ -132,6 +140,7 @@ export function StudentOverviewTable({ data: initialData, pagination, onPageChan
       attendanceRate: student.attendanceRate != null ? `${student.attendanceRate}%` : "—",
       status: student.status || "ACTIVE",
       feesStatus: financialStatus,
+      feesLabel,
       enrollmentDate: formattedDate,
       attendanceLink: attendanceRouteId ? (
         <Link
@@ -285,8 +294,8 @@ export function StudentOverviewTable({ data: initialData, pagination, onPageChan
     },
     {
       key: "feesStatus",
-      header: "Fees Status",
-      className: "w-[105px]",
+      header: "Fees Owed",
+      className: "w-[120px]",
       cell: (row) => {
         const colorMap = {
           Paid: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30",
@@ -295,7 +304,7 @@ export function StudentOverviewTable({ data: initialData, pagination, onPageChan
         }
         return (
           <span className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium ${colorMap[row.feesStatus]}`}>
-            {row.feesStatus}
+            {row.feesLabel}
           </span>
         )
       }

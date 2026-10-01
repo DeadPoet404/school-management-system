@@ -59,7 +59,7 @@ export function renderFeesOwedPrintHtml(data: FeesOwedPrintData): string {
         <td class="c-id mono">${escapeHtml(student.studentId)}</td>
         <td class="c-name">${escapeHtml(student.studentName)}${statusNote}</td>
         <td class="c-class">${escapeHtml(student.className || 'Unassigned')}</td>
-        <td class="c-phone">${escapeHtml(student.guardianPhone || '—')}</td>
+        <td class="c-phone">${escapeHtml(student.guardianPhone || '')}</td>
         <td class="c-amount">${escapeHtml(formatMoney(student.owed))}</td>
       </tr>`;
     })
